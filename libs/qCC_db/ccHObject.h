@@ -162,7 +162,7 @@ public: //children management
 	/** This method does not delete the child.
 		Removes any dependency between the flag and this object
 	**/
-	void detachChild(ccHObject* child);
+    virtual void detachChild(ccHObject* child);
 	//! Removes a specific child
 	/** \warning This method may delete the child if the DP_PARENT_OF_OTHER
 		dependency flag is set for this child (use detachChild if you
@@ -171,13 +171,13 @@ public: //children management
 	//! Detaches all children
 	void detatchAllChildren();
 
-	void removeChild(ccHObject* child);
+    virtual void removeChild(ccHObject* child);
 	//! Removes a specific child given its index
 	/** \warning This method may delete the child if the DP_PARENT_OF_OTHER
 		dependency flag is set for this child (use detachChild if you
 		want to avoid deletion).
 	**/
-	void removeChild(int pos);
+    virtual void removeChild(int pos);
 	//! Removes all children
 	void removeAllChildren();
 	//! Returns child index

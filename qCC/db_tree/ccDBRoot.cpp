@@ -1018,6 +1018,10 @@ Qt::ItemFlags ccDBRoot::flags(const QModelIndex &index) const
 		{
 			defaultFlags |= Qt::ItemIsDragEnabled;
 		}
+        else if (item->isKindOf(CC_TYPES::CUSTOM_H_OBJECT))
+        {
+            defaultFlags |= (Qt::ItemIsDragEnabled | Qt::ItemIsDropEnabled);
+        }
 	}
 
 	return defaultFlags;

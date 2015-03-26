@@ -748,8 +748,13 @@ void ccNormalVectors::ConvertNormalToDipAndDipDir(const CCVector3& N, PointCoord
 		return;
 	}
 
-	//"Dip direction is measured in 360 degrees, generally clockwise from North"
-	double dipDir_rad = atan2(N.x,N.y); //result in [-pi,+pi]
+    //"p direction is measured in 360 degrees, generally clockwise from North"
+    double dipDir_rad;
+    if (N.z <= 0)
+         dipDir_rad= atan2(-N.x,-N.y); //result in [-pi,+pi]
+    else
+         dipDir_rad = atan2(N.x,N.y); //result in [-pi,+pi]
+
 	if (dipDir_rad < 0)
 		dipDir_rad += 2.0*M_PI;
 

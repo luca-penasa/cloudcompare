@@ -280,7 +280,7 @@ public:
 		- the rotation around the camera center in viewer-centered mode
 		(see setPerspectiveState).
 	**/
-	virtual const void setBaseViewMat(ccGLMatrixd& mat);
+    virtual const void setBaseViewMat(const ccGLMatrixd &mat);
 
 	//! Returns the current (OpenGL) view matrix as a double array
 	/** Warning: different from 'view' matrix returned by getBaseViewMat.

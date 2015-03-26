@@ -2099,7 +2099,7 @@ const ccGLMatrixd& ccGLWindow::getBaseViewMat()
 	return m_viewportParams.viewMat;
 }
 
-const void ccGLWindow::setBaseViewMat(ccGLMatrixd& mat)
+const void ccGLWindow::setBaseViewMat(const ccGLMatrixd& mat)
 {
 	m_viewportParams.viewMat = mat;
 

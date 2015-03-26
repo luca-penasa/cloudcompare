@@ -9,6 +9,8 @@ if(POLICY CMP0020)
   cmake_policy(SET CMP0020 OLD)
 endif()
 
+project( QPCL_PLUGIN_UTILS_LIB )
+
 #requires PCL
 find_package(PCL REQUIRED)
 
@@ -68,6 +70,7 @@ endif()
 
 link_directories( ${PCL_LIBRARY_DIRS} )
 add_definitions( ${PCL_DEFINITIONS} )
+
 target_link_libraries( ${PROJECT_NAME} ${PCL_LIBRARIES} ${EXTERNAL_LIBS_LIBRARIES})
 
 if ( USE_QT5 )

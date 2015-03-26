@@ -77,6 +77,9 @@ void BaseFilter::updateSelectedEntities(const ccHObject::Container& selectedEnti
 
 	if (m_action)
 		m_action->setEnabled(checkSelected() == 1);
+
+    // emit selectionChanged signal
+    emit selectionChanged(m_selected);
 }
 
 int BaseFilter::performAction()
@@ -302,15 +305,23 @@ ccHObject *BaseFilter::getSelectedEntityAsCCHObject() const
 	return m_selected.at(0);
 }
 
-ccHObject::Container BaseFilter::getSelectedThatHaveMetaData(const QString key) const
+ccHObject::Container BaseFilter::getSelectedThatHaveMetaData(const QString key, const QString val) const
 {
 	ccHObject::Container new_sel;
 
 	for (size_t i = 0; i < m_selected.size(); ++i)
 	{
 		ccHObject * obj = m_selected.at(i);
-		if (obj->hasMetaData(key))
-			new_sel.push_back(obj);
+        if (val.isEmpty())
+        {
+            if (obj->hasMetaData(key) )
+                new_sel.push_back(obj);
+        }
+        else
+        {
+            if (obj->hasMetaData(key) && obj->getMetaData(key) == val)
+                new_sel.push_back(obj);
+        }
 	}
 
 	return new_sel;

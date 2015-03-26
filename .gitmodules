@@ -1,0 +1,3 @@
+[submodule "plugins/vombat"]
+	path = plugins/vombat
+	url = git@github.com:luca-penasa/vombat.git
