@@ -30,7 +30,7 @@ if ( USE_QT5 )
 	set(QT5_ROOT_PATH ${QT_BINARY_DIR}/../)
 
 	# we does not need this stuff I think
-	#list( APPEND EXTERNAL_LIBS_INCLUDE_DIR ${Qt5OpenGL_INCLUDE_DIRS} ${Qt5Widgets_INCLUDE_DIRS} ${Qt5Core_INCLUDE_DIRS} ${Qt5Gui_INCLUDE_DIRS} ${Qt5Concurrent_INCLUDE_DIRS} ${Qt5PrintSupport_INCLUDE_DIRS})
+	list( APPEND EXTERNAL_LIBS_INCLUDE_DIR ${Qt5OpenGL_INCLUDE_DIRS} ${Qt5Widgets_INCLUDE_DIRS} ${Qt5Core_INCLUDE_DIRS} ${Qt5Gui_INCLUDE_DIRS} ${Qt5Concurrent_INCLUDE_DIRS} ${Qt5PrintSupport_INCLUDE_DIRS})
 	#list( APPEND EXTERNAL_LIBS_LIBRARIES ${Qt5OpenGL_LIBRARIES} ${Qt5Widgets_LIBRARIES} ${Qt5Core_LIBRARIES} ${Qt5Gui_LIBRARIES} ${Qt5Concurrent_LIBRARIES} )
 
 	#for executables only!
