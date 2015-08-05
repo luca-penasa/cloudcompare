@@ -88,16 +88,13 @@ SimpleCloud* CloudSamplingTools::resampleCloudWithOctreeAtLevel(GenericIndexedCl
 	}
 
 	//structure contenant les parametres additionnels
-	void* additionalParameters[2] = {	(void*)cloud,
-										(void*)&resamplingMethod };
+	void* additionalParameters[2] = {	reinterpret_cast<void*>(cloud),
+										reinterpret_cast<void*>(&resamplingMethod) };
 
-	//The process is so simple that MT is slower!
-	//#ifdef ENABLE_MT_OCTREE
-	//theOctree->executeFunctionForAllCellsAtLevel_MT(octreeLevel,
-	//#else
 	if (theOctree->executeFunctionForAllCellsAtLevel(	octreeLevel,
 														&resampleCellAtLevel,
 														additionalParameters,
+														false, //the process is so simple that MT is slower!
 														progressCb,
 														"Cloud Resampling") == 0)
 	{
@@ -171,18 +168,15 @@ ReferenceCloud* CloudSamplingTools::subsampleCloudWithOctreeAtLevel(GenericIndex
 	}
 
 	//structure contenant les parametres additionnels
-	void* additionalParameters[2] = {	(void*)cloud,
-										(void*)&subsamplingMethod };
+	void* additionalParameters[2] = {	reinterpret_cast<void*>(cloud),
+										reinterpret_cast<void*>(&subsamplingMethod) };
 
-	//The process is so simple that MT is slower!
-	//#ifdef ENABLE_MT_OCTREE
-	//theOctree->executeFunctionForAllCellsAtLevel_MT(octreeLevel,
-	//#else
-	if (theOctree->executeFunctionForAllCellsAtLevel(octreeLevel,
-													&subsampleCellAtLevel,
-													additionalParameters,
-													progressCb,
-													"Cloud Subsampling") == 0)
+	if (theOctree->executeFunctionForAllCellsAtLevel(	octreeLevel,
+														&subsampleCellAtLevel,
+														additionalParameters,
+														false, //the process is so simple that MT is slower!
+														progressCb,
+														"Cloud Subsampling") == 0)
 	{
 		//something went wrong
 		delete cloud;
@@ -340,7 +334,7 @@ ReferenceCloud* CloudSamplingTools::resampleCloudSpatially(GenericIndexedCloudPe
 			bestOctreeLevel.push_back(defaultLevel);
 		}
 	}
-	catch(std::bad_alloc)
+	catch (const std::bad_alloc&)
 	{
 		//not enough memory
 		markers->release();
@@ -356,7 +350,7 @@ ReferenceCloud* CloudSamplingTools::resampleCloudSpatially(GenericIndexedCloudPe
 	{
 		progressCb->setMethodTitle("Spatial resampling");
 		char buffer[256];
-		sprintf(buffer,"Points: %i\nMin dist.: %f",cloudSize,minDistance);
+		sprintf(buffer,"Points: %u\nMin dist.: %f",cloudSize,minDistance);
 		progressCb->setInfo(buffer);
 		normProgress = new NormalizedProgress(progressCb,cloudSize);
 		progressCb->reset();
@@ -503,14 +497,14 @@ ReferenceCloud* CloudSamplingTools::sorFilter(GenericIndexedCloudPersist* inputC
 	}
 
 	//structure contenant les parametres additionnels
-	void* additionalParameters[] = {(void*)cloud,
-									(void*)&kernelRadius,
-									(void*)&nSigma,
-									(void*)&removeIsolatedPoints,
-									(void*)&useKnn,
-									(void*)&knn,
-									(void*)&useAbsoluteError,
-									(void*)&absoluteError
+	void* additionalParameters[] = {reinterpret_cast<void*>(cloud),
+									reinterpret_cast<void*>(&kernelRadius),
+									reinterpret_cast<void*>(&nSigma),
+									reinterpret_cast<void*>(&removeIsolatedPoints),
+									reinterpret_cast<void*>(&useKnn),
+									reinterpret_cast<void*>(&knn),
+									reinterpret_cast<void*>(&useAbsoluteError),
+									reinterpret_cast<void*>(&absoluteError)
 	};
 
 	uchar octreeLevel = 0;
@@ -519,15 +513,12 @@ ReferenceCloud* CloudSamplingTools::sorFilter(GenericIndexedCloudPersist* inputC
 	else
 		octreeLevel = theOctree->findBestLevelForAGivenPopulationPerCell(knn);
 
-	#ifdef ENABLE_MT_OCTREE
-	if (theOctree->executeFunctionForAllCellsAtLevel_MT(octreeLevel,
-	#else
-	if (theOctree->executeFunctionForAllCellsAtLevel(octreeLevel,
-	#endif
-													&applySORFilterAtLevel,
-													additionalParameters,
-													progressCb,
-													"SOR filter") == 0)
+	if (theOctree->executeFunctionForAllCellsAtLevel(	octreeLevel,
+														&applySORFilterAtLevel,
+														additionalParameters,
+														true,
+														progressCb,
+														"SOR filter" ) == 0)
 	{
 		//something went wrong
 		delete cloud;
@@ -556,7 +547,7 @@ bool CloudSamplingTools::resampleCellAtLevel(	const DgmOctree::octreeCell& cell,
 	}
 	else //if (resamplingMethod == CELL_CENTER)
 	{
-		PointCoordinateType center[3];
+		CCVector3 center;
 		cell.parentOctree->computeCellCenter(cell.truncatedCode,cell.level,center,true);
 		cloud->addPoint(center);
 	}
@@ -586,18 +577,18 @@ bool CloudSamplingTools::subsampleCellAtLevel(	const DgmOctree::octreeCell& cell
 	}
 	else // if (subsamplingMethod == NEAREST_POINT_TO_CELL_CENTER)
 	{
-		PointCoordinateType center[3];
+		CCVector3 center;
 		cell.parentOctree->computeCellCenter(cell.truncatedCode,cell.level,center,true);
 
-		PointCoordinateType minDist = CCVector3::vdistance2(cell.points->getPoint(0)->u,center);
+		PointCoordinateType minSquareDist = (*cell.points->getPoint(0) - center).norm2();
 
 		for (unsigned i=1; i<pointsCount; ++i)
 		{
-			PointCoordinateType dist = CCVector3::vdistance2(cell.points->getPoint(i)->u,center);
-			if (dist < minDist)
+			PointCoordinateType squareDist = (*cell.points->getPoint(i) - center).norm2();
+			if (squareDist < minSquareDist)
 			{
 				selectedPointIndex = i;
-				minDist = dist;
+				minSquareDist = squareDist;
 			}
 
 			if (nProgress && !nProgress->oneStep())
@@ -664,8 +655,8 @@ bool CloudSamplingTools::applySORFilterAtLevel(	const DgmOctree::octreeCell& cel
 			DgmOctreeReferenceCloud neighboursCloud(&nNSS.pointsInNeighbourhood,realNeighborCount); //we don't take the query point into account!
 			Neighbourhood Z(&neighboursCloud);
 
-			const PointCoordinateType* lsq = Z.getLSQPlane();
-			if (lsq)
+			const PointCoordinateType* lsPlane = Z.getLSPlane();
+			if (lsPlane)
 			{
 				double maxD = absoluteError;
 				if (!useAbsoluteError)
@@ -676,7 +667,7 @@ bool CloudSamplingTools::applySORFilterAtLevel(	const DgmOctree::octreeCell& cel
 					for (unsigned j=0; j<realNeighborCount; ++j)
 					{
 						const CCVector3* P = neighboursCloud.getPoint(j);
-						double d = CCLib::DistanceComputationTools::computePoint2PlaneDistance(P,lsq);
+						double d = CCLib::DistanceComputationTools::computePoint2PlaneDistance(P,lsPlane);
 						sum_d += d;
 						sum_d2 += d*d;
 					}
@@ -686,7 +677,7 @@ bool CloudSamplingTools::applySORFilterAtLevel(	const DgmOctree::octreeCell& cel
 				}
 
 				//distance from the query point to the plane
-				double d = fabs(CCLib::DistanceComputationTools::computePoint2PlaneDistance(&nNSS.queryPoint,lsq));
+				double d = fabs(CCLib::DistanceComputationTools::computePoint2PlaneDistance(&nNSS.queryPoint,lsPlane));
 
 				if (d <= maxD)
 					cloud->addPointIndex(globalIndex);

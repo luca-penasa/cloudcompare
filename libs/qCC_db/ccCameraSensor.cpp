@@ -15,6 +15,8 @@
 //#                                                                        #
 //##########################################################################
 
+#include <cmath>
+
 #include "ccCameraSensor.h"
 
 //local
@@ -201,6 +203,7 @@ ccCameraSensor::ccCameraSensor(const IntrinsicParameters& iParams)
 
 ccCameraSensor::ccCameraSensor(const ccCameraSensor& sensor)
 	: ccSensor(sensor)
+	, m_projectionMatrix(sensor.m_projectionMatrix)
 	, m_projectionMatrixIsValid(false)
 {
 	setIntrinsicParameters(m_intrinsicParams);
@@ -848,9 +851,9 @@ bool ccCameraSensor::computeUncertainty(const CCVector2& pixel, const float dept
 			const float& f_pix = m_intrinsicParams.focal_pix;
 
 			// computes uncertainty
-			sigma.x = static_cast<ScalarType>(abs(factor * (pixel.x - width/2.0f) / f_pix));
-			sigma.y = static_cast<ScalarType>(abs(factor * (pixel.y - height/2.0f) / f_pix));
-			sigma.z = static_cast<ScalarType>(abs(factor * mu));
+			sigma.x = static_cast<ScalarType>(std::abs(factor * (pixel.x - width/2.0f) / f_pix));
+			sigma.y = static_cast<ScalarType>(std::abs(factor * (pixel.y - height/2.0f) / f_pix));
+			sigma.z = static_cast<ScalarType>(std::abs(factor * mu));
 
 			return true;
 		}
@@ -886,7 +889,7 @@ bool ccCameraSensor::computeUncertainty(CCLib::ReferenceCloud* points, std::vect
 	{
 		accuracy.resize(count);
 	}
-	catch(std::bad_alloc)
+	catch (const std::bad_alloc&)
 	{
 		ccLog::Warning("[ccCameraSensor::computeUncertainty] Not enough memory!");
 		return false;
@@ -901,7 +904,7 @@ bool ccCameraSensor::computeUncertainty(CCLib::ReferenceCloud* points, std::vect
 		if (	fromGlobalCoordToLocalCoord(*coordGlobal,coordLocal)
 			&&	fromLocalCoordToImageCoord(coordLocal, coordImage) )
 		{
-			computeUncertainty(coordImage, abs(coordLocal.z), accuracy[i]);
+			computeUncertainty(coordImage, std::abs(coordLocal.z), accuracy[i]);
 		}
 		else
 		{
@@ -1048,7 +1051,7 @@ bool ccCameraSensor::isGlobalCoordInFrustrum(const CCVector3& globalCoord/*, boo
 	const float& n = m_intrinsicParams.zNear_mm;
 	const float& f = m_intrinsicParams.zFar_mm;
 
-	return (-z <= f && -z > n && abs(f+z) >= FLT_EPSILON && abs(n+z) >= FLT_EPSILON);
+	return (-z <= f && -z > n && std::abs(f+z) >= FLT_EPSILON && std::abs(n+z) >= FLT_EPSILON);
 }
 
 CCVector3 ccCameraSensor::computeUpperLeftPoint() const
@@ -1078,8 +1081,8 @@ bool ccCameraSensor::computeFrustumCorners()
 	float ar = static_cast<float>(m_intrinsicParams.arrayWidth) / static_cast<float>(m_intrinsicParams.arrayHeight);
 	float halfFov = m_intrinsicParams.vFOV_rad / 2;
 
-	float xIn = abs( tan(halfFov * ar) );
-	float yIn = abs( tan(halfFov     ) );
+	float xIn = std::abs( tan(halfFov * ar) );
+	float yIn = std::abs( tan(halfFov     ) );
 	const float& zNear = m_intrinsicParams.zNear_mm;
 	const float& zFar  = m_intrinsicParams.zFar_mm;
 
@@ -1105,7 +1108,7 @@ bool ccCameraSensor::computeFrustumCorners()
 	const CCVector3* P5 = m_frustrumInfos.frustumCorners->getPoint(5);
 
 	float dz = P0->z-P5->z;
-	float z = (abs(dz) < FLT_EPSILON ? P0->z : (P0->norm2() - P5->norm2()) / (2*dz));
+	float z = (std::abs(dz) < FLT_EPSILON ? P0->z : (P0->norm2() - P5->norm2()) / (2*dz));
 	
 	m_frustrumInfos.center = CCVector3(0, 0, z);
 
@@ -1383,7 +1386,7 @@ void ccCameraSensor::drawMeOnly(CC_DRAW_CONTEXT& context)
 					m_frustrumInfos.frustrumHull->setDisplay(getDisplay());
 					m_frustrumInfos.frustrumHull->setTempColor(m_color);
 					
-					glPushAttrib(GL_COLOR_BUFFER_BIT);
+					//glPushAttrib(GL_COLOR_BUFFER_BIT);
 					//glEnable(GL_BLEND);
 					//glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA); 
 					//glColor4ub(m_color.x, m_color.y, m_color.z, 76);
@@ -1392,7 +1395,7 @@ void ccCameraSensor::drawMeOnly(CC_DRAW_CONTEXT& context)
 					m_frustrumInfos.frustrumHull->enableStippling(true);
 					m_frustrumInfos.frustrumHull->draw(context);
 
-					glPopAttrib();
+					//glPopAttrib();
 				}
 			}
 			//*/
@@ -1965,7 +1968,7 @@ bool ccCameraSensor::OrthoRectifyAsImages(	std::vector<ccImage*> images,
 		minCorners.resize(2*count);
 		maxCorners.resize(2*count);
 	}
-	catch(std::bad_alloc)
+	catch (const std::bad_alloc&)
 	{
 		//not enough memory
 		ccLog::Warning("[OrthoRectifyAsImages] Not enough memory!");
@@ -2292,7 +2295,7 @@ bool ccOctreeFrustrumIntersector::build(CCLib::DgmOctree* octree)
 
 	try
 	{
-		for (it=thePointsAndTheirCellCodes.begin(); it!=thePointsAndTheirCellCodes.end(); it++)
+		for (it=thePointsAndTheirCellCodes.begin(); it!=thePointsAndTheirCellCodes.end(); ++it)
 		{
 			CCLib::DgmOctree::OctreeCellCodeType completeCode = it->theCode;
 			for (unsigned char level=1; level<=CCLib::DgmOctree::MAX_OCTREE_LEVEL; level++)
@@ -2302,7 +2305,7 @@ bool ccOctreeFrustrumIntersector::build(CCLib::DgmOctree* octree)
 			}
 		}
 	}
-	catch (std::bad_alloc)
+	catch (const std::bad_alloc&)
 	{
 		ccLog::Warning("[ccCameraSensor::prepareOctree] Not enough memory!");
 		for (int i=0; i<=CCLib::DgmOctree::MAX_OCTREE_LEVEL; i++)
@@ -2382,9 +2385,9 @@ ccOctreeFrustrumIntersector::OctreeCellVisibility
 	CCVector3 boxCorners[8];
 	{
 		for (unsigned i=0; i<8; i++)
-			boxCorners[i] = CCVector3(	i&4 ? bbMin.x : bbMax.x,
-										i&2 ? bbMin.y : bbMax.y,
-										i&1 ? bbMin.z : bbMax.z);
+			boxCorners[i] = CCVector3(	(i & 4) ? bbMin.x : bbMax.x,
+										(i & 2) ? bbMin.y : bbMax.y,
+										(i & 1) ? bbMin.z : bbMax.z);
 	}
 
 	//There are 28 tests to perform:
@@ -2514,7 +2517,7 @@ void ccOctreeFrustrumIntersector::computeFrustumIntersectionByLevel(unsigned cha
 		{
 			// get extrema of the current cell
 			CCVector3 bbMin, bbMax;
-			m_associatedOctree->computeCellLimits(truncatedCode, level, bbMin.u, bbMax.u, true);
+			m_associatedOctree->computeCellLimits(truncatedCode, level, bbMin, bbMax, true);
 
 			// look if there is a separating plane
 			OctreeCellVisibility result = (parentResult == CELL_INSIDE_FRUSTRUM ? CELL_INSIDE_FRUSTRUM : separatingAxisTest(bbMin, bbMax, planesCoefficients, ptsFrustrum, edges, center));
@@ -2560,7 +2563,7 @@ void ccOctreeFrustrumIntersector::computeFrustumIntersectionWithOctree(	std::vec
 	// dealing with cells completely inside the frustrum
 	std::set<CCLib::DgmOctree::OctreeCellCodeType>::const_iterator it;
 	CCLib::ReferenceCloud pointsInCell(m_associatedOctree->associatedCloud());
-	for (it = m_cellsInFrustum[level].begin(); it != m_cellsInFrustum[level].end(); it++)
+	for (it = m_cellsInFrustum[level].begin(); it != m_cellsInFrustum[level].end(); ++it)
 	{
 		// get all points in cell
 		if (m_associatedOctree->getPointsInCell(*it, level, &pointsInCell, true))
@@ -2572,7 +2575,7 @@ void ccOctreeFrustrumIntersector::computeFrustumIntersectionWithOctree(	std::vec
 	}
 
 	// dealing with cells intersecting the frustrum (not completely inside)
-	for (it = m_cellsIntersectFrustum[level].begin(); it != m_cellsIntersectFrustum[level].end(); it++)
+	for (it = m_cellsIntersectFrustum[level].begin(); it != m_cellsIntersectFrustum[level].end(); ++it)
 	{
 		// get all points in cell
 		if (m_associatedOctree->getPointsInCell(*it, level, &pointsInCell, true))

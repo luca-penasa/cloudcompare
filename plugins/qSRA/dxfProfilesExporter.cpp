@@ -77,18 +77,18 @@ bool DxfProfilesExporter::SaveVerticalProfiles(	const QSharedPointer<DistanceMap
 	}
 
 	//Theoretical profile bounding box
-	PointCoordinateType profileBBMin[3],profileBBMax[3];
+	CCVector3 profileBBMin, profileBBMax;
 	profile->getAssociatedCloud()->getBoundingBox(profileBBMin,profileBBMax);
 	//Mix with the map's boundaries along 'Y'
-	double yMin = std::max(map->yMin,static_cast<double>(profileBBMin[1]));
-	double yMax = std::min(map->yMin + static_cast<double>(map->ySteps) * map->yStep, static_cast<double>(profileBBMax[1]));
+	double yMin = std::max(map->yMin,static_cast<double>(profileBBMin.y));
+	double yMax = std::min(map->yMin + static_cast<double>(map->ySteps) * map->yStep, static_cast<double>(profileBBMax.y));
 	const double ySpan = yMax - yMin;
 	//For the 'X' dimension, it's easier to stick with the th. profile
-	const double xMin = profileBBMin[0];
-//	const double xMax = profileBBMax[0];
-	const double xSpan = profileBBMax[0] - profileBBMin[0];
+	const double xMin = profileBBMin.x;
+//	const double xMax = profileBBMax.x;
+	const double xSpan = profileBBMax.x - profileBBMin.x;
 
-	if (xSpan == 0.0 || ySpan == 0.0)
+	if (xSpan == 0.0 && ySpan == 0.0)
 	{
 		if (app)
 			app->dispToConsole(QString("Internal error: null profile?!"),ccMainAppInterface::ERR_CONSOLE_MESSAGE);
@@ -272,8 +272,22 @@ bool DxfProfilesExporter::SaveVerticalProfiles(	const QSharedPointer<DistanceMap
 		dw->sectionEntities();
 
 		//we make the profile fit in the middle of the page (21.0 x 29.7 cm)
-		double scale = std::min((c_pageWidth_mm - 2.0 * c_profileMargin_mm)/xSpan,
-								(c_pageHeight_mm - 2.0 * c_profileMargin_mm)/ySpan);
+		double scale = 1.0;
+		if (xSpan == 0)
+		{
+			assert(ySpan != 0);
+			scale = (c_pageHeight_mm - 2.0 * c_profileMargin_mm)/ySpan;
+		}
+		else if (ySpan == 0)
+		{
+			assert(xSpan != 0);
+			scale = (c_pageWidth_mm - 2.0 * c_profileMargin_mm)/xSpan;
+		}
+		else
+		{
+			scale = std::min(	(c_pageWidth_mm - 2.0 * c_profileMargin_mm)/xSpan,
+								(c_pageHeight_mm - 2.0 * c_profileMargin_mm)/ySpan );
+		}
 
 		//min corner of profile area
 		const double x0 = (c_pageWidth_mm - xSpan*scale) / 2.0;
@@ -365,7 +379,7 @@ bool DxfProfilesExporter::SaveVerticalProfiles(	const QSharedPointer<DistanceMap
 			{
 				polySteps.reserve(map->ySteps);
 			}
-			catch(std::bad_alloc)
+			catch (const std::bad_alloc&)
 			{
 				//not enough memory
 				dw->dxfEOF();
@@ -561,23 +575,22 @@ bool DxfProfilesExporter::SaveHorizontalProfiles(	const QSharedPointer<DistanceM
 	}
 
 	//Theoretical profile bounding box
-	PointCoordinateType profileBBMin[3],profileBBMax[3];
+	CCVector3 profileBBMin, profileBBMax;
 	profile->getAssociatedCloud()->getBoundingBox(profileBBMin,profileBBMax);
 	//Mix with the map's boundaries along 'Y'
 	double yMin = std::max(	map->yMin + 0.5 * map->xStep, //central height of first row
-							static_cast<double>(profileBBMin[1]));
+							static_cast<double>(profileBBMin.y));
 	double yMax = std::min(	map->yMin + (static_cast<double>(map->ySteps)-0.5) * map->yStep, //central height of last row
-							static_cast<double>(profileBBMax[1]));
+							static_cast<double>(profileBBMax.y));
 	const double ySpan = yMax - yMin;
 
 	//For the 'X' dimension, it's easier to stick with the th. profile
-//	const double xMin = profileBBMin[0];
-	const double xMax = profileBBMax[0];
-	const double xSpan = profileBBMax[0] - profileBBMin[0];
+//	const double xMin = profileBBMin.x;
+	const double xMax = profileBBMax.x;
 	//shortcut for clarity
 	const double& maxRadius = xMax;
 
-	if (xSpan == 0.0 || ySpan == 0.0)
+	if (ySpan == 0.0)
 	{
 		if (app)
 			app->dispToConsole(QString("Internal error: null profile?!"),ccMainAppInterface::ERR_CONSOLE_MESSAGE);
@@ -853,7 +866,7 @@ bool DxfProfilesExporter::SaveHorizontalProfiles(	const QSharedPointer<DistanceM
 		{
 			polySteps.resize(map->xSteps);
 		}
-		catch(std::bad_alloc)
+		catch (const std::bad_alloc&)
 		{
 			//not engouh memory
 			dw->dxfEOF();

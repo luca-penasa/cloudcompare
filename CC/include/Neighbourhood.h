@@ -21,7 +21,7 @@
 //Local
 #include "CCCoreLib.h"
 #include "GenericIndexedCloudPersist.h"
-#include "Matrix.h"
+#include "SquareMatrix.h"
 #include "CCGeom.h"
 #include "CCMiscTools.h"
 
@@ -43,12 +43,10 @@ class CC_CORE_LIB_API Neighbourhood
 	public:
 
 		//! Geometric properties/elements that can be computed from the set of points (see Neighbourhood::getGeometricalElement)
-		enum CC_GEOM_ELEMENT {	DEPRECATED					= 0,
-								GRAVITY_CENTER				= 1,
-								LSQ_PLANE					= 2,
-								HEIGHT_FUNCTION				= 4,
-								HEIGHT_FUNCTION_DIRECTIONS	= 8,
-								QUADRIC_3D					= 16};
+		enum CC_GEOM_ELEMENT {	FLAG_DEPRECATED			= 0,
+								FLAG_GRAVITY_CENTER		= 1,
+								FLAG_LS_PLANE			= 2,
+								FLAG_QUADRIC			= 4 };
 
 		//! Curvature type
 		enum CC_CURVATURE_TYPE {GAUSSIAN_CURV,
@@ -58,7 +56,7 @@ class CC_CORE_LIB_API Neighbourhood
 		//! Default constructor
 		/** \param associatedCloud reference cloud
 		**/
-		Neighbourhood(GenericIndexedCloudPersist* associatedCloud);
+		explicit Neighbourhood(GenericIndexedCloudPersist* associatedCloud);
 
 		//! Default destructor
 		virtual ~Neighbourhood() {}
@@ -79,7 +77,7 @@ class CC_CORE_LIB_API Neighbourhood
 												PointCoordinateType maxEdgeLength = 0,
 												char* errorStr = 0);
 
-		//! Fit a quadric on point set (see getHeightFunction) then triangulates it inside bounding box
+		//! Fit a quadric on point set (see getQuadric) then triangulates it inside bounding box
 		GenericIndexedMesh* triangulateFromQuadric(unsigned stepsX, unsigned stepsY);
 
 		//! Projects points on the best fitting LS plane
@@ -107,7 +105,7 @@ class CC_CORE_LIB_API Neighbourhood
 			//if no custom plane equation is provided, get the default best LS one
 			if (!planeEquation)
 			{
-				planeEquation = getLSQPlane();
+				planeEquation = getLSPlane();
 				if (!planeEquation)
 					return false;
 			}
@@ -117,7 +115,7 @@ class CC_CORE_LIB_API Neighbourhood
 			{
 				points2D.resize(count);
 			}
-			catch (std::bad_alloc)
+			catch (const std::bad_alloc&)
 			{
 				//out of memory
 				return false;
@@ -165,7 +163,7 @@ class CC_CORE_LIB_API Neighbourhood
 			return true;
 		}
 
-		//! Computes point set curvature with height function
+		//! Computes the curvature of a set of point (by fitting a 2.5D quadric)
 		/** \return curvature value (warning: unsigned value!) or NAN_VALUE if computation failed.
 		**/
 		ScalarType computeCurvature(unsigned neighbourIndex, CC_CURVATURE_TYPE cType);
@@ -188,7 +186,7 @@ class CC_CORE_LIB_API Neighbourhood
 				ax + by + cz = d
 			\return 0 if computation failed
 		**/
-		const PointCoordinateType* getLSQPlane();
+		const PointCoordinateType* getLSPlane();
 
 		//! Sets the best interpolating plane equation (Least-square)
 		/** Handle with care!
@@ -197,7 +195,7 @@ class CC_CORE_LIB_API Neighbourhood
 			\param Y local base Y vector
 			\param N normal vector
 		**/
-		void setLSQPlane(	const PointCoordinateType eq[4],
+		void setLSPlane(	const PointCoordinateType eq[4],
 							const CCVector3& X,
 							const CCVector3& Y,
 							const CCVector3& N);
@@ -206,33 +204,33 @@ class CC_CORE_LIB_API Neighbourhood
 		/** This corresponds to the largest eigen value (i.e. the largest cloud dimension)
 			\return 0 if computation failed
 		**/
-		const CCVector3* getLSQPlaneX();
+		const CCVector3* getLSPlaneX();
 		//! Returns best interpolating plane (Least-square) 'Y' base vector
 		/** This corresponds to the second largest eigen value (i.e. the second largest cloud dimension)
 			\return 0 if computation failed
 		**/
-		const CCVector3* getLSQPlaneY();
+		const CCVector3* getLSPlaneY();
 		//! Returns best interpolating plane (Least-square) normal vector
 		/** This corresponds to the smallest eigen value (i.e. the second largest cloud dimension)
 			\return 0 if computation failed
 		**/
-		const CCVector3* getLSQPlaneNormal();
+		const CCVector3* getLSPlaneNormal();
 
-		//! Returns the best interpolating 'height function'
+		//! Returns the best interpolating 2.5D quadric
 		/** Returns an array of the form [a,b,c,d,e,f] such as:
 				Z = a + b.X + c.Y + d.X^2 + e.X.Y + f.Y^2
-			\warning: 'X','Y' and 'Z' are output in dimsHF (optional):
-				dimsHF = [index(X),index(Y),index(Z)] where: 0=x, 1=y, 2=z
+			\warning: 'X','Y' and 'Z' are output in dims (optional):
+				dims = [index(X),index(Y),index(Z)] where: 0=x, 1=y, 2=z
 			\return 0 if computation failed
 		**/
-		const PointCoordinateType* getHeightFunction(uchar* dimsHF = 0);
+		const PointCoordinateType* getQuadric(Tuple3ub* dims = 0);
 
-		//! Returns the best interpolating quadric (Least-square)
-		/** Returns an array [a,b,c,d,e,f,g,l,m,n] such as
-				a.x^2+b.y^2+c.z^2+2e.x.y+2f.y.z+2g.z.x+2l.x+2m.y+2n.z+d = 0
-			\return 0 if computation failed
+		//! Computes the best interpolating quadric (Least-square)
+		/** \param[out] quadricEquation an array of 10 coefficients [a,b,c,d,e,f,g,l,m,n] such as
+				         a.x^2+b.y^2+c.z^2+2e.x.y+2f.y.z+2g.z.x+2l.x+2m.y+2n.z+d = 0
+			\return success
 		**/
-		const double* get3DQuadric();
+		bool compute3DQuadric(double quadricEquation[10]);
 
 		//! Computes the covariance matrix
 		CCLib::SquareMatrixd computeCovarianceMatrix();
@@ -242,50 +240,44 @@ class CC_CORE_LIB_API Neighbourhood
 
 	protected:
 
-		//! Height function parameters
-		/** Array [a,b,c,d,e,f] such as: Z = a + b.X + c.Y + d.X^2 + e.X.Y + f.Y^2.
-			\warning: 'X','Y' and 'Z' are defined by 'theHeightFunctionDirections'
-			Only valid if 'structuresValidity & HEIGHT_FUNCTION != 0'.
+		//! 2.5D Quadric equation
+		/** Array [a,b,c,d,e,f] such that Z = a + b.X + c.Y + d.X^2 + e.X.Y + f.Y^2.
+			\warning: 'X','Y' and 'Z' are defined by 'm_quadricEquationDirections'
+			Only valid if 'structuresValidity & QUADRIC != 0'.
 		**/
-		PointCoordinateType theHeightFunction[6];
-		//! Height function dimensions
-		/** Array (index(X),index(Y),index(Z)) where: 0=x, 1=y, 2=z.
-			Only valid if 'structuresValidity & HEIGHT_FUNCTION != 0'.
+		PointCoordinateType m_quadricEquation[6];
+		
+		//! 2.5D Quadric equation dimensions
+		/** Array (index(X),index(Y),index(Z)) where: 0=x, 1=y, 2=z
+			Only valid if 'structuresValidity & QUADRIC != 0'.
 		**/
-		uchar theHeightFunctionDirections[3];
+		Tuple3ub m_quadricEquationDirections;
 		
 		//! Least-square best fitting plane parameters
-		/** Array [a,b,c,d] such as: ax+by+cz=d.
-			Only valid if 'structuresValidity & LSQ_PLANE != 0'.
+		/** Array [a,b,c,d] such that ax+by+cz = d
+			Only valid if 'structuresValidity & LS_PLANE != 0'.
 		**/
-		PointCoordinateType theLSQPlaneEquation[4];
-		//! Least-square best fitting plane base vectors
-		CCVector3 theLSQPlaneVectors[3];
+		PointCoordinateType m_lsPlaneEquation[4];
 		
-		//! Least-square best fitting 3D quadric parameters
-		/** Array [a,b,c,d,e,f,g,l,m,n] such as
-			a.x^2+b.y^2+c.z^2+2e.x.y+2f.y.z+2g.z.x+2l.x+2m.y+2n.z+d = 0.
-			Shouldn't be used directly: use _the3DQuadric instead.
-			Only valid if 'structuresValidity & QUADRIC_3D != 0'.
+		//! Least-square best fitting plane base vectors
+		/** Only valid if 'structuresValidity & LS_PLANE != 0'.
 		**/
-		double the3DQuadric[10];
+		CCVector3 m_lsPlaneVectors[3];
 		
 		//! Gravity center
 		/** Only valid if 'structuresValidity & GRAVITY_CENTER != 0'.
 		**/
-		CCVector3 theGravityCenter;
+		CCVector3 m_gravityCenter;
 		
-		//! Geometrical elements validity
-		uchar structuresValidity;
+		//! Geometrical elements validity (flags)
+		uchar m_structuresValidity;
 
 		//! Computes the gravity center
 		void computeGravityCenter();
 		//! Computes the least-square best fitting plane
 		bool computeLeastSquareBestFittingPlane();
-		//! Computes best fitting height function
-		bool computeHeightFunction();
-		//! Computes best fitting 3D quadric function
-		bool compute3DQuadric();
+		//! Computes best fitting 2.5D quadric
+		bool computeQuadric();
 
 		//! Associated cloud
 		GenericIndexedCloudPersist* m_associatedCloud;

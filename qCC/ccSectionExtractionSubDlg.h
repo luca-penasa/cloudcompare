@@ -35,7 +35,7 @@ class ccSectionExtractionSubDlg : public QDialog, public Ui::SectionExtractionSu
 public:
 
 	//! Default constructor
-	ccSectionExtractionSubDlg(QWidget* parent = 0);
+	explicit ccSectionExtractionSubDlg(QWidget* parent = 0);
 
 	//! Sets the number of active section(s)
 	void setActiveSectionCount(int count);
@@ -66,6 +66,12 @@ public:
 	bool splitContours() const;
 	//! Sets whether to split the contours or not
 	void doSplitContours(bool state);
+
+	//! Whether to use multipass or not
+	bool useMultiPass() const;
+	//! Sets whether to use multipass or not
+	void doUseMultiPass(bool state);
+	
 
 	//! Whether visual debug mode is enabled or not
 	bool visualDebugMode() const;

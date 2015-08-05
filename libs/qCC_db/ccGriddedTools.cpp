@@ -17,16 +17,16 @@
 
 #include "ccGriddedTools.h"
 
+//Local
+#include "ccPointCloud.h"
+#include "ccProgressDialog.h"
+#include "ccGBLSensor.h"
+#include "ccLog.h"
+
 //CCLib
 #include <ReferenceCloud.h>
 #include <GenericIndexedMesh.h>
 #include <Neighbourhood.h>
-
-//qCC_db
-#include <ccPointCloud.h>
-#include <ccProgressDialog.h>
-#include <ccGBLSensor.h>
-#include <ccLog.h>
 
 //Qt
 #include <QMessageBox>
@@ -70,29 +70,25 @@ bool ccGriddedTools::ComputeNormals(ccPointCloud* cloud,
 			{
 				if (*_indexGrid >= 0)
 				{
-					unsigned pointIndex = static_cast<unsigned>(*_indexGrid);
-					//add the point itself
 					knn.clear(false);
-					knn.addPointIndex(pointIndex); //warning: indexes are shifted (0 = no point)
+
+					unsigned pointIndex = static_cast<unsigned>(*_indexGrid);
 					const CCVector3* P = cloud->getPoint(pointIndex);
 
 					//look for neighbors
 					for (int v=std::max(0,j-kernelWidth); v<std::min<int>(height,j+kernelWidth); ++v)
 					{
-						if (v != j)
+						for (int u=std::max(0,i-kernelWidth); u<std::min<int>(width,i+kernelWidth); ++u)
 						{
-							for (int u=std::max(0,i-kernelWidth); u<std::min<int>(width,i+kernelWidth); ++u)
+							if (v != j || u != i)
 							{
-								if (u != i)
+								int indexN = indexGrid[v*width + u];
+								if (indexN >= 0)
 								{
-									int indexN = indexGrid[v*width + u];
-									if (indexN >= 0)
-									{
-										//we don't consider points with a too much different depth than the central point
-										const CCVector3* Pn = cloud->getPoint(static_cast<unsigned>(indexN));
-										if (fabs(Pn->z - P->z) <= std::max(fabs(Pn->x - P->x),fabs(Pn->y - P->y)))
-											knn.addPointIndex(static_cast<unsigned>(indexN)); //warning: indexes are shifted (0 = no point)
-									}
+									//we don't consider points with a too much different depth than the central point
+									const CCVector3* Pn = cloud->getPoint(static_cast<unsigned>(indexN));
+									if (fabs(Pn->z - P->z) <= std::max(fabs(Pn->x - P->x),fabs(Pn->y - P->y)))
+										knn.addPointIndex(static_cast<unsigned>(indexN));
 								}
 							}
 						}
@@ -106,16 +102,16 @@ bool ccGriddedTools::ComputeNormals(ccPointCloud* cloud,
 						//compute normal with quadratic func. (if we have enough points)
 						if (false/*knn.size() >= 6*/)
 						{
-							uchar hfDims[3];
-							const PointCoordinateType* h = Z.getHeightFunction(hfDims);
+							Tuple3ub dims;
+							const PointCoordinateType* h = Z.getQuadric(&dims);
 							if (h)
 							{
 								const CCVector3* gv = Z.getGravityCenter();
 								assert(gv);
 
-								const uchar& iX = hfDims[0];
-								const uchar& iY = hfDims[1];
-								const uchar& iZ = hfDims[2];
+								const uchar& iX = dims.x;
+								const uchar& iY = dims.y;
+								const uchar& iZ = dims.z;
 
 								PointCoordinateType lX = P->u[iX] - gv->u[iX];
 								PointCoordinateType lY = P->u[iY] - gv->u[iY];
@@ -128,11 +124,11 @@ bool ccGriddedTools::ComputeNormals(ccPointCloud* cloud,
 							}
 						}
 						else
-#define USE_LSQ_PLANE
-#ifdef USE_LSQ_PLANE
+#define USE_LS_PLANE
+#ifdef USE_LS_PLANE
 						{
 							//compute normal with best fit plane
-							const CCVector3* _N = Z.getLSQPlaneNormal();
+							const CCVector3* _N = Z.getLSPlaneNormal();
 							if (_N)
 								N = *_N;
 						}
@@ -149,7 +145,7 @@ bool ccGriddedTools::ComputeNormals(ccPointCloud* cloud,
 								theMesh->placeIteratorAtBegining();
 								for (unsigned j=0; j<faceCount; ++j)
 								{
-									const CCLib::TriangleSummitsIndexes* tsi = theMesh->getNextTriangleIndexes();
+									const CCLib::VerticesIndexes* tsi = theMesh->getNextTriangleVertIndexes();
 									//we look if the central point is one of the triangle's vertices
 									if (tsi->i1 == 0 || tsi->i2 == 0|| tsi->i3 == 0)
 									{
@@ -207,7 +203,7 @@ bool ccGriddedTools::ComputeNormals(ccPointCloud* cloud,
 	return result;
 }
 
-ccGBLSensor* ccGriddedTools::ComputeBestSensor(ccPointCloud* cloud, const std::vector<int>& indexGrid, unsigned width, unsigned height)
+ccGBLSensor* ccGriddedTools::ComputeBestSensor(ccPointCloud* cloud, const std::vector<int>& indexGrid, unsigned width, unsigned height, ccGLMatrix* cloudToSensorTrans/*=0*/)
 {
 	PointCoordinateType minPhi = static_cast<PointCoordinateType>(M_PI), maxPhi = -minPhi;
 	PointCoordinateType minTheta = static_cast<PointCoordinateType>(M_PI), maxTheta = -minTheta;
@@ -252,9 +248,10 @@ ccGBLSensor* ccGriddedTools::ComputeBestSensor(ccPointCloud* cloud, const std::v
 						int index = _indexGrid[k];
 						if (index >= 0)
 						{
-							//warning: indexes are shifted (0 = no point)
-							const CCVector3* P = cloud->getPoint(static_cast<unsigned>(index));
-							PointCoordinateType p = atan2(P->z,sqrt(P->x*P->x + P->y*P->y)); //see ccGBLSensor::projectPoint
+							CCVector3 P = *(cloud->getPoint(static_cast<unsigned>(index)));
+							if (cloudToSensorTrans)
+								cloudToSensorTrans->apply(P);
+							PointCoordinateType p = atan2(P.z,sqrt(P.x*P.x + P.y*P.y)); //see ccGBLSensor::projectPoint
 							PointCoordinateType pShifted = (p < 0 ? p + static_cast<PointCoordinateType>(2.0*M_PI) : p);
 							if (k != minIndex)
 							{
@@ -275,7 +272,7 @@ ccGBLSensor* ccGriddedTools::ComputeBestSensor(ccPointCloud* cloud, const std::v
 							}
 
 							//find max range
-							PointCoordinateType range = P->norm();
+							PointCoordinateType range = P.norm();
 							if (range > maxRange)
 								maxRange = range;
 						}
@@ -369,8 +366,10 @@ ccGBLSensor* ccGriddedTools::ComputeBestSensor(ccPointCloud* cloud, const std::v
 						if (index >= 0)
 						{
 							//warning: indexes are shifted (0 = no point)
-							const CCVector3* P = cloud->getPoint(static_cast<unsigned>(index));
-							PointCoordinateType t = atan2(P->y,P->x); //see ccGBLSensor::projectPoint
+							CCVector3 P = *(cloud->getPoint(static_cast<unsigned>(index)));
+							if (cloudToSensorTrans)
+								cloudToSensorTrans->apply(P);
+							PointCoordinateType t = atan2(P.y,P.x); //see ccGBLSensor::projectPoint
 							PointCoordinateType tShifted = (t < 0 ? t + static_cast<PointCoordinateType>(2.0*M_PI) : t);
 							if (k != minIndex)
 							{
@@ -445,7 +444,7 @@ ccGBLSensor* ccGriddedTools::ComputeBestSensor(ccPointCloud* cloud, const std::v
 			}
 		}
 	}
-	catch (std::bad_alloc)
+	catch (const std::bad_alloc&)
 	{
 		ccLog::Warning("[PTX] Not enough memory to compute sensor angular steps!");
 		return 0;

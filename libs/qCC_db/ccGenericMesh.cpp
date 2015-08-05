@@ -243,7 +243,7 @@ void ccGenericMesh::drawMeOnly(CC_DRAW_CONTEXT& context)
 		//in the case we need to display scalar field colors
 		ccScalarField* currentDisplayedScalarField = 0;
 		bool greyForNanScalarValues = true;
-		unsigned colorRampSteps = 0;
+		//unsigned colorRampSteps = 0;
 		ccColorScale::Shared colorScale(0);
 
 		if (glParams.showSF)
@@ -261,7 +261,7 @@ void ccGenericMesh::drawMeOnly(CC_DRAW_CONTEXT& context)
 			{
 				currentDisplayedScalarField = cloud->getCurrentDisplayedScalarField();
 				colorScale = currentDisplayedScalarField->getColorScale();
-				colorRampSteps = currentDisplayedScalarField->getColorRampSteps();
+				//colorRampSteps = currentDisplayedScalarField->getColorRampSteps();
 
 				assert(colorScale);
 				//get default color ramp if cloud has no scale associated?!
@@ -355,7 +355,7 @@ void ccGenericMesh::drawMeOnly(CC_DRAW_CONTEXT& context)
 				PointCoordinateType* _vertices = GetVertexBuffer();
 				for (unsigned n=0; n<chunkSize; n+=decimStep)
 				{
-					const CCLib::TriangleSummitsIndexes* ti = getTriangleIndexes(chunkStart + n);
+					const CCLib::VerticesIndexes* ti = getTriangleVertIndexes(chunkStart + n);
 					memcpy(_vertices,vertices->getPoint(ti->i1)->u,sizeof(PointCoordinateType)*3);
 					_vertices+=3;
 					memcpy(_vertices,vertices->getPoint(ti->i2)->u,sizeof(PointCoordinateType)*3);
@@ -371,7 +371,7 @@ void ccGenericMesh::drawMeOnly(CC_DRAW_CONTEXT& context)
 					assert(colorScale);
 					for (unsigned n=0; n<chunkSize; n+=decimStep)
 					{
-						const CCLib::TriangleSummitsIndexes* ti = getTriangleIndexes(chunkStart + n);
+						const CCLib::VerticesIndexes* ti = getTriangleVertIndexes(chunkStart + n);
 						col = currentDisplayedScalarField->getValueColor(ti->i1);
 						memcpy(_rgbColors,col,sizeof(colorType)*3);
 						_rgbColors += 3;
@@ -390,7 +390,7 @@ void ccGenericMesh::drawMeOnly(CC_DRAW_CONTEXT& context)
 
 					for (unsigned n=0; n<chunkSize; n+=decimStep)
 					{
-						const CCLib::TriangleSummitsIndexes* ti = getTriangleIndexes(chunkStart + n);
+						const CCLib::VerticesIndexes* ti = getTriangleVertIndexes(chunkStart + n);
 						memcpy(_rgbColors,rgbColorsTable->getValue(ti->i1),sizeof(colorType)*3);
 						_rgbColors += 3;
 						memcpy(_rgbColors,rgbColorsTable->getValue(ti->i2),sizeof(colorType)*3);
@@ -422,7 +422,7 @@ void ccGenericMesh::drawMeOnly(CC_DRAW_CONTEXT& context)
 					{
 						for (unsigned n=0; n<chunkSize; n+=decimStep)
 						{
-							const CCLib::TriangleSummitsIndexes* ti = getTriangleIndexes(chunkStart + n);
+							const CCLib::VerticesIndexes* ti = getTriangleVertIndexes(chunkStart + n);
 							memcpy(_normals,vertices->getPointNormal(ti->i1).u,sizeof(PointCoordinateType)*3);
 							_normals+=3;
 							memcpy(_normals,vertices->getPointNormal(ti->i2).u,sizeof(PointCoordinateType)*3);
@@ -488,7 +488,7 @@ void ccGenericMesh::drawMeOnly(CC_DRAW_CONTEXT& context)
 			for (unsigned n=0; n<triNum; ++n)
 			{
 				//current triangle vertices
-				const CCLib::TriangleSummitsIndexes* tsi = getTriangleIndexes(n);
+				const CCLib::VerticesIndexes* tsi = getTriangleVertIndexes(n);
 
 				//LOD: shall we display this triangle?
 				if (n % decimStep)

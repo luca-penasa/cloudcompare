@@ -40,7 +40,7 @@ ccGenericPrimitive::ccGenericPrimitive(QString name/*=QString()*/, const ccGLMat
 void ccGenericPrimitive::setColor(const ccColor::Rgb& col)
 {
 	if (m_associatedCloud)
-		static_cast<ccPointCloud*>(m_associatedCloud)->setRGBColor(col.rgb);
+		static_cast<ccPointCloud*>(m_associatedCloud)->setRGBColor(col);
 }
 
 ccPointCloud* ccGenericPrimitive::vertices()
@@ -105,7 +105,7 @@ const ccGenericPrimitive& ccGenericPrimitive::operator += (const ccGenericPrimit
 		//copy faces
 		for (i=0;i<prim.size();++i)
 		{
-			const CCLib::TriangleSummitsIndexes* tsi = prim.getTriangleIndexes(i);
+			const CCLib::VerticesIndexes* tsi = prim.getTriangleVertIndexes(i);
 			addTriangle(vertCount+tsi->i1,vertCount+tsi->i2,vertCount+tsi->i3);
 			if (primHasFaceNorms)
 			{

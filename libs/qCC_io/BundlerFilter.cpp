@@ -333,7 +333,7 @@ CC_FILE_ERROR BundlerFilter::loadFileExtended(	const QString& filename,
 				{
 					camUsage.resize(cameras.size(),false);
 				}
-				catch(std::bad_alloc)
+				catch (const std::bad_alloc&)
 				{
 					//nothing serious here
 				}
@@ -482,7 +482,7 @@ CC_FILE_ERROR BundlerFilter::loadFileExtended(	const QString& filename,
 									{
 										keypointsDescriptors.push_back(lastKeyPoint);
 									}
-									catch(std::bad_alloc)
+									catch (const std::bad_alloc&)
 									{
 										ccLog::Warning("[Bundler] Not enough memory to store keypoints!");
 										keypointsDescriptors.clear();
@@ -731,7 +731,7 @@ CC_FILE_ERROR BundlerFilter::loadFileExtended(	const QString& filename,
 			ccGLMatrix transf(cameras[i].trans.inverse().data());
 			
 			//dist to cloud
-			PointCoordinateType dist = (transf.getTranslationAsVec3D() - keypointsCloud->getOwnBB().getCenter()).norm();
+			PointCoordinateType dist = keypointsCloud ? (transf.getTranslationAsVec3D() - keypointsCloud->getOwnBB().getCenter()).norm() : PC_ONE;
 			params.zFar_mm = dist;
 			params.zNear_mm = 0.001f;
 
@@ -739,7 +739,7 @@ CC_FILE_ERROR BundlerFilter::loadFileExtended(	const QString& filename,
 			sensor->setName(QString("Camera #%1").arg(i+1));
 			sensor->setEnabled(true);
 			sensor->setVisible(true/*false*/);
-			sensor->setGraphicScale(keypointsCloud->getOwnBB().getDiagNorm() / 10);
+			sensor->setGraphicScale(keypointsCloud ? keypointsCloud->getOwnBB().getDiagNorm() / 10 : PC_ONE);
 			sensor->setRigidTransformation(transf);
 
 			//distortion parameters
@@ -843,7 +843,7 @@ CC_FILE_ERROR BundlerFilter::loadFileExtended(	const QString& filename,
 
 						//we take the keypoints 'middle altitude' by default
 						CCVector3 bbMin,bbMax;
-						_keypointsCloud->getBoundingBox(bbMin.u,bbMax.u);
+						_keypointsCloud->getBoundingBox(bbMin,bbMax);
 						PointCoordinateType Z0 = (bbMin.z + bbMax.z)/2;
 
 						orthoImage = sensor->orthoRectifyAsImageDirect(	image,

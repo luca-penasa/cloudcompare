@@ -42,7 +42,7 @@ static CCVector3 ComputeRobustAverageNorm(	CCLib::ReferenceCloud* subset,
 	assert(sourceCloud->hasNormals());
 	assert(subset->getAssociatedCloud() == static_cast<CCLib::GenericIndexedCloud*>(sourceCloud));
 
-	//we simply take the first normal as reference (DGM: seems to work better than the LSQ plane!)
+	//we simply take the first normal as reference (DGM: seems to work better than the LS plane!)
 	const CCVector3& N = sourceCloud->getPointNormal(subset->getPointGlobalIndex(0));
 
 	//now we can compute the mean normal, using the first normal as reference for the sign
@@ -88,11 +88,11 @@ int ccFastMarchingForNormsDirection::init(	ccGenericPointCloud* cloud,
 		}
 		
 		//convert the octree cell code to grid position
-		int cellPos[3];
+		Tuple3i cellPos;
 		theOctree->getCellPos(cellCodes.back(),level,cellPos,true);
 
 		//convert it to FM cell pos index
-		unsigned gridPos = FM_pos2index(cellPos);
+		unsigned gridPos = pos2index(cellPos);
 
 		//create corresponding cell
 		DirectionCell* aCell = new DirectionCell;
@@ -345,7 +345,7 @@ void ccFastMarchingForNormsDirection::initTrialCells()
 		for (unsigned i=0; i<m_numberOfNeighbours; ++i)
 		{
 			unsigned nIndex = index + m_neighboursIndexShift[i];
-			DirectionCell* nCell = (DirectionCell*)m_theGrid[nIndex];
+			DirectionCell* nCell = static_cast<DirectionCell*>(m_theGrid[nIndex]);
 			//if the neighbor exists (it shouldn't be in the TRIAL or ACTIVE sets)
 			if (nCell/* && nCell->state == DirectionCell::FAR_CELL*/)
 			{
@@ -471,16 +471,16 @@ int ccFastMarchingForNormsDirection::ResolveNormsDirectionByFrontPropagation(	cc
 		//we start the propagation from this point
 		//its corresponding cell in fact ;)
 		const CCVector3 *thePoint = theCloud->getPoint(lastProcessedPoint);
-		int pos[3];
-		theOctree->getTheCellPosWhichIncludesThePoint(thePoint,pos,octreeLevel);
+		Tuple3i cellPos;
+		theOctree->getTheCellPosWhichIncludesThePoint(thePoint,cellPos,octreeLevel);
 
 		//clipping (in case the octree is not 'complete')
-		pos[0] = std::min(octreeWidth,pos[0]);
-		pos[1] = std::min(octreeWidth,pos[1]);
-		pos[2] = std::min(octreeWidth,pos[2]);
+		cellPos.x = std::min(octreeWidth,cellPos.x);
+		cellPos.y = std::min(octreeWidth,cellPos.y);
+		cellPos.z = std::min(octreeWidth,cellPos.z);
 
 		//set corresponding FM cell as 'seed'
-		fm.setSeedCell(pos);
+		fm.setSeedCell(cellPos);
 
 		//launch propagation
 		int propagationResult = fm.propagate();

@@ -165,7 +165,7 @@ bool ccRegistrationTools::ICP(	ccHObject* data,
 			CCLib::DistanceComputationTools::Cloud2CloudDistanceComputationParams params;
 			params.multiThread = true;
 			//params.octreeLevel = 6;
-			int result = CCLib::DistanceComputationTools::computeHausdorffDistance(probedCloud,modelCloud,params,&pDlg);
+			int result = CCLib::DistanceComputationTools::computeCloud2CloudDistance(probedCloud,modelCloud,params,&pDlg);
 			if (result < 0)
 			{
 				ccLog::Error("Failed to determine the max (overlap) distance (not enough memory?)");
@@ -182,7 +182,7 @@ bool ccRegistrationTools::ICP(	ccHObject* data,
 			{
 				distances.resize(count);
 			}
-			catch(std::bad_alloc)
+			catch (const std::bad_alloc&)
 			{
 				ccLog::Error("Not enough memory!");
 				return false;
@@ -205,7 +205,7 @@ bool ccRegistrationTools::ICP(	ccHObject* data,
 			CCLib::DistanceComputationTools::Cloud2CloudDistanceComputationParams params;
 			params.multiThread = true;
 			params.maxSearchDist = static_cast<ScalarType>(maxSearchDist * 1.01); //+1% to differentiate the 'max' value from the real values!
-			int result = CCLib::DistanceComputationTools::computeHausdorffDistance(dataCloud,modelCloud,params,&pDlg);
+			int result = CCLib::DistanceComputationTools::computeCloud2CloudDistance(dataCloud,modelCloud,params,&pDlg);
 			if (result < 0)
 			{
 				ccLog::Error("Failed to determine the max (overlap) distance (not enough memory?)");
@@ -215,7 +215,6 @@ bool ccRegistrationTools::ICP(	ccHObject* data,
 
 		//evntually select the points with distance below 'maxSearchDist'
 		//(should roughly correspond to 'finalOverlapRatio + margin' percent)
-		double keptRatio = 1.0;
 		{
 			CCLib::ReferenceCloud* refCloud = new CCLib::ReferenceCloud(dataCloud);
 			cloudGarbage.add(refCloud);
@@ -238,7 +237,7 @@ bool ccRegistrationTools::ICP(	ccHObject* data,
 			dataCloud = refCloud;
 
 			unsigned countAfter = dataCloud->size();
-			keptRatio = static_cast<double>(countAfter)/countBefore;
+			double keptRatio = static_cast<double>(countAfter)/countBefore;
 			ccLog::Print(QString("[ICP][Partial overlap] Selecting %1 points out of %2 (%3%) for registration").arg(countAfter).arg(countBefore).arg(100.0*keptRatio));
 
 			//update the relative 'final overlap' ratio

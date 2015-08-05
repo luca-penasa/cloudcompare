@@ -113,13 +113,10 @@ int ScalarFieldTools::computeScalarFieldGradient(	GenericIndexedCloudPersist* th
 
 	int result = 0;
 
-#ifndef ENABLE_MT_OCTREE
-	if (theOctree->executeFunctionForAllCellsAtLevel(octreeLevel,
-#else
-	if (theOctree->executeFunctionForAllCellsAtLevel_MT(octreeLevel,
-#endif
+	if (theOctree->executeFunctionForAllCellsAtLevel(	octreeLevel,
 														computeMeanGradientOnPatch,
 														additionalParameters,
+														true,
 														progressCb,
 														"Gradient Computation") == 0)
 	{
@@ -141,9 +138,9 @@ bool ScalarFieldTools::computeMeanGradientOnPatch(	const DgmOctree::octreeCell& 
 													NormalizedProgress* nProgress/*=0*/)
 {
 	//additional parameters
-	bool euclideanDistances			= *((bool*)additionalParameters[0]);
-	PointCoordinateType radius		= *((PointCoordinateType*)additionalParameters[1]);
-	ScalarField* theGradientNorms	= (ScalarField*)additionalParameters[2];
+	bool euclideanDistances			= *reinterpret_cast<bool*>(additionalParameters[0]);
+	PointCoordinateType radius		= *reinterpret_cast<PointCoordinateType*>(additionalParameters[1]);
+	ScalarField* theGradientNorms	= reinterpret_cast<ScalarField*>(additionalParameters[2]);
 
 	//number of points inside the current cell
 	unsigned n = cell.points->size();
@@ -279,21 +276,18 @@ bool ScalarFieldTools::applyScalarFieldGaussianFilter(PointCoordinateType sigma,
 		progressCb->setInfo(infos);
 	}
 
-    void* additionalParameters[2] = {	additionalParameters[0] = (void*)&sigma,
-										additionalParameters[1] = (void*)&sigmaSF
+    void* additionalParameters[2] = {	reinterpret_cast<void*>(&sigma),
+										reinterpret_cast<void*>(&sigmaSF)
 	};
 
 	bool success = true;
 
-#ifndef ENABLE_MT_OCTREE
-	if (theOctree->executeFunctionForAllCellsAtLevel(level,
-#else
-	if (theOctree->executeFunctionForAllCellsAtLevel_MT(level,
-#endif
-													computeCellGaussianFilter,
-                                                    additionalParameters,
-                                                    progressCb,
-													"Gaussian Filter computation")==0)
+	if (theOctree->executeFunctionForAllCellsAtLevel(	level,
+														computeCellGaussianFilter,
+														additionalParameters,
+														true,
+														progressCb,
+														"Gaussian Filter computation") == 0)
 	{
 		//something went wrong
 		success = false;
@@ -593,7 +587,7 @@ bool ScalarFieldTools::computeKmeans(	const GenericCloud* theCloud,
 		theKNums.resize(K);
 		theOldKNums.resize(K);
 	}
-	catch(std::bad_alloc)
+	catch (const std::bad_alloc&)
 	{
 		//not enough memory
 		return false;
@@ -619,7 +613,7 @@ bool ScalarFieldTools::computeKmeans(	const GenericCloud* theCloud,
 	}
 
 	//for progress notification
-	double initialCMD = 0, classMovingDist = 0;
+	double initialCMD = 0;
 
 	//let's start
 	bool meansHaveMoved = false;
@@ -670,7 +664,7 @@ bool ScalarFieldTools::computeKmeans(	const GenericCloud* theCloud,
 			}
 		}
 
-		classMovingDist = 0.0;
+		double classMovingDist = 0.0;
 		{
 			for (uchar j=0; j<K; ++j)
 			{
@@ -712,7 +706,7 @@ bool ScalarFieldTools::computeKmeans(	const GenericCloud* theCloud,
 		mins.resize(K,maxV);
 		maxs.resize(K,minV);
 	}
-	catch(std::bad_alloc)
+	catch (const std::bad_alloc&)
 	{
 		//not enough memory
 		return false;

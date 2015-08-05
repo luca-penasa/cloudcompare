@@ -51,11 +51,39 @@ public:
 	inline Tuple3Tpl(Type a, Type b, Type c) : x(a),y(b),z(c) {}
 
 	//! Constructor from an array of 3 elements
-	inline Tuple3Tpl(const Type p[]) : x(p[0]),y(p[1]),z(p[2]) {}
+	inline explicit Tuple3Tpl(const Type p[]) : x(p[0]),y(p[1]),z(p[2]) {}
 	
 	//! Copy constructor
 	inline Tuple3Tpl(const Tuple3Tpl& v) : x(v.x),y(v.y),z(v.z) {}
+
+	//! Inverse operator
+	inline Tuple3Tpl operator - () const { Tuple3Tpl V(-x,-y,-z); return V; }
+	//! In-place addition operator
+	inline Tuple3Tpl& operator += (const Tuple3Tpl& v) { x+=v.x; y+=v.y; z+=v.z; return *this; }
+	//! In-place substraction operator
+	inline Tuple3Tpl& operator -= (const Tuple3Tpl& v) { x-=v.x; y-=v.y; z-=v.z; return *this; }
+	//! In-place multiplication (by a scalar) operator
+	inline Tuple3Tpl& operator *= (Type v) { x*=v; y*=v; z*=v; return *this; }
+	//! In-place division (by a scalar) operator
+	inline Tuple3Tpl& operator /= (Type v) { x/=v; y/=v; z/=v; return *this; }
+	//! Addition operator
+	inline Tuple3Tpl operator + (const Tuple3Tpl& v) const { return Tuple3Tpl(x+v.x, y+v.y, z+v.z); }
+	//! Substraction operator
+	inline Tuple3Tpl operator - (const Tuple3Tpl& v) const { return Tuple3Tpl(x-v.x, y-v.y, z-v.z); }
+	//! Multiplication operator
+	inline Tuple3Tpl operator * (Type s) const { return Tuple3Tpl(x*s, y*s, z*s); }
+	//! Division operator
+	inline Tuple3Tpl operator / (Type s) const { return Tuple3Tpl(x/s, y/s, z/s); }
 };
+
+//! Tuple of 3 unsigned bytes
+typedef Tuple3Tpl<unsigned char> Tuple3ub;
+//! Tuple of 3 short values
+typedef Tuple3Tpl<short> Tuple3s;
+//! Tuple of 3 int values
+typedef Tuple3Tpl<int> Tuple3i;
+//! Tuple of 3 unsigned int values
+typedef Tuple3Tpl<unsigned int> Tuple3ui;
 
 //! 3D Vector (templated version)
 template <typename Type> class Vector3Tpl : public Tuple3Tpl<Type>
@@ -80,7 +108,7 @@ public:
 	inline Vector3Tpl(Type _x, Type _y, Type _z) : Tuple3Tpl<Type>(_x,_y,_z) {}
 
 	//! Constructor from an array of 3 elements
-	inline Vector3Tpl(const Type p[]) : Tuple3Tpl<Type>(p) {}
+	inline explicit Vector3Tpl(const Type p[]) : Tuple3Tpl<Type>(p) {}
 	
 	//! Copy constructor
 	inline Vector3Tpl(const Vector3Tpl& v) : Tuple3Tpl<Type>(v) {}
@@ -199,7 +227,7 @@ public:
 	/** Inits vector to (0,0).
 		\param s default init value for both coordinates
 	**/
-	inline Vector2Tpl(Type s = 0) : x(s), y(s) {}
+	inline explicit Vector2Tpl(Type s = 0) : x(s), y(s) {}
 
 	//! Constructor from a couple of coordinates
 	/** Inits vector to (x,y).

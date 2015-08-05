@@ -23,7 +23,7 @@
 
 //CCLib
 #include <ManualSegmentationTools.h>
-#include <Matrix.h>
+#include <SquareMatrix.h>
 
 //qCC_db
 #include <ccLog.h>
@@ -699,7 +699,7 @@ void ccGraphicalSegmentationTool::pauseSegmentationMode(bool state)
 	pauseButton->setChecked(state);
 	pauseButton->blockSignals(false);
 
-	m_associatedWin->redraw(state);
+	m_associatedWin->redraw(!state);
 }
 
 void ccGraphicalSegmentationTool::doSetPolylineSelection()

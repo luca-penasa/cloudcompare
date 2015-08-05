@@ -135,7 +135,7 @@ PCLCloud::Ptr cc2smReader::getOneOf(Fields field) const
 		return sm_cloud;
 	};
 
-	assert(dim >= 0 && dim <= 2);
+	assert(/*dim >= 0 && */dim <= 2);
 
 	try
 	{
@@ -295,7 +295,7 @@ std::string cc2smReader::GetSimplifiedSFName(const std::string& ccSfName)
 	return simplified.toStdString();
 }
 
-PCLCloud::Ptr cc2smReader::getFloatScalarField(const std::string field_name) const
+PCLCloud::Ptr cc2smReader::getFloatScalarField(const std::string& field_name) const
 {
 	assert(m_cc_cloud);
 
@@ -335,7 +335,7 @@ PCLCloud::Ptr cc2smReader::getFloatScalarField(const std::string field_name) con
 	return sm_cloud;
 }
 
-bool cc2smReader::checkIfFieldExists(const std::string field_name) const
+bool cc2smReader::checkIfFieldExists(const std::string& field_name) const
 {
 	if ( (field_name == "x") || (field_name == "y") || (field_name == "z") || (field_name == "xyz") )
 		return (m_cc_cloud->size() != 0);
@@ -350,7 +350,7 @@ bool cc2smReader::checkIfFieldExists(const std::string field_name) const
 		return (m_cc_cloud->getScalarFieldIndexByName(field_name.c_str()) >= 0);
 }
 
-PCLCloud::Ptr cc2smReader::getAsSM(std::list<std::string> requested_fields) const
+PCLCloud::Ptr cc2smReader::getAsSM(std::list<std::string>& requested_fields) const
 {
 	//preliminary check
 	{
@@ -429,7 +429,7 @@ PCLCloud::Ptr cc2smReader::getAsSM() const
 		for (unsigned i=0; i<m_cc_cloud->getNumberOfScalarFields(); ++i)
 			fields.push_back(m_cc_cloud->getScalarField(static_cast<int>(i))->getName());
 	}
-	catch(std::bad_alloc)
+	catch (const std::bad_alloc&)
 	{
 		//not enough memory
 		return PCLCloud::Ptr(static_cast<PCLCloud*>(0));

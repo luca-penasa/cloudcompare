@@ -66,33 +66,37 @@ void SimpleCloud::addPoint(const PointCoordinateType P[])
 	m_validBB=false;
 }
 
-void SimpleCloud::forEach(genericPointAction& anAction)
+void SimpleCloud::forEach(genericPointAction& action)
 {
-	unsigned i,n=m_points->currentSize();
+	unsigned n = m_points->currentSize();
 
-	if (m_scalarField->currentSize()>=n) //existing scalar field?
+	if (m_scalarField->currentSize() >= n) //existing scalar field?
 	{
-		for (i=0;i<n;++i)
-			anAction(*(CCVector3*)m_points->getValue(i),(*m_scalarField)[i]);
+		for (unsigned i=0; i<n; ++i)
+		{
+			action(*reinterpret_cast<CCVector3*>(m_points->getValue(i)),(*m_scalarField)[i]);
+		}
 	}
 	else //otherwise (we provide a fake zero distance)
 	{
-		ScalarType d=0;
-		for (i=0;i<n;++i)
-			anAction(*(CCVector3*)m_points->getValue(i),d);
+		ScalarType d = 0;
+		for (unsigned i=0; i<n; ++i)
+		{
+			action(*reinterpret_cast<CCVector3*>(m_points->getValue(i)),d);
+		}
 	}
 }
 
-void SimpleCloud::getBoundingBox(PointCoordinateType bbMin[], PointCoordinateType bbMax[])
+void SimpleCloud::getBoundingBox(CCVector3& bbMin, CCVector3& bbMax)
 {
 	if (!m_validBB)
 	{
 		m_points->computeMinAndMax();
-		m_validBB=true;
+		m_validBB = true;
 	}
 
-	memcpy(bbMin, m_points->getMin(), sizeof(PointCoordinateType)*3);
-	memcpy(bbMax, m_points->getMax(), sizeof(PointCoordinateType)*3);
+	bbMin = CCVector3(m_points->getMin());
+	bbMax = CCVector3(m_points->getMax());
 }
 
 bool SimpleCloud::reserve(unsigned n)
@@ -130,19 +134,19 @@ void SimpleCloud::placeIteratorAtBegining()
 
 const CCVector3* SimpleCloud::getNextPoint()
 {
-	return (CCVector3*)(globalIterator < m_points->currentSize() ? m_points->getValue(globalIterator++) : 0);
+	return reinterpret_cast<CCVector3*>(globalIterator < m_points->currentSize() ? m_points->getValue(globalIterator++) : 0);
 }
 
 const CCVector3* SimpleCloud::getPointPersistentPtr(unsigned index)
 {
 	assert(index < m_points->currentSize());
-	return (CCVector3*)m_points->getValue(index);
+	return reinterpret_cast<CCVector3*>(m_points->getValue(index));
 }
 
 void SimpleCloud::getPoint(unsigned index, CCVector3& P) const
 {
 	assert(index < m_points->currentSize());
-	P = *(CCVector3*)m_points->getValue(index);
+	P = *reinterpret_cast<CCVector3*>(m_points->getValue(index));
 }
 
 void SimpleCloud::setPointScalarValue(unsigned pointIndex, ScalarType value)
@@ -175,7 +179,7 @@ void SimpleCloud::applyTransformation(PointProjectionTools::Transformation& tran
 	{
 		for (unsigned i=0; i<count; ++i)
 		{
-			CCVector3* P = ((CCVector3*)m_points->getValue(i));
+			CCVector3* P = reinterpret_cast<CCVector3*>(m_points->getValue(i));
 			(*P) *= trans.s;
 		}
 		m_validBB = false;
@@ -185,7 +189,7 @@ void SimpleCloud::applyTransformation(PointProjectionTools::Transformation& tran
 	{
 		for (unsigned i=0; i<count; ++i)
 		{
-			CCVector3* P = ((CCVector3*)m_points->getValue(i));
+			CCVector3* P = reinterpret_cast<CCVector3*>(m_points->getValue(i));
 			(*P) = trans.R * (*P);
 			m_validBB = false;
 		}
@@ -195,7 +199,7 @@ void SimpleCloud::applyTransformation(PointProjectionTools::Transformation& tran
 	{
 		for (unsigned i=0; i<count; ++i)
 		{
-			CCVector3* P = ((CCVector3*)m_points->getValue(i));
+			CCVector3* P = reinterpret_cast<CCVector3*>(m_points->getValue(i));
 			(*P) += trans.T;
 		}
 		m_validBB = false;

@@ -49,6 +49,7 @@ static std::vector<unsigned> s_lastContourUniqueIDs;
 //! Max edge length parameter (contour extraction)
 static double s_maxEdgeLength = -1.0;
 static bool s_splitContours = false;
+static bool s_multiPass = false;
 static double s_defaultGap = 0.0;
 
 ccClippingBoxTool::ccClippingBoxTool(QWidget* parent)
@@ -253,6 +254,7 @@ void ccClippingBoxTool::removeLastContour()
 			ccHObject* obj = mainWindow->db()->find(s_lastContourUniqueIDs[i]);
 			if (obj)
 			{
+				//obj->prepareDisplayForRefresh();
 				mainWindow->removeFromDB(obj);
 				ccGLWindow* win = mainWindow->getActiveGLWindow();
 				if (win)
@@ -386,6 +388,7 @@ void ccClippingBoxTool::extractSlicesAndContours(bool extractSlices, bool extrac
 		s_maxEdgeLength = static_cast<double>(obj->getOwnBB().getDiagNorm())/100.0;
 	repeatDlg.maxEdgeLengthDoubleSpinBox->setValue(s_maxEdgeLength);
 	repeatDlg.splitContourCheckBox->setChecked(s_splitContours);
+	repeatDlg.multiPassCheckBox->setChecked(s_multiPass);
 	repeatDlg.gapDoubleSpinBox->setValue(s_defaultGap);
 
 	if (!repeatDlg.exec())
@@ -484,7 +487,7 @@ void ccClippingBoxTool::extractSlicesAndContours(bool extractSlices, bool extrac
 		{
 			slices.resize(cellCount,0);
 		}
-		catch(std::bad_alloc)
+		catch (const std::bad_alloc&)
 		{
 			ccLog::Error("Not enough memory!");
 			return;
@@ -517,7 +520,7 @@ void ccClippingBoxTool::extractSlicesAndContours(bool extractSlices, bool extrac
 				{
 					refClouds.resize(cellCount,0);
 				}
-				catch(std::bad_alloc)
+				catch (const std::bad_alloc&)
 				{
 					ccLog::Error("Not enough memory!");
 					return;
@@ -613,7 +616,7 @@ void ccClippingBoxTool::extractSlicesAndContours(bool extractSlices, bool extrac
 									if (generateRandomColors)
 									{
 										ccColor::Rgb col = ccColor::Generator::Random();
-										if (!sliceCloud->setRGBColor(col.rgb))
+										if (!sliceCloud->setRGBColor(col))
 										{
 											ccLog::Error("Not enough memory!");
 											error = true;
@@ -706,7 +709,7 @@ void ccClippingBoxTool::extractSlicesAndContours(bool extractSlices, bool extrac
 								if (croppedCloud)
 								{
 									ccColor::Rgb col = ccColor::Generator::Random();
-									if (!croppedCloud->setRGBColor(col.rgb))
+									if (!croppedCloud->setRGBColor(col))
 									{
 										ccLog::Error("Not enough memory!");
 										error = true;
@@ -752,6 +755,7 @@ void ccClippingBoxTool::extractSlicesAndContours(bool extractSlices, bool extrac
 		{
 			//contour extraction parameter (max edge length)
 			s_maxEdgeLength = repeatDlg.maxEdgeLengthDoubleSpinBox->value();
+			s_multiPass = repeatDlg.multiPassCheckBox->isChecked();
 			s_splitContours = repeatDlg.splitContourCheckBox->isChecked();
 			bool visualDebugMode = repeatDlg.debugModeCheckBox->isChecked();
 
@@ -794,6 +798,7 @@ void ccClippingBoxTool::extractSlicesAndContours(bool extractSlices, bool extrac
 						{
 							std::vector<ccPolyline*> polys;
 							if (ccContourExtractor::ExtractFlatContour(	sliceCloud,
+																		s_multiPass,
 																		static_cast<PointCoordinateType>(s_maxEdgeLength),
 																		polys,
 																		s_splitContours,

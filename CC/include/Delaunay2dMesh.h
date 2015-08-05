@@ -41,6 +41,11 @@ public:
 	//! Delaunay2dMesh destructor
 	virtual ~Delaunay2dMesh();
 
+	//! Returns whether 2D Delaunay triangulation is supported or not
+	/** 2D Delaunay triangulation requires Triangle library.
+	**/
+	static bool Available();
+
 	//! Associate this mesh to a point cloud
 	/** This particular mesh structure deals with point indexes instead of points.
 		Therefore, it is possible to change the associated point cloud (it the
@@ -83,19 +88,19 @@ public:
 
 	//inherited methods (see GenericMesh)
 	virtual unsigned size() const { return m_numberOfTriangles; }
-	virtual void forEach(genericTriangleAction& anAction);
-	virtual void getBoundingBox(PointCoordinateType bbMin[], PointCoordinateType bbMax[]);
+	virtual void forEach(genericTriangleAction& action);
+	virtual void getBoundingBox(CCVector3& bbMin, CCVector3& bbMax);
 	virtual void placeIteratorAtBegining();
 	virtual GenericTriangle* _getNextTriangle();
 	virtual GenericTriangle* _getTriangle(unsigned triangleIndex);
-	virtual TriangleSummitsIndexes* getNextTriangleIndexes();
-	virtual TriangleSummitsIndexes* getTriangleIndexes(unsigned triangleIndex);
-	virtual void getTriangleSummits(unsigned triangleIndex, CCVector3& A, CCVector3& B, CCVector3& C);
+	virtual VerticesIndexes* getNextTriangleVertIndexes();
+	virtual VerticesIndexes* getTriangleVertIndexes(unsigned triangleIndex);
+	virtual void getTriangleVertices(unsigned triangleIndex, CCVector3& A, CCVector3& B, CCVector3& C);
 
 	//! Returns triangles indexes array (pointer to)
 	/** Handle with care!
 	**/
-	inline int* getTriangleIndexesArray() { return m_triIndexes; }
+	inline int* getTriangleVertIndexesArray() { return m_triIndexes; }
 
 	//! Filters out the triangles based on their edge length
 	/** Warning: may remove ALL triangles!
@@ -130,7 +135,7 @@ protected:
 	SimpleTriangle m_dumpTriangle;
 
 	//! Dump triangle index structure to transmit temporary data
-	TriangleSummitsIndexes m_dumpTriangleIndexes;
+	VerticesIndexes m_dumpTriangleIndexes;
 
 };
 

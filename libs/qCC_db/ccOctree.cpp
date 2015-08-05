@@ -224,7 +224,9 @@ void ccOctree::RenderOctreeAs(  CC_OCTREE_DISPLAY_TYPE octreeDisplayType,
 		ccGL::Color3v(ccColor::green.rgba);
 
 		void* additionalParameters[] = { theOctree->m_frustrumIntersector };
-		theOctree->executeFunctionForAllCellsAtLevel(level,&DrawCellAsABox,additionalParameters);
+		theOctree->executeFunctionForAllCellsAtLevel(	level,
+														&DrawCellAsABox,
+														additionalParameters);
 	}
 	else
 	{
@@ -259,12 +261,14 @@ void ccOctree::RenderOctreeAs(  CC_OCTREE_DISPLAY_TYPE octreeDisplayType,
 
 			if (octreeDisplayType == MEAN_POINTS)
 			{
-				void* additionalParameters[2] = {	(void*)&glParams,
-													(void*)theAssociatedCloud,
+				void* additionalParameters[2] = {	reinterpret_cast<void*>(&glParams),
+													reinterpret_cast<void*>(theAssociatedCloud),
 				};
 
 				glBegin(GL_POINTS);
-				theOctree->executeFunctionForAllCellsAtLevel(level,&DrawCellAsAPoint,additionalParameters,0,"Render octree");
+				theOctree->executeFunctionForAllCellsAtLevel(	level,
+																&DrawCellAsAPoint,
+																additionalParameters);
 				glEnd();
 			}
 			else
@@ -288,13 +292,15 @@ void ccOctree::RenderOctreeAs(  CC_OCTREE_DISPLAY_TYPE octreeDisplayType,
 				context.flags = CC_DRAW_3D | CC_DRAW_FOREGROUND| CC_LIGHT_ENABLED;
 				context._win = 0;
 
-				void* additionalParameters[4] = {	(void*)&glParams,
-													(void*)theAssociatedCloud,
-													(void*)&box,
-													(void*)&context
+				void* additionalParameters[4] = {	reinterpret_cast<void*>(&glParams),
+													reinterpret_cast<void*>(theAssociatedCloud),
+													reinterpret_cast<void*>(&box),
+													reinterpret_cast<void*>(&context)
 				};
 
-				theOctree->executeFunctionForAllCellsAtLevel(level,&DrawCellAsAPrimitive,additionalParameters,0);
+				theOctree->executeFunctionForAllCellsAtLevel(	level,
+																&DrawCellAsAPrimitive,
+																additionalParameters);
 			}
 
 			glEndList();
@@ -321,7 +327,7 @@ bool ccOctree::DrawCellAsABox(	const CCLib::DgmOctree::octreeCell& cell,
 	ccOctreeFrustrumIntersector* ofi = static_cast<ccOctreeFrustrumIntersector*>(additionalParameters[0]);
 	
 	CCVector3 bbMin,bbMax;
-	cell.parentOctree->computeCellLimits(cell.truncatedCode,cell.level,bbMin.u,bbMax.u,true);
+	cell.parentOctree->computeCellLimits(cell.truncatedCode,cell.level,bbMin,bbMax,true);
 
 	ccOctreeFrustrumIntersector::OctreeCellVisibility vis = ccOctreeFrustrumIntersector::CELL_OUTSIDE_FRUSTRUM;
 	if (ofi)
@@ -382,8 +388,8 @@ bool ccOctree::DrawCellAsAPoint(const CCLib::DgmOctree::octreeCell& cell,
 								CCLib::NormalizedProgress* nProgress/*=0*/)
 {
 	//variables additionnelles
-	glDrawParams* glParams						= (glDrawParams*)additionalParameters[0];
-	ccGenericPointCloud* theAssociatedCloud		= (ccGenericPointCloud*)additionalParameters[1];
+	glDrawParams* glParams						= reinterpret_cast<glDrawParams*>(additionalParameters[0]);
+	ccGenericPointCloud* theAssociatedCloud		= reinterpret_cast<ccGenericPointCloud*>(additionalParameters[1]);
 
 	if (glParams->showSF)
 	{
@@ -416,24 +422,24 @@ bool ccOctree::DrawCellAsAPrimitive(const CCLib::DgmOctree::octreeCell& cell,
 									CCLib::NormalizedProgress* nProgress/*=0*/)
 {
 	//variables additionnelles
-	glDrawParams* glParams						= (glDrawParams*)additionalParameters[0];
-	ccGenericPointCloud* theAssociatedCloud		= (ccGenericPointCloud*)additionalParameters[1];
-	ccGenericPrimitive*	primitive				= (ccGenericPrimitive*)additionalParameters[2];
-	CC_DRAW_CONTEXT* context					= (CC_DRAW_CONTEXT*)additionalParameters[3];
+	glDrawParams* glParams						= reinterpret_cast<glDrawParams*>(additionalParameters[0]);
+	ccGenericPointCloud* theAssociatedCloud		= reinterpret_cast<ccGenericPointCloud*>(additionalParameters[1]);
+	ccGenericPrimitive*	primitive				= reinterpret_cast<ccGenericPrimitive*>(additionalParameters[2]);
+	CC_DRAW_CONTEXT* context					= reinterpret_cast<CC_DRAW_CONTEXT*>(additionalParameters[3]);
 
-	PointCoordinateType cellCenter[3];
+	CCVector3 cellCenter;
 	cell.parentOctree->computeCellCenter(cell.truncatedCode,cell.level,cellCenter,true);
 
 	if (glParams->showSF)
 	{
 		ScalarType dist = CCLib::ScalarFieldTools::computeMeanScalarValue(cell.points);
-		const colorType* col = theAssociatedCloud->geScalarValueColor(dist);
-		primitive->setColor(col);
+		ccColor::Rgba rgb(theAssociatedCloud->geScalarValueColor(dist));
+		primitive->setColor(rgb);
 	}
 	else if (glParams->showColors)
 	{
-		colorType col[3];
-		ComputeAverageColor(cell.points,theAssociatedCloud,col);
+		ccColor::Rgb col;
+		ComputeAverageColor(cell.points,theAssociatedCloud,col.rgb);
 		primitive->setColor(col);
 	}
 
@@ -448,7 +454,7 @@ bool ccOctree::DrawCellAsAPrimitive(const CCLib::DgmOctree::octreeCell& cell,
 	}
 
 	glPushMatrix();
-	ccGL::Translate(cellCenter[0],cellCenter[1],cellCenter[2]);
+	ccGL::Translate(cellCenter.x, cellCenter.y, cellCenter.z);
 	primitive->draw(*context);
 	glPopMatrix();
 

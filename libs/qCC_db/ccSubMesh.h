@@ -33,7 +33,7 @@ class QCC_DB_LIB_API ccSubMesh : public ccGenericMesh
 public:
 
 	//! Default constructor
-	ccSubMesh(ccMesh* parentMesh);
+	explicit ccSubMesh(ccMesh* parentMesh);
 	//! Destructor
 	virtual ~ccSubMesh();
 
@@ -75,14 +75,14 @@ public:
 
 	//inherited methods (GenericIndexedMesh)
 	inline virtual unsigned size() const { return m_triIndexes->currentSize(); }
-	virtual void forEach(genericTriangleAction& anAction);
+	virtual void forEach(genericTriangleAction& action);
 	inline virtual void placeIteratorAtBegining() { m_globalIterator = 0; }
 	virtual CCLib::GenericTriangle* _getNextTriangle(); //temporary object
 	virtual CCLib::GenericTriangle* _getTriangle(unsigned index); //temporary object
-	virtual CCLib::TriangleSummitsIndexes* getNextTriangleIndexes();
-	virtual CCLib::TriangleSummitsIndexes* getTriangleIndexes(unsigned triangleIndex);
-	virtual void getTriangleSummits(unsigned triangleIndex, CCVector3& A, CCVector3& B, CCVector3& C);
-	virtual void getBoundingBox(PointCoordinateType bbMin[], PointCoordinateType bbMax[]);
+	virtual CCLib::VerticesIndexes* getNextTriangleVertIndexes();
+	virtual CCLib::VerticesIndexes* getTriangleVertIndexes(unsigned triangleIndex);
+	virtual void getTriangleVertices(unsigned triangleIndex, CCVector3& A, CCVector3& B, CCVector3& C);
+	virtual void getBoundingBox(CCVector3& bbMin, CCVector3& bbMax);
 
 	//! Returns global index (i.e. relative to the associated mesh) of a given element
 	/** \param localIndex local index (i.e. relative to the internal index container)

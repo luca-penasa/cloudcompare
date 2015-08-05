@@ -81,7 +81,7 @@ public:
 		{
 			m_cd.resize(w*h,0);
 		}
-		//catch(std::bad_alloc)
+		//catch (const std::bad_alloc&)
 		//{
 		//	//not enough memory!
 		//}
@@ -249,7 +249,7 @@ protected:
 				assert(!m_contourClosed.empty());
 				m_contourClosed.back() = false;
 			//}
-			//catch(std::bad_alloc)
+			//catch (const std::bad_alloc&)
 			//{
 			//	return false;
 			//}
@@ -352,12 +352,6 @@ protected:
 					//isoline underway: we have to re-evaluate the
 					//current position in the grid
 					currentCellIndex = ixy(x,y);
-				}
-
-				//if (x == 188 && y == 183)
-				if (currentCellIndex == 59729)
-				{
-					int i=0;
 				}
 
 				assert(currentCellIndex >= 0);
@@ -619,7 +613,7 @@ protected:
 				}
 			}
 		}
-		catch(std::bad_alloc)
+		catch (const std::bad_alloc&)
 		{
 			//not enough memory
 			m_contourX.clear();
@@ -672,7 +666,6 @@ protected:
 		double area = 0;
 		if (getValidIndex(contour, first) == getValidIndex(contour, last))
 			last = last - 1;
-		int n = last - first + 1;
 		
 		double w = 0, h = 0;
 		for (int i = first; i < last ; i++)
@@ -927,7 +920,7 @@ public:
 			m_maxx.resize(numContours);
 			m_maxy.resize(numContours);
 		}
-		catch(std::bad_alloc)
+		catch (const std::bad_alloc&)
 		{
 			//not enough memory!
 			return false;

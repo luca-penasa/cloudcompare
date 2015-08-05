@@ -194,9 +194,6 @@ bool ccSectionExtractionTool::linkWith(ccGLWindow* win)
 		if (m_editedPoly)
 			m_editedPoly->setDisplay_recursive(0);
 
-		//update view direction
-		setVertDimension(vertAxisComboBox->currentIndex());
-
 		//auto-close formerly associated window
 		if (MainWindow::TheInstance())
 		{
@@ -245,6 +242,9 @@ bool ccSectionExtractionTool::linkWith(ccGLWindow* win)
 
 		if (m_editedPoly)
 			m_editedPoly->setDisplay_recursive(m_associatedWin);
+
+		//update view direction
+		setVertDimension(vertAxisComboBox->currentIndex());
 	}
 
 	return true;
@@ -529,6 +529,7 @@ void ccSectionExtractionTool::updateCloudsBox()
 			m_cloudsBox += m_clouds[i].entity->getOwnBB();
 	}
 }
+
 bool ccSectionExtractionTool::addPolyline(ccPolyline* inputPoly, bool alreadyInDB/*=true*/)
 {
 	if (!inputPoly)
@@ -1106,7 +1107,7 @@ void ccSectionExtractionTool::generateOrthoSections()
 					orthoPoly->setGlobalShift(poly->getGlobalShift());
 
 					//set default display style
-					vertices->setVisible(false);
+					vertices->setEnabled(false);
 					orthoPoly->showColors(true);
 					orthoPoly->setColor(s_defaultPolylineColor);
 					orthoPoly->setWidth(s_defaultPolylineWidth);
@@ -1236,6 +1237,7 @@ bool ccSectionExtractionTool::extractSectionContour(const ccPolyline* originalSe
 													unsigned sectionIndex,
 													ccContourExtractor::ContourType contourType,
 													PointCoordinateType maxEdgeLength,
+													bool multiPass,
 													bool splitContour,
 													bool& contourGenerated,
 													bool visualDebugMode/*=false*/)
@@ -1261,6 +1263,7 @@ bool ccSectionExtractionTool::extractSectionContour(const ccPolyline* originalSe
 
 	std::vector<unsigned> vertIndexes;
 	ccPolyline* contour = ccContourExtractor::ExtractFlatContour(	unrolledSectionCloud,
+																	multiPass,
 																	maxEdgeLength,
 																	N.u,
 																	Y.u,
@@ -1326,7 +1329,7 @@ bool ccSectionExtractionTool::extractSectionContour(const ccPolyline* originalSe
 			}
 #endif
 
-			bool success = contour->split(maxEdgeLength,parts);
+			/*bool success = */contour->split(maxEdgeLength,parts);
 			delete contour;
 			contour = 0;
 		}
@@ -1402,7 +1405,7 @@ bool ccSectionExtractionTool::extractSectionCloud(	const std::vector<CCLib::Refe
 
 		if (part)
 		{
-			if (refClouds.size() == 1)
+			if (i == 0)
 			{
 				//we simply use this 'part' cloud as the section cloud
 				sectionCloud = part;
@@ -1461,6 +1464,7 @@ static double s_defaultSectionThickness = -1.0;
 static double s_contourMaxEdgeLength = 0;
 static bool s_extractSectionsAsClouds = false;
 static bool s_extractSectionsAsContours = true;
+static bool s_multiPass = false;
 static bool s_splitContour = false;
 static ccContourExtractor::ContourType s_extractSectionsType = ccContourExtractor::LOWER;
 
@@ -1509,6 +1513,7 @@ void ccSectionExtractionTool::extractPoints()
 	sesDlg.setMaxEdgeLength(s_contourMaxEdgeLength);
 	sesDlg.doExtractClouds(s_extractSectionsAsClouds);
 	sesDlg.doExtractContours(s_extractSectionsAsContours,s_extractSectionsType);
+	sesDlg.doUseMultiPass(s_multiPass);
 	sesDlg.doSplitContours(s_splitContour);
 
 	if (!sesDlg.exec())
@@ -1519,6 +1524,7 @@ void ccSectionExtractionTool::extractPoints()
 	s_extractSectionsAsClouds   = sesDlg.extractClouds();
 	s_extractSectionsAsContours = sesDlg.extractContours();
 	s_extractSectionsType       = sesDlg.getContourType();
+	s_multiPass                 = sesDlg.useMultiPass();
 	s_splitContour              = sesDlg.splitContours();
 	bool visualDebugMode        = sesDlg.visualDebugMode();
 
@@ -1722,6 +1728,7 @@ void ccSectionExtractionTool::extractPoints()
 														s+1,
 														s_extractSectionsType,
 														s_contourMaxEdgeLength,
+														s_multiPass,
 														s_splitContour,
 														contourGenerated,
 														visualDebugMode);
@@ -1773,7 +1780,7 @@ void ccSectionExtractionTool::extractPoints()
 				break;
 		} //for (int s=0; s<m_sections.size(); ++s)
 	}
-	catch(std::bad_alloc)
+	catch (const std::bad_alloc&)
 	{
 		error = true;
 	}

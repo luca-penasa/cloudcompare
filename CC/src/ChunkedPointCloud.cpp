@@ -52,27 +52,24 @@ void ChunkedPointCloud::clear()
 	invalidateBoundingBox();
 }
 
-void ChunkedPointCloud::forEach(genericPointAction& anAction)
+void ChunkedPointCloud::forEach(genericPointAction& action)
 {
-	unsigned n = size();
-
-	//if a SF is already activated
+	//there's no point of calling forEach if there's no activated scalar field!
 	ScalarField* currentOutScalarFieldArray = getCurrentOutScalarField();
-	if (currentOutScalarFieldArray)
+	if (!currentOutScalarFieldArray)
 	{
-		for (unsigned i=0; i<n; ++i)
-			anAction(*(CCVector3*)m_points->getValue(i),(*currentOutScalarFieldArray)[i]);
+		assert(false);
+		return;
 	}
-	/*else //otherwise we use a fake SF (DGM FIXME: is it really interesting?!) --> NO ;)
+
+	unsigned n = size();
+	for (unsigned i=0; i<n; ++i)
 	{
-		ScalarType dummyDist = 0;
-		for (unsigned i=0; i<n; ++i)
-			anAction(*(CCVector3*)m_points->getValue(i),dummyDist);
+		action(*getPoint(i),(*currentOutScalarFieldArray)[i]);
 	}
-	//*/
 }
 
-void ChunkedPointCloud::getBoundingBox(PointCoordinateType bbMin[], PointCoordinateType bbMax[])
+void ChunkedPointCloud::getBoundingBox(CCVector3& bbMin, CCVector3& bbMax)
 {
 	if (!m_validBB)
 	{
@@ -80,8 +77,8 @@ void ChunkedPointCloud::getBoundingBox(PointCoordinateType bbMin[], PointCoordin
 		m_validBB = true;
 	}
 
-	memcpy(bbMin, m_points->getMin(), 3*sizeof(PointCoordinateType));
-	memcpy(bbMax, m_points->getMax(), 3*sizeof(PointCoordinateType));
+	bbMin = CCVector3(m_points->getMin());
+	bbMax = CCVector3(m_points->getMax());
 }
 
 void ChunkedPointCloud::invalidateBoundingBox()
@@ -290,7 +287,7 @@ int ChunkedPointCloud::addScalarField(const char* uniqueName)
 		//we don't want 'm_scalarFields' to grow by 50% each time! (default behavior of std::vector::push_back)
 		m_scalarFields.resize(m_scalarFields.size()+1);
 	}
-	catch (std::bad_alloc) //out of memory
+	catch (const std::bad_alloc&) //out of memory
 	{
 		sf->release();
 		return -1;

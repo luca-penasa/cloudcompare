@@ -27,7 +27,9 @@
 #include <assert.h>
 
 //Qt
+#ifdef USE_QT
 #include <QCoreApplication>
+#endif
 
 using namespace CCLib;
 
@@ -74,7 +76,9 @@ static void InitProgress(GenericProgressCallback* progressCb, unsigned totalCoun
 		sprintf(info,"Points: %u",totalCount);
 		s_progressCb->setInfo(info);
 		s_progressCb->start();
+#ifdef USE_QT
 		QCoreApplication::processEvents();
+#endif
 	}
 }
 
@@ -90,7 +94,9 @@ static inline void UpdateProgress(unsigned increment)
 		{
 			s_progressCb->update(fPercent);
 			s_lastProgress = uiPercent;
+#ifdef USE_QT
 			QCoreApplication::processEvents();
+#endif
 		}
 	}
 }
@@ -101,7 +107,7 @@ TrueKdTree::BaseNode* TrueKdTree::split(ReferenceCloud* subset)
 	
 	unsigned count = subset->size();
 
-	const PointCoordinateType* planeEquation = Neighbourhood(subset).getLSQPlane();
+	const PointCoordinateType* planeEquation = Neighbourhood(subset).getLSPlane();
 	if (!planeEquation)
 	{
 		//an error occurred during LS plane computation?!
@@ -133,7 +139,7 @@ TrueKdTree::BaseNode* TrueKdTree::split(ReferenceCloud* subset)
 	CCVector3 dims;
 	{
 		CCVector3 bbMin,bbMax;
-		subset->getBoundingBox(bbMin.u,bbMax.u);
+		subset->getBoundingBox(bbMin,bbMax);
 		dims = bbMax - bbMin;
 	}
 
@@ -266,7 +272,7 @@ bool TrueKdTree::build(	double maxError,
 	{
 		s_sortedCoordsForSplit.resize(count);
 	}
-	catch(std::bad_alloc)
+	catch (const std::bad_alloc&)
 	{
 		//not enough memory!
 		return false;
@@ -300,7 +306,7 @@ class GetLeavesVisitor
 {
 public:
 
-	GetLeavesVisitor(TrueKdTree::LeafVector& leaves) : m_leaves(&leaves) {}
+	explicit GetLeavesVisitor(TrueKdTree::LeafVector& leaves) : m_leaves(&leaves) {}
 
 	void visit(TrueKdTree::BaseNode* node)
 	{
@@ -333,7 +339,7 @@ bool TrueKdTree::getLeaves(LeafVector& leaves) const
 	{		
 		GetLeavesVisitor(leaves).visit(m_root);
 	}
-	catch(std::bad_alloc)
+	catch (const std::bad_alloc&)
 	{
 		return false;
 	}

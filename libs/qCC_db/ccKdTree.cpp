@@ -276,8 +276,8 @@ ccBBox ccKdTree::getCellBBox(BaseNode* node) const
 	ccBBox& box = helper.m_UpdatedBox;
 	{
 		CCVector3 bbMin,bbMax;
-		m_associatedCloud->getBoundingBox(bbMin.u,bbMax.u);
-		for (int i=0;i<3;++i)
+		m_associatedCloud->getBoundingBox(bbMin,bbMax);
+		for (int i=0; i<3; ++i)
 		{
 			if (box.minCorner().u[i] != box.minCorner().u[i]) //still NaN value?
 				box.minCorner().u[i] = bbMin.u[i]; //we use the main bb limit
@@ -381,7 +381,7 @@ bool ccKdTree::getNeighborLeaves(ccKdTree::BaseNode* cell, ccKdTree::LeafSet& ne
 			visitor.setUserDataFilter(*userDataFilter);
 		visitor.visit(m_root);
 	}
-	catch (std::bad_alloc)
+	catch (const std::bad_alloc&)
 	{
 		return false;
 	}

@@ -133,7 +133,7 @@ void ccPolyline::showArrow(bool state, unsigned vertIndex, PointCoordinateType l
 ccBBox ccPolyline::getOwnBB(bool withGLFeatures/*=false*/)
 {
 	ccBBox emptyBox;
-	getBoundingBox(emptyBox.minCorner().u, emptyBox.maxCorner().u);
+	getBoundingBox(emptyBox.minCorner(), emptyBox.maxCorner());
 	emptyBox.setValidity(!is2DMode() && size() != 0);
 	return emptyBox;
 }
@@ -197,10 +197,17 @@ void ccPolyline::drawMeOnly(CC_DRAW_CONTEXT& context)
 				glLineWidth(static_cast<GLfloat>(m_width));
 			}
 
-			glBegin(m_isClosed ? GL_LINE_LOOP : GL_LINE_STRIP);
+			//DGM: we do the 'GL_LINE_LOOP' manually as I have a strange bug
+			//on one on my graphic card with this mode!
+			//glBegin(m_isClosed ? GL_LINE_LOOP : GL_LINE_STRIP);
+			glBegin(GL_LINE_STRIP);
 			for (unsigned i=0; i<vertCount; ++i)
 			{
 				ccGL::Vertex3v(getPoint(i)->u);
+			}
+			if (m_isClosed)
+			{
+				ccGL::Vertex3v(getPoint(0)->u);
 			}
 			glEnd();
 
@@ -238,9 +245,9 @@ void ccPolyline::drawMeOnly(CC_DRAW_CONTEXT& context)
 						c_unitArrow->setEnabled(true);
 					}
 					if (colorsShown())
-						c_unitArrow->setTempColor(m_rgbColor.rgb);
+						c_unitArrow->setTempColor(m_rgbColor);
 					else
-						c_unitArrow->setTempColor(context.pointsDefaultCol.rgb);
+						c_unitArrow->setTempColor(context.pointsDefaultCol);
 					//build-up unit arrow own 'context'
 					CC_DRAW_CONTEXT markerContext = context;
 					markerContext.flags &= (~CC_DRAW_ENTITY_NAMES); //we must remove the 'push name flag' so that the sphere doesn't push its own!

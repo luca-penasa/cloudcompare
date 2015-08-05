@@ -118,7 +118,7 @@ bool PCVContext::init(unsigned W,
 	m_width=W;
 	m_height=H;
 
-	associateToEntity(cloud,mesh);
+	associateToEntity(cloud, mesh);
 
 	glInit();
 
@@ -136,7 +136,7 @@ void PCVContext::associateToEntity(GenericCloud* cloud, GenericMesh* mesh)
 
 	//we get cloud bounding box
 	CCVector3 bbMin,bbMax;
-	m_vertices->getBoundingBox(bbMin.u,bbMax.u);
+	m_vertices->getBoundingBox(bbMin,bbMax);
 
 	//we compute bbox diagonal
 	PointCoordinateType maxD = (bbMax-bbMin).norm();

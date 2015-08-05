@@ -150,7 +150,7 @@ CCLib::ReferenceCloud* qHPR::removeHiddenPoints(CCLib::GenericIndexedCloudPersis
 		{
 			pointBelongsToCvxHull.resize(nbPoints+1,false);
 		}
-		catch(std::bad_alloc)
+		catch (const std::bad_alloc&)
 		{
 			//not enough memory!
 			delete[] pt_array;
@@ -366,7 +366,7 @@ void qHPR::doAction()
 				newCloud->setDisplay(newCloud->getDisplay());
 				newCloud->setVisible(true);
 				newCloud->setName(cloud->getName()+QString(".visible_points"));
-				cloud->setVisible(false);
+				cloud->setEnabled(false);
 
 				//add associated viewport object
 				cc2DViewportObject* viewportObject = new cc2DViewportObject(QString("Viewport"));

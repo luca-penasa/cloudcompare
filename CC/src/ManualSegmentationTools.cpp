@@ -18,7 +18,7 @@
 #include "ManualSegmentationTools.h"
 
 //local
-#include "Matrix.h"
+#include "SquareMatrix.h"
 #include "CCTypes.h"
 #include "GenericProgressCallback.h"
 #include "GenericIndexedCloudPersist.h"
@@ -184,7 +184,7 @@ GenericIndexedMesh* ManualSegmentationTools::segmentMesh(GenericIndexedMesh* the
 		{
 			newPointIndexes.resize(numberOfPoints,0);
 		}
-		catch (std::bad_alloc)
+		catch (const std::bad_alloc&)
 		{
 			return 0; //not enough memory
 		}
@@ -230,7 +230,7 @@ GenericIndexedMesh* ManualSegmentationTools::segmentMesh(GenericIndexedMesh* the
 		{
 			bool triangleIsOnTheRightSide = true;
 
-			const TriangleSummitsIndexes* tsi = theMesh->getNextTriangleIndexes(); //DGM: getNextTriangleIndexes is faster for mesh groups!
+			const VerticesIndexes* tsi = theMesh->getNextTriangleVertIndexes(); //DGM: getNextTriangleVertIndexes is faster for mesh groups!
 			int newVertexIndexes[3];
 
 			//VERSION: WE KEEP THE TRIANGLE ONLY IF ITS 3 VERTICES ARE INSIDE
@@ -411,7 +411,6 @@ bool MergeOldTriangles(	GenericIndexedMesh* origMesh,
 	
 	unsigned importedTriCount = static_cast<unsigned>(preservedTriangleIndexes.size());
  	unsigned origVertCount = origVertices->size();
-	unsigned origTriCount = origMesh->size();
 	unsigned newVertCount = newVertices->size();
 	unsigned newTriCount = newMesh->size();
 
@@ -426,7 +425,7 @@ bool MergeOldTriangles(	GenericIndexedMesh* origMesh,
 			for (unsigned i = 0; i < importedTriCount; ++i)
 			{
 				unsigned triIndex = preservedTriangleIndexes[i];
-				const TriangleSummitsIndexes* tsi = origMesh->getTriangleIndexes(triIndex);
+				const VerticesIndexes* tsi = origMesh->getTriangleVertIndexes(triIndex);
 				newIndexMap[tsi->i1] = 1;
 				newIndexMap[tsi->i2] = 1;
 				newIndexMap[tsi->i3] = 1;
@@ -437,7 +436,7 @@ bool MergeOldTriangles(	GenericIndexedMesh* origMesh,
 		{
 			for (unsigned i = 0; i < newTriCount; ++i)
 			{
-				const TriangleSummitsIndexes* tsi = newMesh->getTriangleIndexes(i);
+				const VerticesIndexes* tsi = newMesh->getTriangleVertIndexes(i);
 				if (tsi->i1 & c_origIndexFlag)
 					newIndexMap[tsi->i1 & c_realIndexMask] = 1;
 				if (tsi->i2 & c_origIndexFlag)
@@ -486,7 +485,7 @@ bool MergeOldTriangles(	GenericIndexedMesh* origMesh,
 		{
 			for (unsigned i = 0; i < newTriCount; ++i)
 			{
-				TriangleSummitsIndexes* tsi = newMesh->getTriangleIndexes(i);
+				VerticesIndexes* tsi = newMesh->getTriangleVertIndexes(i);
 				if (tsi->i1 & c_origIndexFlag)
 					tsi->i1 = newIndexMap[tsi->i1 & c_realIndexMask];
 				if (tsi->i2 & c_origIndexFlag)
@@ -510,7 +509,7 @@ bool MergeOldTriangles(	GenericIndexedMesh* origMesh,
 				for (unsigned i = 0; i < importedTriCount; ++i)
 				{
 					unsigned triIndex = preservedTriangleIndexes[i];
-					const TriangleSummitsIndexes* tsi = origMesh->getTriangleIndexes(triIndex);
+					const VerticesIndexes* tsi = origMesh->getTriangleVertIndexes(triIndex);
 					newMesh->addTriangle(newIndexMap[tsi->i1], newIndexMap[tsi->i2], newIndexMap[tsi->i3]);
 					if (origTriIndexesMap)
 						origTriIndexesMap->push_back(triIndex);
@@ -518,7 +517,7 @@ bool MergeOldTriangles(	GenericIndexedMesh* origMesh,
 			}
 		}
 	}
-	catch (std::bad_alloc)
+	catch (const std::bad_alloc&)
 	{
 		//not enough memory
 		return false;
@@ -550,7 +549,7 @@ bool ImportSourceVertices(GenericIndexedCloudPersist* srcVertices,
 
 		for (unsigned i = 0; i < newTriCount; ++i)
 		{
-			const TriangleSummitsIndexes* tsi = newMesh->getTriangleIndexes(i);
+			const VerticesIndexes* tsi = newMesh->getTriangleVertIndexes(i);
 			if (tsi->i1 & c_srcIndexFlag)
 				newIndexMap[tsi->i1 & c_realIndexMask] = 1;
 			if (tsi->i2 & c_srcIndexFlag)
@@ -598,7 +597,7 @@ bool ImportSourceVertices(GenericIndexedCloudPersist* srcVertices,
 		{
 			for (unsigned i = 0; i < newTriCount; ++i)
 			{
-				TriangleSummitsIndexes* tsi = newMesh->getTriangleIndexes(i);
+				VerticesIndexes* tsi = newMesh->getTriangleVertIndexes(i);
 				if (tsi->i1 & c_srcIndexFlag)
 					tsi->i1 = newIndexMap[tsi->i1 & c_realIndexMask];
 				if (tsi->i2 & c_srcIndexFlag)
@@ -608,7 +607,7 @@ bool ImportSourceVertices(GenericIndexedCloudPersist* srcVertices,
 			}
 		}
 	}
-	catch (std::bad_alloc)
+	catch (const std::bad_alloc&)
 	{
 		//not enough memory
 		return false;
@@ -644,8 +643,8 @@ bool ManualSegmentationTools::segmentMeshWitAAPlane(GenericIndexedMesh* mesh,
 
 	//working dimensions
 	unsigned char Z = ioParams.planeOrthoDim;
-	unsigned char X = (Z == 2 ? 0 : Z + 1);
-	unsigned char Y = (X == 2 ? 0 : X + 1);
+	//unsigned char X = (Z == 2 ? 0 : Z + 1);
+	//unsigned char Y = (X == 2 ? 0 : X + 1);
 
 	const double& epsilon = ioParams.epsilon;
 	const double& planeZ = ioParams.planeCoord;
@@ -668,7 +667,7 @@ bool ManualSegmentationTools::segmentMeshWitAAPlane(GenericIndexedMesh* mesh,
 		for (unsigned i = 0; i < triCount; ++i)
 		{
 			//original vertices indexes
-			const TriangleSummitsIndexes* tsi = mesh->getTriangleIndexes(i);
+			const VerticesIndexes* tsi = mesh->getTriangleVertIndexes(i);
 			CCVector3d V[3] = { CCVector3d::fromArray(vertices->getPoint(tsi->i1)->u),
 								CCVector3d::fromArray(vertices->getPoint(tsi->i2)->u),
 								CCVector3d::fromArray(vertices->getPoint(tsi->i3)->u) };
@@ -679,21 +678,21 @@ bool ManualSegmentationTools::segmentMeshWitAAPlane(GenericIndexedMesh* mesh,
 				tsi->i3 | c_origIndexFlag };
 
 			//test each vertex
-			char relativePos[3] = { 1, 1, 1 };
+			//char relativePos[3] = { 1, 1, 1 };
 			std::vector<unsigned char> minusVertIndexes, plusVertIndexes;
 			for (unsigned char j = 0; j < 3; ++j)
 			{
 				const CCVector3d& v = V[j];
 				if (fabs(v.u[Z] - planeZ) < epsilon)
 				{
-					relativePos[j] = 0;
+					//relativePos[j] = 0;
 				}
 				else
 				{
 					if (v.u[Z] < planeZ)
 					{
 						minusVertIndexes.push_back(j);
-						relativePos[j] = -1;
+						//relativePos[j] = -1;
 					}
 					else
 					{
@@ -874,7 +873,7 @@ bool ManualSegmentationTools::segmentMeshWitAAPlane(GenericIndexedMesh* mesh,
 
 		//now add the remaining triangles
 	}
-	catch (std::bad_alloc)
+	catch (const std::bad_alloc&)
 	{
 		//not enough memory
 		error = true;
@@ -973,8 +972,8 @@ bool ManualSegmentationTools::segmentMeshWitAABox(GenericIndexedMesh* origMesh,
 			//Extract the 'plane' information corresponding to the input box faces
 			//-X,+X,-Y,+Y,-Z,+Z
 			unsigned char Z = static_cast<unsigned char>(d / 2); 
-			double planeCoord = (d & 1 ? bbMax : bbMin).u[Z];
-			bool keepBelow = (d & 1 ? true : false);
+			double planeCoord = ((d & 1) ? bbMax : bbMin).u[Z];
+			bool keepBelow = ((d & 1) ? true : false);
 
 			assert(preservedTrianglesInside && formerPreservedTriangles);
 			assert(insideVertices && insideMesh);
@@ -1001,18 +1000,18 @@ bool ManualSegmentationTools::segmentMeshWitAABox(GenericIndexedMesh* origMesh,
 			{
 				bool triangleIsOriginal = false;
 				unsigned souceTriIndex = 0;
-				const TriangleSummitsIndexes* tsi = 0;
+				const VerticesIndexes* tsi = 0;
 				if (i < sourceTriCount)
 				{
 					souceTriIndex = i;
 					triangleIsOriginal = (sourceMesh == origMesh);
-					tsi = sourceMesh->getTriangleIndexes(souceTriIndex);
+					tsi = sourceMesh->getTriangleVertIndexes(souceTriIndex);
 				}
 				else
 				{
 					souceTriIndex = (*formerPreservedTriangles)[i - sourceTriCount];
 					triangleIsOriginal = true;
-					tsi = origMesh->getTriangleIndexes(souceTriIndex);
+					tsi = origMesh->getTriangleVertIndexes(souceTriIndex);
 				}
 
 				//vertices indexes
@@ -1036,9 +1035,9 @@ bool ManualSegmentationTools::segmentMeshWitAABox(GenericIndexedMesh* origMesh,
 				}
 
 				//get the vertices (from the right source!)
-				CCVector3d V[3] = { CCVector3d::fromArray((vertIndexes[0] & c_origIndexFlag ? origVertices : sourceVertices)->getPoint(vertIndexes[0] & c_realIndexMask)->u),
-									CCVector3d::fromArray((vertIndexes[1] & c_origIndexFlag ? origVertices : sourceVertices)->getPoint(vertIndexes[1] & c_realIndexMask)->u),
-									CCVector3d::fromArray((vertIndexes[2] & c_origIndexFlag ? origVertices : sourceVertices)->getPoint(vertIndexes[2] & c_realIndexMask)->u) };
+				CCVector3d V[3] = { CCVector3d::fromArray(( (vertIndexes[0] & c_origIndexFlag) ? origVertices : sourceVertices)->getPoint(vertIndexes[0] & c_realIndexMask)->u),
+									CCVector3d::fromArray(( (vertIndexes[1] & c_origIndexFlag) ? origVertices : sourceVertices)->getPoint(vertIndexes[1] & c_realIndexMask)->u),
+									CCVector3d::fromArray(( (vertIndexes[2] & c_origIndexFlag) ? origVertices : sourceVertices)->getPoint(vertIndexes[2] & c_realIndexMask)->u) };
 
 				if (d == 0)
 				{
@@ -1052,22 +1051,22 @@ bool ManualSegmentationTools::segmentMeshWitAABox(GenericIndexedMesh* origMesh,
 				}
 
 				//test the position of each vertex relatively to the current plane
-				char relativePos[3] = { 1, 1, 1 };
-				bool insideXY[3] = { false, false, false };
+				//char relativePos[3] = { 1, 1, 1 };
+				//bool insideXY[3] = { false, false, false };
 				std::vector<unsigned char> insideLocalVertIndexes, outsideLocalVertIndexes;
 				for (unsigned char j = 0; j < 3; ++j)
 				{
 					const CCVector3d& v = V[j];
 					if (fabs(v.u[Z] - planeCoord) < epsilon)
 					{
-						relativePos[j] = 0;
+						//relativePos[j] = 0;
 					}
 					else
 					{
 						if (v.u[Z] < planeCoord)
 						{
 							insideLocalVertIndexes.push_back(j);
-							relativePos[j] = -1;
+							//relativePos[j] = -1;
 						}
 						else
 						{
@@ -1354,7 +1353,7 @@ bool ManualSegmentationTools::segmentMeshWitAABox(GenericIndexedMesh* origMesh,
 
 		//now add the remaining triangles
 	}
-	catch (std::bad_alloc)
+	catch (const std::bad_alloc&)
 	{
 		//not enough memory
 		error = true;

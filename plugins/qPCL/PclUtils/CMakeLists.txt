@@ -1,14 +1,5 @@
 cmake_minimum_required (VERSION 2.8)
 
-# Eliminate a warning when building in Windows that relates
-# to static linking of Qt executables to qtmain.lib.
-# This policy was introduced in CMake version 2.8.11.
-# CMake version 2.8.11.2 warns when the policy is not set
-# and uses OLD behavior.
-if(POLICY CMP0020)
-  cmake_policy(SET CMP0020 OLD)
-endif()
-
 project( QPCL_PLUGIN_UTILS_LIB )
 
 #requires PCL
@@ -70,7 +61,6 @@ endif()
 
 link_directories( ${PCL_LIBRARY_DIRS} )
 add_definitions( ${PCL_DEFINITIONS} )
-
 target_link_libraries( ${PROJECT_NAME} ${PCL_LIBRARIES} ${EXTERNAL_LIBS_LIBRARIES})
 
 if ( USE_QT5 )

@@ -125,7 +125,8 @@ public:
 	virtual void addToDB(	ccHObject* obj,
 							bool updateZoom = false,
 							bool autoExpandDBTree = true,
-							bool checkDimensions = false );
+							bool checkDimensions = false,
+							bool autoRedraw = true);
 
 	virtual void removeFromDB(ccHObject* obj, bool autoDelete = true);
 	virtual void setSelectedInDB(ccHObject* obj, bool selected);
@@ -207,6 +208,11 @@ protected slots:
 	//! Creates a new 3D GL sub-window
 	ccGLWindow* new3DView();
 
+	//! Zooms in (current 3D view)
+	void zoomIn();
+	//! Zooms out (current 3D view)
+	void zoomOut();
+
 	//! Displays 'about' dialog
 	void doActionShawAboutDialog();
 	//! Displays 'help' dialog
@@ -257,11 +263,6 @@ protected slots:
 	virtual void setCenteredPerspectiveView();
 	virtual void setViewerPerspectiveView();
 
-	//! Tries to load (and then adds to main db) several files
-	/** \param filenames list of all filenames
-	**/
-	void addToDBAuto(const QStringList& filenames);
-
 	//! Handles new label
 	void handleNewLabel(ccHObject*);
 
@@ -274,6 +275,7 @@ protected slots:
 	void updateMenus();
 	void on3DViewActivated(QMdiSubWindow*);
 	void updateUIWithSelection();
+	void addToDBAuto(QStringList);
 
 	void echoMouseWheelRotate(float);
 	void echoCameraDisplaced(float ddx, float ddy);
@@ -363,6 +365,7 @@ protected slots:
 	void doActionResampleWithOctree();
 	void doActionComputeMeshAA();
 	void doActionComputeMeshLS();
+	void doActionComputeDistanceMap();
 	void doActionComputeDistToBestFitQuadric3D();
 	void doActionMeasureMeshSurface();
 	void doActionMeasureMeshVolume();

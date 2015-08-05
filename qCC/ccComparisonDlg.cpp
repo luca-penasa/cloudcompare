@@ -349,7 +349,7 @@ int ccComparisonDlg::computeApproxResults()
 	CCLib::ScalarField* sf = m_compCloud->getCurrentInScalarField();
 	assert(sf);
 
-	//Preparation des octrees
+	//prepare the octree structures
 	ccProgressDialog progressDlg(true,this);
 
 	QElapsedTimer eTimer;
@@ -360,11 +360,13 @@ int ccComparisonDlg::computeApproxResults()
 		{
 			//Approximate distance can (and must) now take max search distance into account!
 			PointCoordinateType maxDistance = static_cast<PointCoordinateType>(maxSearchDistSpinBox->isEnabled() ? maxSearchDistSpinBox->value() : -1.0);
-			approxResult = CCLib::DistanceComputationTools::computeChamferDistanceBetweenTwoClouds(CHAMFER_345,m_compCloud,m_refCloud,DEFAULT_OCTREE_LEVEL,maxDistance,&progressDlg,m_compOctree,m_refOctree);
+			approxResult = CCLib::DistanceComputationTools::computeApproxCloud2CloudDistance(CHAMFER_345,m_compCloud,m_refCloud,DEFAULT_OCTREE_LEVEL,maxDistance,&progressDlg,m_compOctree,m_refOctree);
 		}
 		break;
 	case CLOUDMESH_DIST: //cloud-mesh
-		approxResult = CCLib::DistanceComputationTools::computePointCloud2MeshDistance(m_compCloud,m_refMesh,DEFAULT_OCTREE_LEVEL,-1.0,true,false,false,false,&progressDlg,m_compOctree);
+		{
+			approxResult = CCLib::DistanceComputationTools::computeCloud2MeshDistance(m_compCloud,m_refMesh,DEFAULT_OCTREE_LEVEL,-1.0,true,false,false,false,&progressDlg,m_compOctree);
+		}
 		break;
 	}
 	qint64 elapsedTime_ms = eTimer.elapsed();
@@ -487,7 +489,7 @@ int ccComparisonDlg::determineBestOctreeLevel(double maxSearchDist)
 	{
 		timings.resize(MaxLevel,0);
 	}
-	catch(std::bad_alloc)
+	catch (const std::bad_alloc&)
 	{
 		ccLog::Warning("Can't determine best octree level: not enough memory!");
 		return -1;
@@ -724,12 +726,12 @@ bool ccComparisonDlg::compute()
 	{
 	case CLOUDCLOUD_DIST: //hausdorff
 
-		result = CCLib::DistanceComputationTools::computeHausdorffDistance(m_compCloud,
-			m_refCloud,
-			params,
-			&progressDlg,
-			m_compOctree,
-			m_refOctree);
+		result = CCLib::DistanceComputationTools::computeCloud2CloudDistance(	m_compCloud,
+																				m_refCloud,
+																				params,
+																				&progressDlg,
+																				m_compOctree,
+																				m_refOctree);
 		break;
 
 	case CLOUDMESH_DIST: //cloud-mesh
@@ -737,16 +739,16 @@ bool ccComparisonDlg::compute()
 		if (multiThread && maxSearchDistSpinBox->isEnabled())
 			ccLog::Warning("[Cloud/Mesh comparison] Max search distance is not supported in multi-thread mode! Switching to single thread mode...");
 		
-		result = CCLib::DistanceComputationTools::computePointCloud2MeshDistance(	m_compCloud,
-																					m_refMesh,
-																					static_cast<uchar>(bestOctreeLevel),
-																					maxSearchDist,
-																					false,
-																					signedDistances,
-																					flipNormals,
-																					multiThread,
-																					&progressDlg,
-																					m_compOctree);
+		result = CCLib::DistanceComputationTools::computeCloud2MeshDistance(	m_compCloud,
+																				m_refMesh,
+																				static_cast<uchar>(bestOctreeLevel),
+																				maxSearchDist,
+																				false,
+																				signedDistances,
+																				flipNormals,
+																				multiThread,
+																				&progressDlg,
+																				m_compOctree);
 		break;
 	}
 	qint64 elapsedTime_ms = eTimer.elapsed();
@@ -907,7 +909,7 @@ void ccComparisonDlg::applyAndExit()
 		if (tmpSfIdx >= 0)
 		{
 			m_compCloud->deleteScalarField(tmpSfIdx);
-			tmpSfIdx=-1;
+			tmpSfIdx = -1;
 		}
 
 		//now, if we have a temp distance scalar field (the 'real' distances computed by the user)
@@ -963,14 +965,14 @@ void ccComparisonDlg::cancelAndExit()
 		if (tmpSfIdx >= 0)
 		{
 			m_compCloud->deleteScalarField(tmpSfIdx);
-			tmpSfIdx=-1;
+			tmpSfIdx = -1;
 		}
 
 		int sfIdx = m_compCloud->getScalarFieldIndexByName(CC_TEMP_DISTANCES_DEFAULT_SF_NAME);
 		if (sfIdx >= 0)
 		{
 			m_compCloud->deleteScalarField(sfIdx);
-			sfIdx=-1;
+			sfIdx = -1;
 		}
 
 		if (!m_oldSfName.isEmpty())
