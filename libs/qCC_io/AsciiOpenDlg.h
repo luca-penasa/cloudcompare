@@ -176,6 +176,8 @@ public slots:
 	void onSeparatorChange(const QString& separator);
 	//! Forces the table to update itself
 	void updateTable();
+	//! Forces all columns to be set as Scalars
+	void setAllColumnsAsScalars();
 	//! Sets the number of lines to skip
 	void setSkippedLines(int linesCount);
 

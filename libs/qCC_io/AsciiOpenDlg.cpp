@@ -117,6 +117,9 @@ AsciiOpenDlg::AsciiOpenDlg(QWidget* parent)
 	connect(m_ui->toolButtonShortcutComma,		SIGNAL(clicked()), this, SLOT(shortcutButtonPressed()));
 	connect(m_ui->toolButtonShortcutDotcomma,	SIGNAL(clicked()), this, SLOT(shortcutButtonPressed()));
 
+
+	connect(m_ui->toolButtonShortcutSetAllScalar, SIGNAL(clicked()), this, SLOT(setAllColumnsAsScalars()));
+
 	m_ui->maxCloudSizeDoubleSpinBox->setMaximum(static_cast<double>(CC_MAX_NUMBER_OF_POINTS_PER_CLOUD)/1.0e6);
 	m_ui->maxCloudSizeDoubleSpinBox->setValue(s_maxCloudSizeDoubleSpinBoxValue);
 }
@@ -737,6 +740,20 @@ void AsciiOpenDlg::updateTable()
 	checkSelectedColumnsValidity(); //will eventually enable of disable the "OK" button
 	//expand dialog width to display all table columns
 	resizeWidthToFitTableColumns();
+}
+
+void AsciiOpenDlg::setAllColumnsAsScalars()
+{
+	size_t n_cols = m_ui->tableWidget->columnCount(); // number of columns in table widget
+	for (size_t i=0; i<n_cols; i++)
+	{
+		QComboBox* columnHeaderWidget = static_cast<QComboBox*>(m_ui->tableWidget->cellWidget(0,i));
+
+		if (columnHeaderWidget) // be sure we have one
+		{
+			columnHeaderWidget->setCurrentIndex(ASCII_OPEN_DLG_Scalar);
+		}
+	}
 }
 
 void AsciiOpenDlg::checkSelectedColumnsValidity()
