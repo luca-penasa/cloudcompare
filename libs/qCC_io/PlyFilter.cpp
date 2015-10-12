@@ -26,9 +26,6 @@
 #include <QMessageBox>
 #include <QPushButton>
 
-//CCLib
-#include <ScalarField.h>
-
 //qCC_db
 #include <ccLog.h>
 #include <ccMesh.h>
@@ -36,6 +33,7 @@
 #include <ccMaterial.h>
 #include <ccMaterialSet.h>
 #include <ccProgressDialog.h>
+#include <ccScalarField.h>
 
 //System
 #include <string.h>
@@ -247,16 +245,16 @@ CC_FILE_ERROR PlyFilter::saveToFile(ccHObject* entity, QString filename, e_ply_s
 	}
 
 	bool hasUniqueColor = false;
-	colorType uniqueColor[3] = {0,0,0};
+	ColorCompType uniqueColor[3] = {0,0,0};
 	if (material)
 	{
 		//Material without texture?
 		if (!material->hasTexture())
 		{
 			const ccColor::Rgbaf& diffuse = material->getDiffuseFront();
-			uniqueColor[0] = static_cast<colorType>(diffuse.r * ccColor::MAX);
-			uniqueColor[1] = static_cast<colorType>(diffuse.g * ccColor::MAX);
-			uniqueColor[2] = static_cast<colorType>(diffuse.b * ccColor::MAX);
+			uniqueColor[0] = static_cast<ColorCompType>(diffuse.r * ccColor::MAX);
+			uniqueColor[1] = static_cast<ColorCompType>(diffuse.g * ccColor::MAX);
+			uniqueColor[2] = static_cast<ColorCompType>(diffuse.b * ccColor::MAX);
 			hasUniqueColor = true;
 			material = ccMaterial::CShared(0); //we can forget it!
 		}
@@ -291,7 +289,7 @@ CC_FILE_ERROR PlyFilter::saveToFile(ccHObject* entity, QString filename, e_ply_s
 	}
 
 	//Scalar fields
-	std::vector<CCLib::ScalarField*> scalarFields;
+	std::vector<ccScalarField*> scalarFields;
 	if (vertices->isA(CC_TYPES::POINT_CLOUD))
 	{
 		ccPointCloud* ccCloud = static_cast<ccPointCloud*>(vertices);
@@ -304,12 +302,12 @@ CC_FILE_ERROR PlyFilter::saveToFile(ccHObject* entity, QString filename, e_ply_s
 			unsigned unnamedSF = 0;
 			for (unsigned i=0; i<sfCount; ++i)
 			{
-				scalarFields[i] = ccCloud->getScalarField(i);
+				scalarFields[i] = static_cast<ccScalarField*>(ccCloud->getScalarField(i));
 				const char* sfName = scalarFields[i]->getName();
 				QString propName;
 				if (!sfName)
 				{
-					if (unnamedSF++==0)
+					if (unnamedSF++ == 0)
 						propName = "scalar";
 					else
 						propName = QString("scalar_%1").arg(unnamedSF);
@@ -387,7 +385,7 @@ CC_FILE_ERROR PlyFilter::saveToFile(ccHObject* entity, QString filename, e_ply_s
 
 		if (hasColors)
 		{
-			const colorType* col = vertices->getPointColor(i);
+			const ColorCompType* col = vertices->getPointColor(i);
 			ply_write(ply,static_cast<double>(col[0]));
 			ply_write(ply,static_cast<double>(col[1]));
 			ply_write(ply,static_cast<double>(col[2]));
@@ -407,9 +405,9 @@ CC_FILE_ERROR PlyFilter::saveToFile(ccHObject* entity, QString filename, e_ply_s
 			ply_write(ply, static_cast<double>(N.z));
 		}
 
-		for (std::vector<CCLib::ScalarField*>::const_iterator sf =  scalarFields.begin(); sf != scalarFields.end(); ++sf)
+		for (std::vector<ccScalarField*>::const_iterator sf = scalarFields.begin(); sf != scalarFields.end(); ++sf)
 		{
-			ply_write(ply, static_cast<double>((*sf)->getValue(i)));
+			ply_write(ply, (*sf)->getGlobalShift() + (*sf)->getValue(i));
 		}
 	}
 
@@ -532,7 +530,7 @@ static int normal_cb(p_ply_argument argument)
 	return 1;
 }
 
-static colorType s_color[3] = {0,0,0};
+static ColorCompType s_color[3] = {0,0,0};
 static int s_ColorCount = 0;
 
 static int rgb_cb(p_ply_argument argument)
@@ -552,16 +550,16 @@ static int rgb_cb(p_ply_argument argument)
 	case PLY_DOUBLE:
 	case PLY_FLOAT32:
 	case PLY_FLOAT64:
-		s_color[flags & POS_MASK] = static_cast<colorType>(std::min(std::max(0.0, ply_get_argument_value(argument)), 1.0) * ccColor::MAX);
+		s_color[flags & POS_MASK] = static_cast<ColorCompType>(std::min(std::max(0.0, ply_get_argument_value(argument)), 1.0) * ccColor::MAX);
 		break;
 	case PLY_INT8:
 	case PLY_UINT8:
 	case PLY_CHAR:
 	case PLY_UCHAR:
-		s_color[flags & POS_MASK] = static_cast<colorType>(ply_get_argument_value(argument));
+		s_color[flags & POS_MASK] = static_cast<ColorCompType>(ply_get_argument_value(argument));
 		break;
 	default:
-		s_color[flags & POS_MASK] = static_cast<colorType>(ply_get_argument_value(argument));
+		s_color[flags & POS_MASK] = static_cast<ColorCompType>(ply_get_argument_value(argument));
 		break;
 	}
 
@@ -588,7 +586,7 @@ static int grey_cb(p_ply_argument argument)
 	e_ply_type type;
 	ply_get_property_info(prop, NULL, &type, NULL, NULL);
 
-	colorType G;
+	ColorCompType G;
 
 	switch(type)
 	{
@@ -596,16 +594,16 @@ static int grey_cb(p_ply_argument argument)
 	case PLY_DOUBLE:
 	case PLY_FLOAT32:
 	case PLY_FLOAT64:
-		G = static_cast<colorType>(std::min(std::max(0.0, ply_get_argument_value(argument)), 1.0) * ccColor::MAX);
+		G = static_cast<ColorCompType>(std::min(std::max(0.0, ply_get_argument_value(argument)), 1.0) * ccColor::MAX);
 		break;
 	case PLY_INT8:
 	case PLY_UINT8:
 	case PLY_CHAR:
 	case PLY_UCHAR:
-		G = static_cast<colorType>(ply_get_argument_value(argument));
+		G = static_cast<ColorCompType>(ply_get_argument_value(argument));
 		break;
 	default:
-		G = static_cast<colorType>(ply_get_argument_value(argument));
+		G = static_cast<ColorCompType>(ply_get_argument_value(argument));
 		break;
 	}
 

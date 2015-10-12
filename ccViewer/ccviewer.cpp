@@ -39,6 +39,7 @@
 //dialogs
 #include <ccDisplayOptionsDlg.h>
 #include <ccCameraParamEditDlg.h>
+#include <ccStereoModeDlg.h>
 
 //qCC_db
 #include <ccHObjectCaster.h>
@@ -55,7 +56,7 @@
 #include <assert.h>
 
 //! Current version
-const double CC_VIEWER_VERSION = 1.34;
+const double CC_VIEWER_VERSION = 1.35;
 const QString CC_VIEWER_VERSION_STR = QString::number(CC_VIEWER_VERSION,'f',2);
 
 //Camera parameters dialog
@@ -132,12 +133,14 @@ ccViewer::ccViewer(QWidget *parent, Qt::WindowFlags flags)
 	connect(ui.actionToggleCustomLight,				SIGNAL(toggled(bool)),						this,	SLOT(toggleCustomLight(bool)));
 	//"Options" menu
 	connect(ui.actionGlobalZoom,					SIGNAL(triggered()),						this,	SLOT(setGlobalZoom()));
+	connect(ui.actionEnableStereo,					SIGNAL(toggled(bool)),						this,	SLOT(toggleStereoMode(bool)));
 	connect(ui.actionFullScreen,					SIGNAL(toggled(bool)),						this,	SLOT(toggleFullScreen(bool)));
 	connect(ui.actionLockRotationVertAxis,			SIGNAL(triggered()),						this,	SLOT(toggleRotationAboutVertAxis()));
 
 	//"Options > Selected" menu
 	connect(ui.actionShowColors,					SIGNAL(toggled(bool)),						this,	SLOT(toggleColorsShown(bool)));
 	connect(ui.actionShowNormals,					SIGNAL(toggled(bool)),						this,	SLOT(toggleNormalsShown(bool)));
+	connect(ui.actionShowMaterials,					SIGNAL(toggled(bool)),						this,	SLOT(toggleMaterialsShown(bool)));
 	connect(ui.actionShowScalarField,				SIGNAL(toggled(bool)),						this,	SLOT(toggleScalarShown(bool)));
 	connect(ui.actionShowColorRamp,					SIGNAL(toggled(bool)),						this,	SLOT(toggleColorbarShown(bool)));
 	connect(ui.actionZoomOnSelectedEntity,			SIGNAL(triggered()),						this,	SLOT(zoomOnSelectedEntity()));
@@ -168,7 +171,7 @@ ccViewer::~ccViewer()
 	if (currentRoot)
 	{
 		m_glWindow->setSceneDB(0);
-		m_glWindow->redraw();
+		//m_glWindow->redraw();
 		delete currentRoot;
 	}
 }
@@ -375,6 +378,7 @@ void ccViewer::selectEntity(int uniqueID)
 
 		ui.actionShowColors->blockSignals(true);
 		ui.actionShowNormals->blockSignals(true);
+		ui.actionShowMaterials->blockSignals(true);
 		ui.actionShowScalarField->blockSignals(true);
 		ui.actionShowColorRamp->blockSignals(true);
 
@@ -382,6 +386,18 @@ void ccViewer::selectEntity(int uniqueID)
 		ui.actionShowColors->setChecked(toSelect->colorsShown());
 		ui.actionShowNormals->setEnabled(toSelect->hasNormals());
 		ui.actionShowNormals->setChecked(toSelect->normalsShown());
+
+		if (toSelect->isKindOf(CC_TYPES::MESH))
+		{
+			ccGenericMesh* mesh = static_cast<ccGenericMesh*>(toSelect);
+			ui.actionShowMaterials->setEnabled(mesh->hasMaterials());
+			ui.actionShowMaterials->setChecked(mesh->materialsShown());
+		}
+		else
+		{
+			ui.actionShowMaterials->setEnabled(false);
+			ui.actionShowMaterials->setChecked(false);
+		}
 
 		ccPointCloud* cloud = ccHObjectCaster::ToPointCloud(toSelect);
 		bool hasSF = (cloud ? cloud->hasScalarFields() : false);
@@ -411,6 +427,7 @@ void ccViewer::selectEntity(int uniqueID)
 
 		ui.actionShowColors->blockSignals(false);
 		ui.actionShowNormals->blockSignals(false);
+		ui.actionShowMaterials->blockSignals(false);
 		ui.actionShowScalarField->blockSignals(false);
 		ui.actionShowColorRamp->blockSignals(false);
 
@@ -451,8 +468,10 @@ void ccViewer::updateDisplay()
 void ccViewer::updateGLFrameGradient()
 {
 	//display parameters
-	const ccColor::Rgbub& bkgCol = m_glWindow->getDisplayParameters().backgroundCol;
-	const ccColor::Rgbub& forCol = m_glWindow->getDisplayParameters().pointsDefaultCol;
+	static const ccColor::Rgbub s_black(0,0,0);
+	static const ccColor::Rgbub s_white(255,255,255);
+	const ccColor::Rgbub& bkgCol = m_glWindow->isStereoModeEnabled() ? s_black : m_glWindow->getDisplayParameters().backgroundCol;
+	const ccColor::Rgbub& forCol = m_glWindow->isStereoModeEnabled() ? s_white : m_glWindow->getDisplayParameters().pointsDefaultCol;
 
 	glColor3ubv(bkgCol.rgb);
 	glColor3ub(255-forCol.r,255-forCol.g,255-forCol.b);
@@ -588,10 +607,31 @@ void ccViewer::reflectPerspectiveState()
 	ui.actionSetViewerPerspectiveView->setChecked(perspectiveEnabled && !objectCentered);
 }
 
+
+bool ccViewer::checkStereoMode()
+{
+	if (m_glWindow && m_glWindow->getViewportParameters().perspectiveView && m_glWindow->isStereoModeEnabled())
+	{
+		if (QMessageBox::question(this,"Stereo mode", "Stereo-mode only works in perspective mode. Do you want to disable it?", QMessageBox::Yes, QMessageBox::No) == QMessageBox::No)
+		{
+			return false;
+		}
+		else
+		{
+			toggleStereoMode(false);
+		}
+	}
+
+	return true;
+}
+
+
 void ccViewer::setOrthoView()
 {
 	if (m_glWindow)
 	{
+		if (!checkStereoMode())
+			return;
 		m_glWindow->setPerspectiveState(false,true);
 		m_glWindow->redraw();
 	}
@@ -681,6 +721,54 @@ void ccViewer::toggleCustomLight(bool state)
 	if (m_glWindow)
 		m_glWindow->setCustomLight(state);
 	reflectLightsState();
+}
+
+void ccViewer::toggleStereoMode(bool state)
+{
+	if (!m_glWindow)
+		return;
+
+	bool isActive = m_glWindow->isStereoModeEnabled();
+	if (isActive == state)
+		return;
+
+	if (isActive)
+	{
+		m_glWindow->enableStereoMode(false);
+		ui.menuPlugins->setEnabled(true);
+	}
+	else
+	{
+		//display a parameters dialog
+		ccStereoModeDlg smDlg(this);
+		smDlg.setParameters(m_glWindow->getStereoParams());
+		if (!smDlg.exec())
+		{
+			//cancelled by the user
+			ui.actionEnableStereo->blockSignals(true);
+			ui.actionEnableStereo->setChecked(false);
+			ui.actionEnableStereo->blockSignals(false);
+			return;
+		}
+
+		//force perspective state!
+		if (!m_glWindow->getViewportParameters().perspectiveView)
+		{
+			m_glWindow->setPerspectiveState(true,true);
+			reflectPerspectiveState();
+		}
+		//and disable GL filters :(
+		{
+			//FIXME
+			m_glWindow->setGlFilter(0);
+			ui.menuPlugins->setEnabled(false);
+		}
+
+		m_glWindow->setStereoParams(smDlg.getParameters());
+		m_glWindow->enableStereoMode(true);
+	}
+
+	updateDisplay();
 }
 
 void ccViewer::toggleFullScreen(bool state)
@@ -803,6 +891,15 @@ void ccViewer::toggleNormalsShown(bool state)
 	m_glWindow->redraw();
 }
 
+void ccViewer::toggleMaterialsShown(bool state)
+{
+	if (m_selectedObject && m_selectedObject->isKindOf(CC_TYPES::MESH))
+	{
+		static_cast<ccGenericMesh*>(m_selectedObject)->showMaterials(state);
+		m_glWindow->redraw();
+	}
+}
+
 void ccViewer::toggleScalarShown(bool state)
 {
 	if (!m_selectedObject)
@@ -915,7 +1012,6 @@ void ccViewer::enable3DMouse(bool state)
 		m_3dMouseInput = new Mouse3DInput(this);
 		if (m_3dMouseInput->connect(this,"ccViewer"))
 		{
-			m_3dMouseInput = new Mouse3DInput(this);
 			QObject::connect(m_3dMouseInput, SIGNAL(sigMove3d(std::vector<float>&)),	this,	SLOT(on3DMouseMove(std::vector<float>&)));
 			QObject::connect(m_3dMouseInput, SIGNAL(sigReleased()),						this,	SLOT(on3DMouseReleased()));
 			QObject::connect(m_3dMouseInput, SIGNAL(sigOn3dmouseKeyDown(int)),			this,	SLOT(on3DMouseKeyDown(int)));

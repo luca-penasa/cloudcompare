@@ -59,7 +59,7 @@ public:
 	virtual void refreshBB() = 0;
 
 	//! Returns max capacity
-	virtual unsigned maxSize() const = 0;
+	virtual unsigned capacity() const = 0;
 
 	//! Returns whether the mesh has materials/textures
 	virtual bool hasMaterials() const = 0;
@@ -192,7 +192,7 @@ protected:
 	//Static arrays for OpenGL drawing
 	static PointCoordinateType* GetVertexBuffer();
 	static PointCoordinateType* GetNormalsBuffer();
-	static colorType* GetColorsBuffer();
+	static ColorCompType* GetColorsBuffer();
 
 	//! Returns a pre-initialized array of vertex indexes for wired display
 	/** Array size is MAX_NUMBER_OF_ELEMENTS_PER_CHUNK*6 by default

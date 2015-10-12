@@ -170,12 +170,12 @@ CC_FILE_ERROR AsciiFilter::saveToFile(ccHObject* entity, QString filename, SaveP
 	unsigned numberOfPoints = cloud->size();
 	bool writeColors = cloud->hasColors();
 	bool writeNorms = cloud->hasNormals();
-	std::vector<CCLib::ScalarField*> theScalarFields;
+	std::vector<ccScalarField*> theScalarFields;
 	if (cloud->isKindOf(CC_TYPES::POINT_CLOUD))
 	{
 		ccPointCloud* ccCloud = static_cast<ccPointCloud*>(cloud);
 		for (unsigned i=0; i<ccCloud->getNumberOfScalarFields(); ++i)
-			theScalarFields.push_back(ccCloud->getScalarField(i));
+			theScalarFields.push_back(static_cast<ccScalarField*>(ccCloud->getScalarField(i)));
 	}
 	bool writeSF = (theScalarFields.size() != 0);
 
@@ -220,7 +220,7 @@ CC_FILE_ERROR AsciiFilter::saveToFile(ccHObject* entity, QString filename, SaveP
 		if (writeSF)
 		{
 			//add each associated SF name
-			for (std::vector<CCLib::ScalarField*>::const_iterator it = theScalarFields.begin(); it != theScalarFields.end(); ++it)
+			for (std::vector<ccScalarField*>::const_iterator it = theScalarFields.begin(); it != theScalarFields.end(); ++it)
 			{
 				QString sfName((*it)->getName());
 				sfName.replace(separator,'_');
@@ -276,7 +276,7 @@ CC_FILE_ERROR AsciiFilter::saveToFile(ccHObject* entity, QString filename, SaveP
 		if (writeColors)
 		{
 			//add rgb color
-			const colorType* col = cloud->getPointColor(i);
+			const ColorCompType* col = cloud->getPointColor(i);
 			if (saveFloatColors)
 			{
 				colorLine.append(separator);
@@ -303,10 +303,11 @@ CC_FILE_ERROR AsciiFilter::saveToFile(ccHObject* entity, QString filename, SaveP
 		if (writeSF)
 		{
 			//add each associated SF values
-			for (std::vector<CCLib::ScalarField*>::const_iterator it = theScalarFields.begin(); it != theScalarFields.end(); ++it)
+			for (std::vector<ccScalarField*>::const_iterator it = theScalarFields.begin(); it != theScalarFields.end(); ++it)
 			{
 				line.append(separator);
-				line.append(QString::number((*it)->getValue(i),'f',s_sfPrecision));
+				double sfVal = (*it)->getGlobalShift() + (*it)->getValue(i);
+				line.append(QString::number(sfVal,'f',s_sfPrecision));
 			}
 		}
 
@@ -865,24 +866,24 @@ CC_FILE_ERROR AsciiFilter::loadCloudFromFormatedAsciiFile(	const QString& filena
 					if (cloudDesc.redIndex >= 0)
 					{
 						float multiplier = cloudDesc.hasFloatRGBColors[0] ? static_cast<float>(ccColor::MAX) : 1.0f;
-						col.r = static_cast<colorType>(parts[cloudDesc.redIndex].toFloat() * multiplier);
+						col.r = static_cast<ColorCompType>(parts[cloudDesc.redIndex].toFloat() * multiplier);
 					}
 					if (cloudDesc.greenIndex >= 0)
 					{
 						float multiplier = cloudDesc.hasFloatRGBColors[1] ? static_cast<float>(ccColor::MAX) : 1.0f;
-						col.g = static_cast<colorType>(parts[cloudDesc.greenIndex].toFloat() * multiplier);
+						col.g = static_cast<ColorCompType>(parts[cloudDesc.greenIndex].toFloat() * multiplier);
 					}
 					if (cloudDesc.blueIndex >= 0)
 					{
 						float multiplier = cloudDesc.hasFloatRGBColors[2] ? static_cast<float>(ccColor::MAX) : 1.0f;
-						col.b = static_cast<colorType>(parts[cloudDesc.blueIndex].toFloat() * multiplier);
+						col.b = static_cast<ColorCompType>(parts[cloudDesc.blueIndex].toFloat() * multiplier);
 					}
 				}
 				cloudDesc.cloud->addRGBColor(col.rgb);
 			}
 			else if (cloudDesc.greyIndex >= 0)
 			{
-				col.r = col.r = col.b = static_cast<colorType>(parts[cloudDesc.greyIndex].toInt());
+				col.r = col.r = col.b = static_cast<ColorCompType>(parts[cloudDesc.greyIndex].toInt());
 				cloudDesc.cloud->addRGBColor(col.rgb);
 			}
 

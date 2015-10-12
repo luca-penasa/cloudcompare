@@ -292,7 +292,7 @@ bool ccMesh::computePerTriangleNormals()
 			//compute face normal (right hand rule)
 			CCVector3 N = (*B-*A).cross(*C-*A);
 
-			normsType nIndex = ccNormalVectors::GetNormIndex(N.u);
+			CompressedNormType nIndex = ccNormalVectors::GetNormIndex(N.u);
 			normIndexes->addElement(nIndex);
 		}
 	}
@@ -473,17 +473,25 @@ void ccMesh::applyGLTransformation(const ccGLMatrix& trans)
 	//transparent call
 	ccGenericMesh::applyGLTransformation(trans);
 
-	//vertices should be handled another way!
+	//we take care of per-triangle normals
+	//(vertices and per-vertex normals should be taken care of by the recursive call)
+	transformTriNormals(trans);
+}
 
+void ccMesh::transformTriNormals(const ccGLMatrix& trans)
+{
     //we must take care of the triangle normals!
 	if (m_triNormals && (!getParent() || !getParent()->isKindOf(CC_TYPES::MESH)))
     {
         bool recoded = false;
 
-        //if there is more triangle normals than the size of the compressed
-		//normals array, we recompress the array instead of recompressing each normal
 		unsigned numTriNormals = m_triNormals->currentSize();
-        if (numTriNormals>ccNormalVectors::GetNumberOfVectors())
+
+#if 0 //no use to use memory for this!
+
+        //if there are more triangle normals than the size of the compressed
+		//normals array, we recompress the array instead of recompressing each normal
+        if (numTriNormals > ccNormalVectors::GetNumberOfVectors())
         {
             NormsIndexesTableType* newNorms = new NormsIndexesTableType;
             if (newNorms->reserve(ccNormalVectors::GetNumberOfVectors()))
@@ -494,7 +502,7 @@ void ccMesh::applyGLTransformation(const ccGLMatrix& trans)
 					{
 						CCVector3 new_n(ccNormalVectors::GetNormal(i));
 						trans.applyRotation(new_n);
-						normsType newNormIndex = ccNormalVectors::GetNormIndex(new_n.u);
+						CompressedNormType newNormIndex = ccNormalVectors::GetNormIndex(new_n.u);
 						newNorms->addElement(newNormIndex);
 					}
 				}
@@ -515,26 +523,22 @@ void ccMesh::applyGLTransformation(const ccGLMatrix& trans)
 			newNorms = 0;
         }
 
-        //if there is less triangle normals than the compressed normals array size
+        //if there are less triangle normals than the compressed normals array size
         //(or if there is not enough memory to instantiate the temporary array),
 		//we recompress each normal ...
         if (!recoded)
+#endif
         {
-            //on recode direct chaque normale
             m_triNormals->placeIteratorAtBegining();
             for (unsigned i=0; i<numTriNormals; i++)
             {
-                normsType* _theNormIndex = m_triNormals->getCurrentValuePtr();
+                CompressedNormType* _theNormIndex = m_triNormals->getCurrentValuePtr();
                 CCVector3 new_n(ccNormalVectors::GetNormal(*_theNormIndex));
                 trans.applyRotation(new_n);
                 *_theNormIndex = ccNormalVectors::GetNormIndex(new_n.u);
                 m_triNormals->forwardIterator();
             }
         }
-	}
-	else
-	{
-		//TODO: process failed!
 	}
 }
 
@@ -590,7 +594,7 @@ bool ccMesh::laplacianSmooth(	unsigned nbIteration,
 	}
 
 	//repeat Laplacian smoothing iterations
-	for(unsigned iter = 0; iter < nbIteration; iter++)
+	for (unsigned iter = 0; iter < nbIteration; iter++)
 	{
 		verticesDisplacement->fill(0);
 
@@ -1237,7 +1241,7 @@ unsigned ccMesh::size() const
 	return m_triVertIndexes->currentSize();
 }
 
-unsigned ccMesh::maxSize() const
+unsigned ccMesh::capacity() const
 {
 	return m_triVertIndexes->capacity();
 }
@@ -1329,6 +1333,13 @@ ccBBox ccMesh::getOwnBB(bool withGLFeatures/*=false*/)
 	refreshBB();
 
 	return m_bBox;
+}
+
+const ccGLMatrix& ccMesh::getGLTransformationHistory() const
+{
+	//DGM: it may happen that the vertices transformation history matrix is not the same as the mesh
+	//(if applyGLTransformation is called directly on the vertices). Therefore we prefer the cloud's by default.
+	return m_associatedCloud ? m_associatedCloud->getGLTransformationHistory() : m_glTransHistory;
 }
 
 //specific methods
@@ -1632,13 +1643,13 @@ void ccMesh::drawMeOnly(CC_DRAW_CONTEXT& context)
 				//scalar field
 				if (glParams.showSF)
 				{
-					colorType* _rgbColors = GetColorsBuffer();
+					ColorCompType* _rgbColors = GetColorsBuffer();
 					_vertIndexes = m_triVertIndexes->chunkStartPtr(k);
 					assert(colorScale);
 #ifdef OPTIM_MEM_CPY
 					for (n=0; n<chunkSize; n+=decimStep, _vertIndexes+=step)
 					{
-						const colorType* col = currentDisplayedScalarField->getValueColor(*_vertIndexes++);
+						const ColorCompType* col = currentDisplayedScalarField->getValueColor(*_vertIndexes++);
 						*(_rgbColors)++ = *(col)++;
 						*(_rgbColors)++ = *(col)++;
 						*(_rgbColors)++ = *(col)++;
@@ -1656,14 +1667,14 @@ void ccMesh::drawMeOnly(CC_DRAW_CONTEXT& context)
 #else
 					for (n=0; n<chunkSize; n+=decimStep, _vertIndexes+=step)
 					{
-						const colorType* col = currentDisplayedScalarField->getValueColor(_vertIndexes[0]);
-						memcpy(_rgbColors,col,sizeof(colorType)*3);
+						const ColorCompType* col = currentDisplayedScalarField->getValueColor(_vertIndexes[0]);
+						memcpy(_rgbColors,col,sizeof(ColorCompType)*3);
 						_rgbColors += 3;
 						col = currentDisplayedScalarField->getValueColor(_vertIndexes[1]);
-						memcpy(_rgbColors,col,sizeof(colorType)*3);
+						memcpy(_rgbColors,col,sizeof(ColorCompType)*3);
 						_rgbColors += 3;
 						col = currentDisplayedScalarField->getValueColor(_vertIndexes[2]);
-						memcpy(_rgbColors,col,sizeof(colorType)*3);
+						memcpy(_rgbColors,col,sizeof(ColorCompType)*3);
 						_rgbColors += 3;
 					}
 #endif
@@ -1671,12 +1682,12 @@ void ccMesh::drawMeOnly(CC_DRAW_CONTEXT& context)
 				//colors
 				else if (glParams.showColors)
 				{
-					colorType* _rgbColors = GetColorsBuffer();
+					ColorCompType* _rgbColors = GetColorsBuffer();
 					_vertIndexes = m_triVertIndexes->chunkStartPtr(k);
 #ifdef OPTIM_MEM_CPY
 					for (n=0; n<chunkSize; n+=decimStep, _vertIndexes+=step)
 					{
-						const colorType* col = rgbColorsTable->getValue(*_vertIndexes++);
+						const ColorCompType* col = rgbColorsTable->getValue(*_vertIndexes++);
 						*(_rgbColors)++ = *(col)++;
 						*(_rgbColors)++ = *(col)++;
 						*(_rgbColors)++ = *(col)++;
@@ -1694,11 +1705,11 @@ void ccMesh::drawMeOnly(CC_DRAW_CONTEXT& context)
 #else
 					for (n=0; n<chunkSize; n+=decimStep, _vertIndexes+=step)
 					{
-						memcpy(_rgbColors,rgbColorsTable->getValue(_vertIndexes[0]),sizeof(colorType)*3);
+						memcpy(_rgbColors,rgbColorsTable->getValue(_vertIndexes[0]),sizeof(ColorCompType)*3);
 						_rgbColors += 3;
-						memcpy(_rgbColors,rgbColorsTable->getValue(_vertIndexes[1]),sizeof(colorType)*3);
+						memcpy(_rgbColors,rgbColorsTable->getValue(_vertIndexes[1]),sizeof(ColorCompType)*3);
 						_rgbColors += 3;
-						memcpy(_rgbColors,rgbColorsTable->getValue(_vertIndexes[2]),sizeof(colorType)*3);
+						memcpy(_rgbColors,rgbColorsTable->getValue(_vertIndexes[2]),sizeof(ColorCompType)*3);
 						_rgbColors += 3;
 					}
 #endif
@@ -1810,7 +1821,7 @@ void ccMesh::drawMeOnly(CC_DRAW_CONTEXT& context)
 		else
 		{
 			//current vertex color
-			const colorType *col1=0,*col2=0,*col3=0;
+			const ColorCompType *col1=0,*col2=0,*col3=0;
 			//current vertex normal
 			const PointCoordinateType *N1=0,*N2=0,*N3=0;
 			//current vertex texture coordinates
@@ -2710,7 +2721,7 @@ bool ccMesh::toFile_MeOnly(QFile& out) const
 	//we can't save the associated cloud here (as it may be shared by multiple meshes)
 	//so instead we save it's unique ID (dataVersion>=20)
 	//WARNING: the cloud must be saved in the same BIN file! (responsibility of the caller)
-	uint32_t vertUniqueID = (m_associatedCloud ? (uint32_t)m_associatedCloud->getUniqueID() : 0);
+	uint32_t vertUniqueID = (m_associatedCloud ? static_cast<uint32_t>(m_associatedCloud->getUniqueID()) : 0);
 	if (out.write((const char*)&vertUniqueID,4) < 0)
 		return WriteError();
 
@@ -2719,7 +2730,7 @@ bool ccMesh::toFile_MeOnly(QFile& out) const
 		//we can't save the normals array here (as it may be shared by multiple meshes)
 		//so instead we save it's unique ID (dataVersion>=20)
 		//WARNING: the normals array must be saved in the same BIN file! (responsibility of the caller)
-		uint32_t normArrayID = (m_triNormals && m_triNormals->isAllocated() ? (uint32_t)m_triNormals->getUniqueID() : 0);
+		uint32_t normArrayID = (m_triNormals && m_triNormals->isAllocated() ? static_cast<uint32_t>(m_triNormals->getUniqueID()) : 0);
 		if (out.write((const char*)&normArrayID,4) < 0)
 			return WriteError();
 	}
@@ -2729,7 +2740,7 @@ bool ccMesh::toFile_MeOnly(QFile& out) const
 		//we can't save the texture coordinates array here (as it may be shared by multiple meshes)
 		//so instead we save it's unique ID (dataVersion>=20)
 		//WARNING: the texture coordinates array must be saved in the same BIN file! (responsibility of the caller)
-		uint32_t texCoordArrayID = (m_texCoords && m_texCoords->isAllocated() ? (uint32_t)m_texCoords->getUniqueID() : 0);
+		uint32_t texCoordArrayID = (m_texCoords && m_texCoords->isAllocated() ? static_cast<uint32_t>(m_texCoords->getUniqueID()) : 0);
 		if (out.write((const char*)&texCoordArrayID,4) < 0)
 			return WriteError();
 	}
@@ -2739,7 +2750,7 @@ bool ccMesh::toFile_MeOnly(QFile& out) const
 		//we can't save the material set here (as it may be shared by multiple meshes)
 		//so instead we save it's unique ID (dataVersion>=20)
 		//WARNING: the material set must be saved in the same BIN file! (responsibility of the caller)
-		uint32_t matSetID = (m_materials ? (uint32_t)m_materials->getUniqueID() : 0);
+		uint32_t matSetID = (m_materials ? static_cast<uint32_t>(m_materials->getUniqueID()) : 0);
 		if (out.write((const char*)&matSetID,4) < 0)
 			return WriteError();
 	}
@@ -3015,13 +3026,13 @@ bool ccMesh::interpolateColors(unsigned i1, unsigned i2, unsigned i3, const CCVe
 	CCVector3d w;
 	computeInterpolationWeights(i1,i2,i3,P,w);
 
-	const colorType* C1 = m_associatedCloud->getPointColor(i1);
-	const colorType* C2 = m_associatedCloud->getPointColor(i2);
-	const colorType* C3 = m_associatedCloud->getPointColor(i3);
+	const ColorCompType* C1 = m_associatedCloud->getPointColor(i1);
+	const ColorCompType* C2 = m_associatedCloud->getPointColor(i2);
+	const ColorCompType* C3 = m_associatedCloud->getPointColor(i3);
 
-	rgb.r = static_cast<colorType>(floor(C1[0]*w.u[0] + C2[0]*w.u[1] + C3[0]*w.u[2]));
-	rgb.g = static_cast<colorType>(floor(C1[1]*w.u[0] + C2[1]*w.u[1] + C3[1]*w.u[2]));
-	rgb.b = static_cast<colorType>(floor(C1[2]*w.u[0] + C2[2]*w.u[1] + C3[2]*w.u[2]));
+	rgb.r = static_cast<ColorCompType>(floor(C1[0]*w.u[0] + C2[0]*w.u[1] + C3[0]*w.u[2]));
+	rgb.g = static_cast<ColorCompType>(floor(C1[1]*w.u[0] + C2[1]*w.u[1] + C3[1]*w.u[2]));
+	rgb.b = static_cast<ColorCompType>(floor(C1[2]*w.u[0] + C2[2]*w.u[1] + C3[2]*w.u[2]));
 
 	return true;
 }
@@ -3070,9 +3081,9 @@ bool ccMesh::getVertexColorFromMaterial(unsigned triIndex, unsigned char vertInd
 
 					QRgb pixel = texture.pixel(xPix,yPix);
 
-					rgb.r = static_cast<colorType>(qRed(pixel));
-					rgb.g = static_cast<colorType>(qGreen(pixel));
-					rgb.b = static_cast<colorType>(qBlue(pixel));
+					rgb.r = static_cast<ColorCompType>(qRed(pixel));
+					rgb.g = static_cast<ColorCompType>(qGreen(pixel));
+					rgb.b = static_cast<ColorCompType>(qBlue(pixel));
 
 					foundMaterial = true;
 				}
@@ -3081,9 +3092,9 @@ bool ccMesh::getVertexColorFromMaterial(unsigned triIndex, unsigned char vertInd
 		else
 		{
 			const ccColor::Rgbaf& diffuse = material->getDiffuseFront();
-			rgb.r = static_cast<colorType>(diffuse.r * ccColor::MAX);
-			rgb.g = static_cast<colorType>(diffuse.g * ccColor::MAX);
-			rgb.b = static_cast<colorType>(diffuse.b * ccColor::MAX);
+			rgb.r = static_cast<ColorCompType>(diffuse.r * ccColor::MAX);
+			rgb.g = static_cast<ColorCompType>(diffuse.g * ccColor::MAX);
+			rgb.b = static_cast<ColorCompType>(diffuse.b * ccColor::MAX);
 
 			foundMaterial = true;
 		}
@@ -3124,9 +3135,9 @@ bool ccMesh::getColorFromMaterial(unsigned triIndex, const CCVector3& P, ccColor
 	if (!material->hasTexture())
 	{
 		const ccColor::Rgbaf& diffuse = material->getDiffuseFront();
-		rgb.r = static_cast<colorType>(diffuse.r * ccColor::MAX);
-		rgb.g = static_cast<colorType>(diffuse.g * ccColor::MAX);
-		rgb.b = static_cast<colorType>(diffuse.b * ccColor::MAX);
+		rgb.r = static_cast<ColorCompType>(diffuse.r * ccColor::MAX);
+		rgb.g = static_cast<ColorCompType>(diffuse.g * ccColor::MAX);
+		rgb.b = static_cast<ColorCompType>(diffuse.b * ccColor::MAX);
 		return true;
 	}
 
@@ -3191,9 +3202,9 @@ bool ccMesh::getColorFromMaterial(unsigned triIndex, const CCVector3& P, ccColor
 		QRgb pixel = texture.pixel(xPix,yPix);
 
 		const ccColor::Rgbaf& diffuse = material->getDiffuseFront();
-		rgb.r = static_cast<colorType>(diffuse.r * qRed  (pixel));
-		rgb.g = static_cast<colorType>(diffuse.g * qGreen(pixel));
-		rgb.b = static_cast<colorType>(diffuse.b * qBlue (pixel));
+		rgb.r = static_cast<ColorCompType>(diffuse.r * qRed  (pixel));
+		rgb.g = static_cast<ColorCompType>(diffuse.g * qGreen(pixel));
+		rgb.b = static_cast<ColorCompType>(diffuse.b * qBlue (pixel));
 	}
 
 	return true;
@@ -3364,9 +3375,9 @@ bool ccMesh::pushSubdivide(/*PointCoordinateType maxArea, */unsigned indexA, uns
 	else
 	{
 		//we will add one triangle, so we must be sure to have enough memory
-		if (size() == maxSize())
+		if (size() == capacity())
 		{
-			if (!reserve(size()+3*s_defaultSubdivideGrowRate))
+			if (!reserve(size() + 3*s_defaultSubdivideGrowRate))
 			{
 				ccLog::Error("[ccMesh::pushSubdivide] Not enough memory!");
 				return false;
@@ -3579,10 +3590,8 @@ ccMesh* ccMesh::subdivide(PointCoordinateType maxArea) const
 
 	s_alreadyCreatedVertices.clear();
 
-	if (resultMesh->size() < resultMesh->maxSize())
-		resultMesh->resize(resultMesh->size());
-	if (resultVertices->size() < resultVertices->capacity())
-		resultVertices->resize(resultVertices->size());
+	resultMesh->shrinkToFit();
+	resultVertices->shrinkToFit();
 
 	//we import from the original mesh... what we can
 	if (hasNormals())

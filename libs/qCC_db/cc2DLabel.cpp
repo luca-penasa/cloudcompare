@@ -41,6 +41,7 @@ cc2DLabel::cc2DLabel(QString name/*=QString()*/)
 	, m_showFullBody(true)
 	, m_dispIn3D(false)
 	, m_dispIn2D(true)
+	, m_relMarkerScale(1.0f)
 {
 	m_screenPos[0] = m_screenPos[1] = 0.05f;
 
@@ -72,6 +73,30 @@ double GetAngle_deg(CCVector3 AB, CCVector3 AC)
 	return acos(dotprod) * CC_RAD_TO_DEG;
 }
 
+QString cc2DLabel::GetSFValueAsString(const LabelInfo1& info, int precision)
+{
+	if (info.hasSF)
+	{
+		if (!ccScalarField::ValidValue(info.sfValue))
+		{
+			return "NaN";
+		}
+		else
+		{
+			QString sfVal = QString::number(info.sfValue,'f',precision);
+			if (info.sfValueIsShifted)
+			{
+				sfVal = QString::number(info.sfShiftedValue,'f',precision) + QString(" (shifted: %1)").arg(sfVal);
+			}
+			return sfVal;
+		}
+	}
+	else
+	{
+		return QString();
+	}
+}
+
 QString cc2DLabel::getTitle(int precision) const
 {
 	QString title;
@@ -86,7 +111,8 @@ QString cc2DLabel::getTitle(int precision) const
 		getLabelInfo1(info);
 		if (info.hasSF)
 		{
-			title = QString("%1 = %2 (%3)").arg(info.sfName).arg(info.sfValue,0,'f',precision).arg(title);
+			QString sfVal = GetSFValueAsString(info, precision);
+			title = QString("%1 = %2").arg(info.sfName).arg(sfVal);
 		}
 	}
 	else if (count == 2)
@@ -417,7 +443,7 @@ void cc2DLabel::getLabelInfo1(LabelInfo1& info) const
 	info.hasRGB = info.cloud->hasColors();
 	if (info.hasRGB)
 	{
-		const colorType* C = info.cloud->getPointColor(info.pointIndex);
+		const ColorCompType* C = info.cloud->getPointColor(info.pointIndex);
 		assert(C);
 		info.rgb[0] = C[0];
 		info.rgb[1] = C[1];
@@ -428,13 +454,22 @@ void cc2DLabel::getLabelInfo1(LabelInfo1& info) const
 	if (info.hasSF)
 	{
 		info.sfValue = info.cloud->getPointScalarValue(info.pointIndex);
+
 		info.sfName = "Scalar";
 		//fetch the real scalar field name if possible
 		if (info.cloud->isA(CC_TYPES::POINT_CLOUD))
 		{
 			ccPointCloud* pc = static_cast<ccPointCloud*>(info.cloud);
 			if (pc->getCurrentDisplayedScalarField())
-				info.sfName = QString(pc->getCurrentDisplayedScalarField()->getName());
+			{
+				ccScalarField* sf = pc->getCurrentDisplayedScalarField();
+				info.sfName = QString(sf->getName());
+				if (ccScalarField::ValidValue(info.sfValue) && sf->getGlobalShift() != 0)
+				{
+					info.sfShiftedValue = sf->getGlobalShift() + info.sfValue;
+					info.sfValueIsShifted = true;
+				}
+			}
 		}
 	}
 }
@@ -533,7 +568,8 @@ QStringList cc2DLabel::getLabelContent(int precision)
 			//scalar field
 			if (info.hasSF)
 			{
-				QString sfStr = QString("%1 = %2").arg(info.sfName).arg(info.sfValue,0,'f',precision);
+				QString sfVal = GetSFValueAsString(info, precision);
+				QString sfStr = QString("%1 = %2").arg(info.sfName).arg(sfVal);
 				body << sfStr;
 			}
 		}
@@ -739,7 +775,8 @@ void cc2DLabel::drawMeOnly3D(CC_DRAW_CONTEXT& context)
 					glPushMatrix();
 					const CCVector3* P = m_points[i].cloud->getPoint(m_points[i].index);
 					ccGL::Translate(P->x,P->y,P->z);
-					glScalef(context.labelMarkerSize,context.labelMarkerSize,context.labelMarkerSize);
+					float scale = context.labelMarkerSize * m_relMarkerScale;
+					glScalef(scale,scale,scale);
 					c_unitPointMarker->draw(markerContext);
 					glPopMatrix();
 				}
@@ -752,10 +789,17 @@ void cc2DLabel::drawMeOnly3D(CC_DRAW_CONTEXT& context)
 				font.setBold(true);
 				static const QChar ABC[3] = {'A','B','C'};
 
-				int VP[4];
-				context._win->getViewportArray(VP);
-				const double* MM = context._win->getModelViewMatd(); //viewMat
-				const double* MP = context._win->getProjectionMatd(); //projMat
+				//we can't use the context '_win' information (getViewport, getModelViewMatd, etc. )
+				//because it doesn't take the temporary 'GL transformation' into account!
+				//int VP[4];
+				//context._win->getViewportArray(VP2);
+				//const double* MM = context._win->getModelViewMatd(); //viewMat
+				//const double* MP = context._win->getProjectionMatd(); //projMat
+				GLint VP[4];
+				GLdouble MM[16], MP[16];
+				glGetIntegerv(GL_VIEWPORT, VP);
+				glGetDoublev(GL_PROJECTION_MATRIX, MP);
+				glGetDoublev(GL_MODELVIEW_MATRIX, MM);
 
 				//draw their name
 				glPushAttrib(GL_DEPTH_BUFFER_BIT);

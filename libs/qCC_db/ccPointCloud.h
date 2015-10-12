@@ -32,22 +32,25 @@
 //Local
 #include "qCC_db.h"
 #include "ccGenericPointCloud.h"
+#include "ccNormalVectors.h"
 #include "ccColorScale.h"
 
 //Qt
 #include <QGLBuffer>
 #include <QMutex>
+#include <QSharedPointer>
 
 class ccPointCloud;
 class ccScalarField;
 class ccPolyline;
 class QGLBuffer;
 class LodStructThread;
+class ccProgressDialog;
 
 //! Maximum number of points (per cloud) displayed in a single LOD iteration
 /** \warning MUST BE GREATER THAN 'MAX_NUMBER_OF_ELEMENTS_PER_CHUNK'
 **/
-static const unsigned MAX_POINT_COUNT_PER_LOD_RENDER_PASS = MAX_NUMBER_OF_ELEMENTS_PER_CHUNK * 10; //~ 650K
+static const unsigned MAX_POINT_COUNT_PER_LOD_RENDER_PASS = (MAX_NUMBER_OF_ELEMENTS_PER_CHUNK << 3); //~ 65K * 8 = 512K
 
 /***************************************************
 				ccPointCloud
@@ -242,6 +245,8 @@ public:
 	**/
 	virtual bool resize(unsigned numberOfPoints);
 
+	//! Removes unused capacity
+	inline void shrinkToFit() { if (size() < capacity()) resize(size()); }
 
 	/***************************************************
 				Scalar fields handling
@@ -266,6 +271,94 @@ public:
 	//! Sets whether color scale should be displayed or not
 	void showSFColorsScale(bool state);
 
+	/***************************************************
+				Associated grid structure
+	***************************************************/
+
+	//! Grid structure
+	struct Grid
+	{
+		//! Shared type
+		typedef QSharedPointer<Grid> Shared;
+		
+		//! Default constructor
+		Grid()
+			: w(0)
+			, h(0)
+			, validCount(0)
+			, minValidIndex(0)
+			, maxValidIndex(0)
+		{
+			sensorPosition.toIdentity();
+		}
+
+		//! Copy constructor
+		/** \warning May throw a bad_alloc exception
+		**/
+		Grid(const Grid& grid)
+			: w(grid.w)
+			, h(grid.h)
+			, indexes(grid.indexes)
+			, validCount(grid.validCount)
+			, minValidIndex(grid.minValidIndex)
+			, maxValidIndex(grid.minValidIndex)
+			, sensorPosition(grid.sensorPosition)
+		{}
+		
+		//! Grid width
+		unsigned w;
+		//! Grid height
+		unsigned h;
+
+		//! Number of valid indexes
+		unsigned validCount;
+		//! Minimum valid index
+		unsigned minValidIndex;
+		//! Maximum valid index
+		unsigned maxValidIndex;
+
+		//! Grid indexes (size: w x h)
+		std::vector<int> indexes;
+
+		//! Sensor position (expressed relatively to the cloud points)
+		ccGLMatrixd sensorPosition;
+	};
+
+	//! Returns the number of associated grids
+	size_t gridCount() const { return m_grids.size(); }
+	//! Returns an associated grid
+	inline Grid::Shared& grid(size_t gridIndex) { return m_grids[gridIndex]; }
+	//! Returns an associated grid (const verson)
+	inline const Grid::Shared& grid(size_t gridIndex) const { return m_grids[gridIndex]; }
+	//! Adds an associated grid
+	inline bool addGrid(Grid::Shared grid) { try{ m_grids.push_back(grid); } catch (const std::bad_alloc&) { return false; } return true; }
+	//! Remove all associated grids
+	inline void removeGrids() { m_grids.clear(); }
+
+	//! Compute the normals with the associated grid structure(s)
+	/** Can also orient the normals in the same run.
+	**/
+	bool computeNormalsWithGrids(	CC_LOCAL_MODEL_TYPES localModel,
+									int kernelWidth,
+									bool orientNormals = true,
+									ccProgressDialog* pDlg = 0 );
+
+	//! Orient the normals with the associated grid structure(s)
+	bool orientNormalsWithGrids(	ccProgressDialog* pDlg = 0 );
+
+	//! Compute the normals by approximating the local surface around each point
+	bool computeNormalsWithOctree(	CC_LOCAL_MODEL_TYPES model,
+									ccNormalVectors::Orientation preferredOrientation,
+									PointCoordinateType defaultRadius,
+									ccProgressDialog* pDlg = 0 );
+
+	//! Orient the normals with a Minimum Spanning Tree
+	bool orientNormalsWithMST(		unsigned kNN = 6,
+									ccProgressDialog* pDlg = 0 );
+
+	//! Orient normals with Fast Marching
+	bool orientNormalsWithFM(		unsigned char level,
+									ccProgressDialog* pDlg = 0 );
 
 	/***************************************************
 						Other methods
@@ -287,12 +380,15 @@ public:
 	virtual bool hasDisplayedScalarField() const;
 	virtual void removeFromDisplay(const ccGenericGLDisplay* win); //for proper VBO release
 
+	//inherited from CCLib::GenericCloud
+	virtual unsigned char testVisibility(const CCVector3& P) const;
+
 	//inherited from ccGenericPointCloud
-	virtual const colorType* getPointScalarValueColor(unsigned pointIndex) const;
-	virtual const colorType* geScalarValueColor(ScalarType d) const;
+	virtual const ColorCompType* getPointScalarValueColor(unsigned pointIndex) const;
+	virtual const ColorCompType* geScalarValueColor(ScalarType d) const;
 	virtual ScalarType getPointDisplayedDistance(unsigned pointIndex) const;
-	virtual const colorType* getPointColor(unsigned pointIndex) const;
-	virtual const normsType& getPointNormalIndex(unsigned pointIndex) const;
+	virtual const ColorCompType* getPointColor(unsigned pointIndex) const;
+	virtual const CompressedNormType& getPointNormalIndex(unsigned pointIndex) const;
 	virtual const CCVector3& getPointNormal(unsigned pointIndex) const;
 	CCLib::ReferenceCloud* crop(const ccBBox& box, bool inside = true);
 	virtual void scale(PointCoordinateType fx, PointCoordinateType fy, PointCoordinateType fz, CCVector3 center = CCVector3(0,0,0));
@@ -302,6 +398,14 @@ public:
 	//virtual bool isScalarFieldEnabled() const;
 	inline virtual void refreshBB() { invalidateBoundingBox(); }
 
+	//! Sets whether visibility check (during comparison) is enabled or not
+	/** See ccPointCloud::testVisibility.
+	**/
+	inline void enableVisibilityCheck(bool state) { m_visibilityCheckEnabled = state; }
+
+	//! Returns whether the mesh as an associated sensor or not
+	bool hasSensor() const;
+
 	//! Interpolate colors from another cloud
 	bool interpolateColorsFrom(	ccGenericPointCloud* cloud,
 								CCLib::GenericProgressCallback* progressCb = NULL,
@@ -310,12 +414,12 @@ public:
 	//! Sets a particular point color
 	/** WARNING: colors must be enabled.
 	**/
-	void setPointColor(unsigned pointIndex, const colorType* col);
+	void setPointColor(unsigned pointIndex, const ColorCompType* col);
 
 	//! Sets a particular point compressed normal
 	/** WARNING: normals must be enabled.
 	**/
-	void setPointNormalIndex(unsigned pointIndex, normsType norm);
+	void setPointNormalIndex(unsigned pointIndex, CompressedNormType norm);
 
 	//! Sets a particular point normal (shortcut)
 	/** WARNING: normals must be enabled.
@@ -326,7 +430,7 @@ public:
 	//! Pushes a compressed normal vector
 	/** \param index compressed normal vector
 	**/
-	void addNormIndex(normsType index);
+	void addNormIndex(CompressedNormType index);
 
 	//! Pushes a normal vector on stack (shortcut)
 	/** \param N normal vector
@@ -362,18 +466,18 @@ public:
         \param g green component
         \param b blue component
     **/
-	void addRGBColor(colorType r, colorType g, colorType b);
+	void addRGBColor(ColorCompType r, ColorCompType g, ColorCompType b);
 
 	//! Pushes an RGB color on stack
 	/** \param C RGB color (size: 3)
 	**/
-	void addRGBColor(const colorType* C);
+	void addRGBColor(const ColorCompType* C);
 
 	//! Pushes a grey color on stack
 	/** Shortcut: color is converted to RGB=(g,g,g).
         \param g grey component
 	**/
-	void addGreyColor(colorType g);
+	void addGreyColor(ColorCompType g);
 
     //! Multiplies all color components of all points by coefficients
     /** If the cloud has no color, all points are considered white and
@@ -415,7 +519,7 @@ public:
         \param b blue component
 		\return success
     **/
-	bool setRGBColor(colorType r, colorType g, colorType b);
+	bool setRGBColor(ColorCompType r, ColorCompType g, ColorCompType b);
 
 	//! Set a unique color for the whole cloud
 	/** Color array is automatically allocated if necessary.
@@ -519,6 +623,8 @@ protected:
 	virtual void notifyGeometryUpdate();
 
 	//inherited from ChunkedPointCloud
+	/** \warning Doesn't handle scan grids!
+	**/
 	virtual void swapPoints(unsigned firstIndex, unsigned secondIndex);
 
 	//! Colors
@@ -534,6 +640,14 @@ protected:
 	ccScalarField* m_currentDisplayedScalarField;
 	//! Currently displayed scalar field index
 	int m_currentDisplayedScalarFieldIndex;
+
+	//! Associated grid structure
+	std::vector<Grid::Shared> m_grids;
+
+	//! Whether visibility check is available or not (during comparison)
+	/** See ccPointCloud::testVisibility
+	**/
+	bool m_visibilityCheckEnabled;
 
 protected: // VBO
 
@@ -595,8 +709,6 @@ protected: // VBO
 	void glChunkColorPointer (unsigned chunkIndex, unsigned decimStep, bool useVBOs);
 	void glChunkSFPointer    (unsigned chunkIndex, unsigned decimStep, bool useVBOs);
 	void glChunkNormalPointer(unsigned chunkIndex, unsigned decimStep, bool useVBOs);
-
-public: //Level of Detail (LOD)
 
 public: //Level of Detail (LOD)
 
@@ -670,7 +782,7 @@ public: //Level of Detail (LOD)
 		//! Adds a level descriptor
 		inline void addLevel(const LevelDesc& desc) { lock(); m_levels.push_back(desc); unlock(); }
 		//! Shrinks the level descriptor set to its minimal size
-		inline void shrink() { lock(); m_levels.resize(m_levels.capacity()); unlock(); }
+		inline void shrink() { lock(); m_levels.resize(m_levels.size()); unlock(); } //DGM: shrink_to_fit is a C++11 method
 
 		//! Returns the maximum level
 		inline unsigned char maxLevel() { lock(); size_t count = m_levels.size(); unlock(); return static_cast<unsigned char>(std::min<size_t>(count,256)); }

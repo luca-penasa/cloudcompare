@@ -128,6 +128,11 @@ public:
 	//! Returns a given point
 	inline const PickedPoint& getPoint(unsigned index) const { return m_points[index]; }
 
+	//! Sets marker (relative) scale
+	/** Default value: 1.0
+	**/
+	inline void setRelativeMarkerScale(float scale) { m_relMarkerScale = scale; }
+
 protected:
 
 	//! One-point label info
@@ -138,9 +143,11 @@ protected:
 		bool hasNormal;
 		CCVector3 normal;
 		bool hasRGB;
-		Vector3Tpl<colorType> rgb;
+		Vector3Tpl<ColorCompType> rgb;
 		bool hasSF;
 		ScalarType sfValue;
+		double sfShiftedValue;
+		bool sfValueIsShifted;
 		QString sfName;
 		//! Default constructor
 		LabelInfo1()
@@ -151,11 +158,21 @@ protected:
 			, hasRGB(false)
 			, rgb(0,0,0)
 			, hasSF(false)
-			, sfValue(NAN_VALUE)
+			, sfValue(0)
+			, sfShiftedValue(0)
+			, sfValueIsShifted(false)
 		{}
 	};
-	//! Gets one-point label info
+	
+	//! Returns one-point label info
 	void getLabelInfo1(LabelInfo1& info) const;
+	
+	//! Returns the SF value as a string
+	/** Handles:
+		- NaN values
+		- shifted SF
+	**/
+	static QString GetSFValueAsString(const LabelInfo1& info, int precision);
 
 	//! Two-points label info
 	struct LabelInfo2
@@ -250,6 +267,9 @@ protected:
 
 	//! Whether to display the label in 2D
 	bool m_dispIn2D;
+
+	//! Relative marker scale
+	float m_relMarkerScale;
 };
 
 #endif //CC_2D_LABEL_HEADER

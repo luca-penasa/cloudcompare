@@ -248,6 +248,7 @@ protected slots:
 	virtual void setRightView();
 	virtual void setIsoView1();
 	virtual void setIsoView2();
+	virtual void toggleActiveWindowStereoVision(bool);
 	virtual void toggleActiveWindowCenteredPerspective();
 	virtual void toggleActiveWindowCustomLight();
 	virtual void toggleActiveWindowSunLight();
@@ -380,6 +381,7 @@ protected slots:
 	void doActionEditGlobalShiftAndScale();
 	void doActionMatchBBCenters();
 	void doActionMatchScales();
+	void doActionSORFilter();
 	void doActionFilterNoise();
 	void doActionUnroll();
 	void doActionCreateGBLSensor();
@@ -392,6 +394,7 @@ protected slots:
 	void doActionSetViewFromSensor();
 	void doActionShowDepthBuffer();
 	void doActionExportDepthBuffer();
+	void doActionComputePointsVisibility();
 	void doActionRasterize();
 	void doConvertPolylinesToMesh();
 	void doActionExportCoordToSF();
@@ -486,9 +489,9 @@ protected:
 	static void RemoveSiblingsFromCCObjectList(ccHObject::Container& ccObjects);
 
 	//! Returns a default first guess for algorithms kernel size (one cloud)
-	static PointCoordinateType GetDefaultCloudKernelSize(ccGenericPointCloud* cloud);
+	static PointCoordinateType GetDefaultCloudKernelSize(ccGenericPointCloud* cloud, unsigned knn = 12);
 	//! Returns a default first guess for algorithms kernel size (several clouds)
-	static PointCoordinateType GetDefaultCloudKernelSize(const ccHObject::Container& entities);
+	static PointCoordinateType GetDefaultCloudKernelSize(const ccHObject::Container& entities, unsigned knn = 12);
 
 	//! Creates point clouds from multiple 'components'
 	void createComponentsClouds(ccGenericPointCloud* cloud,
@@ -502,7 +505,7 @@ protected:
 	void saveGUIElementsPos();
 
 	void setOrthoView(ccGLWindow* win);
-	void setCenteredPerspectiveView(ccGLWindow* win);
+	void setCenteredPerspectiveView(ccGLWindow* win, bool autoRedraw = true);
 	void setViewerPerspectiveView(ccGLWindow* win);
 
 	void closeEvent(QCloseEvent* event);
@@ -582,6 +585,9 @@ protected:
 
 	//! Updates the pivot visibility pop-menu based for a given window (or an absence of!)
 	virtual void updatePivotVisibilityPopUpMenu(ccGLWindow* win);
+
+	//! Checks whether stereo mode can be stopped (if necessary) or not
+	bool checkStereoMode(ccGLWindow* win);
 
 	//DB & DB Tree
 	ccDBRoot* m_ccRoot;

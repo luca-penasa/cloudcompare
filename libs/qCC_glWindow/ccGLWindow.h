@@ -36,6 +36,7 @@
 #include <QFont>
 #include <QMap>
 #include <QElapsedTimer>
+#include <QTimer>
 //#define THREADED_GL_WIDGET
 #ifdef THREADED_GL_WIDGET
 #include <QThread>
@@ -381,6 +382,12 @@ public:
 	**/
 	virtual void invalidateVisualization();
 
+	//! Renders screen to an image
+	virtual QImage renderToImage(	float zoomFactor = 1.0,
+									bool dontScaleFeatures = false,
+									bool renderOverlayItems = false,
+									bool silent = false);
+
 	//! Renders screen to a file
 	virtual bool renderToFile(	QString filename,
 								float zoomFactor = 1.0,
@@ -481,13 +488,40 @@ public:
 	inline bool isLODEnabled() const { return m_LODEnabled; }
 
 	//! Enables or disables LOD on this display
-	inline void setLODEnabled(bool state) { m_LODEnabled = state; }
+	inline void setLODEnabled(bool state, bool autoDisable = false) { m_LODEnabled = state; m_LODAutoDisable = autoDisable; }
 
 	//! Whether the middle-screen cross should be displayed or not
 	bool crossShouldBeDrawn() const;
-	
+
 	//! Main OpenGL display sequence
 	void draw3D(CC_DRAW_CONTEXT& context, bool doDrawCross);
+
+public: //stereo mode
+
+	//! Enables the stereo display mode
+	inline void enableStereoMode(bool state) { m_stereoIsEnabled = state; }
+
+	//! Returns whether the stereo display mode is enabled or not
+	inline bool isStereoModeEnabled() const { return m_stereoIsEnabled; }
+	
+	//! Seterovision parameters
+	struct StereoParams
+	{
+		StereoParams();
+
+		enum GlassType { RED_BLUE = 1, RED_CYAN = 2 };
+		
+		bool autoFocal;
+		double focalDist;
+		double eyeSepFactor;
+		GlassType glassType;
+	};
+
+	//! Returns the current stereo mode parameters
+	inline const StereoParams& getStereoParams() const { return m_stereoParams; }
+
+	//! Sets the current stereo mode parameters
+	void setStereoParams(const StereoParams& params);
 
 public slots:
 
@@ -513,6 +547,9 @@ protected slots:
 
 	//! Reacts to the itemPickedFast signal
 	void onItemPickedFast(int entityID, int subEntityID, int x, int y);
+
+	//! Checks for scheduled redraw
+	void checkScheduledRedraw();
 
 signals:
 
@@ -611,7 +648,7 @@ signals:
 	//! Signal emitted when a new label is created
 	void newLabel(ccHObject* obj);
 
-protected:
+protected: //methods
 
 	//! Processes the clickable items
 	/** \return true if an item has been clicked
@@ -682,8 +719,10 @@ protected:
 	void drawScale(const ccColor::Rgbub& color);
 
 	//Projections controls
-	void recalcModelViewMatrix();
-	void recalcProjectionMatrix();
+	ccGLMatrixd computeModelViewMatrix(const CCVector3d& cameraCenter) const;
+	ccGLMatrixd computeProjectionMatrix(const CCVector3d& cameraCenter, double& zNear, double& zFar, bool withGLfeatures) const;
+	void updateModelViewMatrix();
+	void updateProjectionMatrix();
 	void setStandardOrthoCenter();
 	void setStandardOrthoCorner();
 
@@ -777,21 +816,33 @@ protected:
 	//! Draws the 'hot zone' (+/- icons for point size), 'leave bubble-view' button, etc.
 	void drawClickableItems(int xStart, int& yStart);
 
-	//! Disables LOD rendering
-	void disableLOD();
+	//! Disables current LOD rendering cycle
+	void stopLODCycle();
 
 	// Releases all textures, GL lists, etc.
 	void uninitializeGL();
 
-	/***************************************************
-					OpenGL Extensions
-	***************************************************/
+	//! Schedules a full redraw
+	/** Any previously scheduled redraw will be cancelled.
+		\warning The redraw will be cancelled if redraw/updateGL is called before.
+		\param maxDelay_ms the maximum delay for the call to redraw (in ms)
+	**/
+	void scheduleFullRedraw(unsigned maxDelay_ms);
+
+	//! Cancels any scheduled redraw
+	/** See ccGLWindow::scheduleFullRedraw.
+	**/
+	void cancelScheduledRedraw();
+
+protected: //OpenGL Extensions
 
 	//! Loads OpenGL extensions
 	/** Wrapper around ccFBOUtils::InitGLEW.
 		\return success
 	**/
 	static bool InitGLEW();
+
+protected: //members
 
 	//! GL names picking buffer
 	GLuint m_pickingBuffer[CC_PICKING_BUFFER_SIZE];
@@ -834,6 +885,8 @@ protected:
 
 	//! Whether L.O.D. (level of detail) is enabled or not
 	bool m_LODEnabled;
+	//! Whether L.O.D. should be automatically disabled at the end of the rendering cycle
+	bool m_LODAutoDisable;
 	//! Whether the display should be refreshed on next call to 'refresh'
 	bool m_shouldBeRefreshed;
 	//! Whether the mouse (cursor) has moved after being pressed or not
@@ -1012,6 +1065,17 @@ protected:
 	bool m_touchInProgress;
 	//! Touch gesture initial distance
 	qreal m_touchBaseDist;
+
+	//! Scheduler timer
+	QTimer m_scheduleTimer;
+	//! Scheduled full redraw (no LOD)
+	qint64 m_scheduledFullRedrawTime;
+
+	//! Seterovision mode parameters
+	StereoParams m_stereoParams;
+
+	//! Seterovision mode parameters
+	bool m_stereoIsEnabled;
 
 private:
 

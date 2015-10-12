@@ -63,6 +63,7 @@ bool DxfProfilesExporter::SaveVerticalProfiles(	const QSharedPointer<DistanceMap
 												QString filename,
 												unsigned angularStepCount,
 												double heightStep,
+												double heightShift,
 												const Parameters& params,
 												ccMainAppInterface* app/*=0*/)
 {
@@ -80,8 +81,8 @@ bool DxfProfilesExporter::SaveVerticalProfiles(	const QSharedPointer<DistanceMap
 	CCVector3 profileBBMin, profileBBMax;
 	profile->getAssociatedCloud()->getBoundingBox(profileBBMin,profileBBMax);
 	//Mix with the map's boundaries along 'Y'
-	double yMin = std::max(map->yMin,static_cast<double>(profileBBMin.y));
-	double yMax = std::min(map->yMin + static_cast<double>(map->ySteps) * map->yStep, static_cast<double>(profileBBMax.y));
+	double yMin = std::max(map->yMin, static_cast<double>(profileBBMin.y)+heightShift);
+	double yMax = std::min(map->yMin + map->ySteps * map->yStep, static_cast<double>(profileBBMax.y)+heightShift);
 	const double ySpan = yMax - yMin;
 	//For the 'X' dimension, it's easier to stick with the th. profile
 	const double xMin = profileBBMin.x;
@@ -303,7 +304,7 @@ bool DxfProfilesExporter::SaveVerticalProfiles(	const QSharedPointer<DistanceMap
 			for (unsigned i=0; i<vertexCount; ++i)
 			{
 				const CCVector3* P = profile->getPoint(i);
-				dxf.writeVertex(*dw, DL_VertexData(x0+(P->x-xMin)*scale,y0+(P->y-yMin)*scale,0.0));
+				dxf.writeVertex(*dw, DL_VertexData(x0+(P->x-xMin)*scale,y0+(P->y+heightShift-yMin)*scale,0.0));
 			}
 
 			dxf.writePolylineEnd(*dw);
@@ -341,9 +342,8 @@ bool DxfProfilesExporter::SaveVerticalProfiles(	const QSharedPointer<DistanceMap
 			yLegend += c_textHeight_mm*2.0;
 
 			//units
-			QString unitsStr("mm");
 			dxf.writeText(	*dw,
-				DL_TextData(xLegend,yLegend,0.0,xLegend,yLegend,0.0,c_textHeight_mm,1.0,0,0,0,qPrintable(QString("Deviation units: ")+unitsStr),"STANDARD",0.0),
+				DL_TextData(xLegend,yLegend,0.0,xLegend,yLegend,0.0,c_textHeight_mm,1.0,0,0,0,qPrintable(QString("Deviation units: ")+params.scaledDevUnits),"STANDARD",0.0),
 				DefaultLegendMaterial);
 
 			//next line
@@ -405,7 +405,7 @@ bool DxfProfilesExporter::SaveVerticalProfiles(	const QSharedPointer<DistanceMap
 						const CCVector3* A = profile->getPoint(i-1);
 						const CCVector3* B = profile->getPoint(i);
 
-						double alpha = static_cast<double>((step.height - A->y)/(B->y - A->y));
+						double alpha = static_cast<double>((step.height - A->y - heightShift)/(B->y - A->y));
 						if (alpha >= 0.0 && alpha <= 1.0)
 						{
 							//we deduce the right radius by linear interpolation
@@ -558,6 +558,7 @@ bool DxfProfilesExporter::SaveHorizontalProfiles(	const QSharedPointer<DistanceM
 													ccPolyline* profile,
 													QString filename,
 													unsigned heightStepCount,
+													double heightShift,
 													double angularStep_rad,
 													double radToUnitConvFactor,
 													QString angleUnit,
@@ -579,9 +580,9 @@ bool DxfProfilesExporter::SaveHorizontalProfiles(	const QSharedPointer<DistanceM
 	profile->getAssociatedCloud()->getBoundingBox(profileBBMin,profileBBMax);
 	//Mix with the map's boundaries along 'Y'
 	double yMin = std::max(	map->yMin + 0.5 * map->xStep, //central height of first row
-							static_cast<double>(profileBBMin.y));
+							static_cast<double>(profileBBMin.y)+heightShift);
 	double yMax = std::min(	map->yMin + (static_cast<double>(map->ySteps)-0.5) * map->yStep, //central height of last row
-							static_cast<double>(profileBBMax.y));
+							static_cast<double>(profileBBMax.y)+heightShift);
 	const double ySpan = yMax - yMin;
 
 	//For the 'X' dimension, it's easier to stick with the th. profile
@@ -765,12 +766,12 @@ bool DxfProfilesExporter::SaveHorizontalProfiles(	const QSharedPointer<DistanceM
 		dw->sectionEntities();
 
 		//we make the profile fit in the middle of the page (21.0 x 29.7 cm)
-		double scale = std::min((c_pageWidth_mm - 2.0 * c_profileMargin_mm)/(2.0*maxRadius),
-								(c_pageHeight_mm - 2.0 * c_profileMargin_mm)/(2.0*maxRadius));
+		double scale = std::min((c_pageWidth_mm - 2.0 * c_profileMargin_mm)  / (2.0 * maxRadius),
+								(c_pageHeight_mm - 2.0 * c_profileMargin_mm) / (2.0 * maxRadius));
 
 		//min corner of profile area
-//		const double x0 = (c_pageWidth_mm - 2.0*maxRadius*scale) / 2.0;
-		const double y0 = (c_pageHeight_mm - 2.0*maxRadius*scale) / 2.0;
+		//const double x0 = (c_pageWidth_mm  - 2.0 * maxRadius*scale) / 2.0;
+		const double y0 = (c_pageHeight_mm - 2.0 * maxRadius*scale) / 2.0;
 		//center of profile area
 		const double xc = c_pageWidth_mm / 2.0;
 		const double yc = c_pageHeight_mm / 2.0;
@@ -830,9 +831,8 @@ bool DxfProfilesExporter::SaveHorizontalProfiles(	const QSharedPointer<DistanceM
 			yLegend += c_textHeight_mm*2.0;
 
 			//units
-			QString unitsStr("mm");
 			dxf.writeText(	*dw,
-				DL_TextData(xLegend,yLegend,0.0,xLegend,yLegend,0.0,c_textHeight_mm,1.0,0,0,0,qPrintable(QString("Deviation units: ")+unitsStr),"STANDARD",0.0), //DGM: warning, toStdString doesn't preserve "local" characters
+				DL_TextData(xLegend,yLegend,0.0,xLegend,yLegend,0.0,c_textHeight_mm,1.0,0,0,0,qPrintable(QString("Deviation units: ")+params.scaledDevUnits),"STANDARD",0.0), //DGM: warning, toStdString doesn't preserve "local" characters
 				DefaultLegendMaterial);
 
 			//next line
@@ -899,7 +899,7 @@ bool DxfProfilesExporter::SaveHorizontalProfiles(	const QSharedPointer<DistanceM
 					const CCVector3* A = profile->getPoint(i-1);
 					const CCVector3* B = profile->getPoint(i);
 
-					double alpha = static_cast<double>((height - A->y)/(B->y - A->y));
+					double alpha = static_cast<double>((height - A->y - heightShift)/(B->y - A->y));
 					if (alpha >= 0.0 && alpha <= 1.0)
 					{
 						//we deduce the right radius by linear interpolation

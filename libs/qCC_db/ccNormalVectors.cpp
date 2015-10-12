@@ -19,6 +19,7 @@
 
 //Local
 #include "ccSingleton.h"
+#include "ccNormalCompressor.h"
 
 //CCLib
 #include <CCGeom.h>
@@ -53,7 +54,7 @@ void ccNormalVectors::ReleaseUniqueInstance()
 ccNormalVectors::ccNormalVectors()
 	: m_theNormalHSVColors(0)
 {
-	init(QUANTIZE_LEVEL);
+	init(ccNormalCompressor::QUANTIZE_LEVEL);
 }
 
 ccNormalVectors::~ccNormalVectors()
@@ -61,6 +62,14 @@ ccNormalVectors::~ccNormalVectors()
 	if (m_theNormalHSVColors)
 		delete[] m_theNormalHSVColors;
 }
+
+CompressedNormType ccNormalVectors::GetNormIndex(const PointCoordinateType N[])
+{
+	unsigned index = ccNormalCompressor::Compress(N);
+
+	return static_cast<CompressedNormType>(index);
+}
+
 
 bool ccNormalVectors::enableNormalHSVColorsArray()
 {
@@ -73,34 +82,39 @@ bool ccNormalVectors::enableNormalHSVColorsArray()
 		return false;
 	}
 
-	m_theNormalHSVColors = new colorType[m_theNormalVectors.size()*3];
+	m_theNormalHSVColors = new ColorCompType[m_theNormalVectors.size()*3];
 	if (!m_theNormalHSVColors)
 	{
 		//not enough memory
 		return false;
 	}
 
-	colorType* rgb = m_theNormalHSVColors;
+	ColorCompType* rgb = m_theNormalHSVColors;
 	for (size_t i=0; i<m_theNormalVectors.size(); ++i, rgb+=3)
-		ccNormalVectors::ConvertNormalToRGB(m_theNormalVectors[i],rgb[0],rgb[1],rgb[2]);
+	{
+		ccColor::Rgb col = ccNormalVectors::ConvertNormalToRGB(m_theNormalVectors[i]);
+		rgb[0] = col.r;
+		rgb[1] = col.g;
+		rgb[2] = col.b;
+	}
 
 	return (m_theNormalHSVColors != 0);
 }
 
-const colorType* ccNormalVectors::getNormalHSVColor(unsigned index) const
+const ColorCompType* ccNormalVectors::getNormalHSVColor(unsigned index) const
 {
 	assert(m_theNormalHSVColors);
 	assert(index < m_theNormalVectors.size());
 	return m_theNormalHSVColors+3*index;
 }
 
-const colorType* ccNormalVectors::getNormalHSVColorArray() const
+const ColorCompType* ccNormalVectors::getNormalHSVColorArray() const
 {
 	assert(m_theNormalHSVColors);
 	return m_theNormalHSVColors;
 }
 
-bool ccNormalVectors::init(unsigned quantizeLevel)
+bool ccNormalVectors::init(unsigned char quantizeLevel)
 {
 	unsigned numberOfVectors = (1<<(quantizeLevel*2+3));
 	try
@@ -115,23 +129,11 @@ bool ccNormalVectors::init(unsigned quantizeLevel)
 
 	for (unsigned i=0; i<numberOfVectors; ++i)
 	{
-		Quant_dequantize_normal(i,quantizeLevel,m_theNormalVectors[i].u);
+		ccNormalCompressor::Decompress(i, m_theNormalVectors[i].u, quantizeLevel);
 		m_theNormalVectors[i].normalize();
 	}
 
 	return true;
-}
-
-void ccNormalVectors::InvertNormal(normsType &code)
-{
-	//See 'Quant_quantize_normal' for a better understanding
-	normsType mask = 1 << 2*QUANTIZE_LEVEL;
-
-	code += ((code & mask) ? -mask : mask);
-	mask <<= 1;
-	code += ((code & mask) ? -mask : mask);
-	mask <<= 1;
-	code += ((code & mask) ? -mask : mask);
 }
 
 bool ccNormalVectors::UpdateNormalOrientations(	ccGenericPointCloud* theCloud,
@@ -199,7 +201,7 @@ bool ccNormalVectors::UpdateNormalOrientations(	ccGenericPointCloud* theCloud,
 	//we check each normal orientation
 	for (unsigned i=0; i<theNormsCodes.currentSize(); i++)
 	{
-		const normsType& code = theNormsCodes.getValue(i);
+		const CompressedNormType& code = theNormsCodes.getValue(i);
 		CCVector3 N = GetNormal(code);
 
 		if (preferredOrientation == PREVIOUS)
@@ -302,7 +304,7 @@ PointCoordinateType ccNormalVectors::GuessBestRadius(	ccGenericPointCloud* cloud
 			int maxPop = 0;
 			int aboveMinPopCount = 0;
 
-			uchar octreeLevel = octree->findBestLevelForAGivenNeighbourhoodSizeExtraction(radius);
+			unsigned char octreeLevel = octree->findBestLevelForAGivenNeighbourhoodSizeExtraction(radius);
 
 			for (size_t i=0; i<sampleCount; ++i)
 			{
@@ -472,7 +474,7 @@ bool ccNormalVectors::ComputeCloudNormals(	ccGenericPointCloud* theCloud,
 	{
 	case LS:
 		{
-			uchar level = theOctree->findBestLevelForAGivenNeighbourhoodSizeExtraction(localRadius);
+			unsigned char level = theOctree->findBestLevelForAGivenNeighbourhoodSizeExtraction(localRadius);
 			processedCells = theOctree->executeFunctionForAllCellsAtLevel(	level,
 																			&(ComputeNormsAtLevelWithLS),
 																			additionalParameters,
@@ -483,7 +485,7 @@ bool ccNormalVectors::ComputeCloudNormals(	ccGenericPointCloud* theCloud,
 		break;
 	case TRI:
 		{
-			uchar level = theOctree->findBestLevelForAGivenPopulationPerCell(NUMBER_OF_POINTS_FOR_NORM_WITH_TRI);
+			unsigned char level = theOctree->findBestLevelForAGivenPopulationPerCell(NUMBER_OF_POINTS_FOR_NORM_WITH_TRI);
 			processedCells = theOctree->executeFunctionForAllCellsStartingAtLevel(	level,
 																					&(ComputeNormsAtLevelWithTri),
 																					additionalParameters,
@@ -496,7 +498,7 @@ bool ccNormalVectors::ComputeCloudNormals(	ccGenericPointCloud* theCloud,
 		break;
 	case QUADRIC:
 		{
-			uchar level = theOctree->findBestLevelForAGivenNeighbourhoodSizeExtraction(localRadius);
+			unsigned char level = theOctree->findBestLevelForAGivenNeighbourhoodSizeExtraction(localRadius);
 			processedCells = theOctree->executeFunctionForAllCellsAtLevel(	level,
 																			&(ComputeNormsAtLevelWithQuadric),
 																			additionalParameters,
@@ -523,7 +525,7 @@ bool ccNormalVectors::ComputeCloudNormals(	ccGenericPointCloud* theCloud,
 	for (unsigned i=0; i<pointCount; i++)
 	{
 		const PointCoordinateType* N = theNorms->getCurrentValue();
-		normsType nCode = GetNormIndex(N);
+		CompressedNormType nCode = GetNormIndex(N);
 		theNormsCodes.setValue(i,nCode);
 		theNorms->forwardIterator();
 	}
@@ -542,6 +544,123 @@ bool ccNormalVectors::ComputeCloudNormals(	ccGenericPointCloud* theCloud,
 		delete theOctree;
 		theOctree = 0;
 	}
+
+	return true;
+}
+
+bool ccNormalVectors::ComputeNormalWithQuadric(CCLib::GenericIndexedCloudPersist* points, const CCVector3& P, CCVector3& N)
+{
+	CCLib::Neighbourhood Z(points);
+
+	Tuple3ub dims;
+	const PointCoordinateType* h = Z.getQuadric(&dims);
+	if (h)
+	{
+		const CCVector3* gv = Z.getGravityCenter();
+		assert(gv);
+
+		const unsigned char& iX = dims.x;
+		const unsigned char& iY = dims.y;
+		const unsigned char& iZ = dims.z;
+
+		PointCoordinateType lX = P.u[iX] - gv->u[iX];
+		PointCoordinateType lY = P.u[iY] - gv->u[iY];
+
+		N.u[iX] = h[1] + (2 * h[3] * lX) + (h[4] * lY);
+		N.u[iY] = h[2] + (2 * h[5] * lY) + (h[4] * lX);
+		N.u[iZ] = -1;
+
+		//normalize the result
+		N.normalize();
+
+		return true;
+	}
+	else
+	{
+		return false;
+	}
+}
+
+bool ccNormalVectors::ComputeNormalWithLS(CCLib::GenericIndexedCloudPersist* pointAndNeighbors, CCVector3& N)
+{
+	N = CCVector3(0,0,0);
+
+	if (!pointAndNeighbors)
+	{
+		assert(false);
+		return false;
+	}
+
+	if (pointAndNeighbors->size() < 3)
+	{
+		return false;
+	}
+
+	CCLib::Neighbourhood Z(pointAndNeighbors);
+	const CCVector3* _N = Z.getLSPlaneNormal();
+	if (_N)
+	{
+		N = *_N;
+		return true;
+	}
+	else
+	{
+		return false;
+	}
+}
+
+
+bool ccNormalVectors::ComputeNormalWithTri(CCLib::GenericIndexedCloudPersist* pointAndNeighbors, CCVector3& N)
+{
+	N = CCVector3(0,0,0);
+
+	if (!pointAndNeighbors)
+	{
+		assert(false);
+		return false;
+	}
+
+	if (pointAndNeighbors->size() < 3)
+	{
+		return false;
+	}
+
+	CCLib::Neighbourhood Z(pointAndNeighbors);
+
+	//we mesh the neighbour points (2D1/2)
+	CCLib::GenericIndexedMesh* theMesh = Z.triangulateOnPlane();
+	if (!theMesh)
+	{
+		return false;
+	}
+
+	unsigned triCount = theMesh->size();
+
+	//for all triangles
+	theMesh->placeIteratorAtBegining();
+	for (unsigned j=0; j<triCount; ++j)
+	{
+		//we can't use getNextTriangleVertIndexes (which is faster on mesh groups but not multi-thread compatible) but anyway we'll never get mesh groups here!
+		const CCLib::VerticesIndexes* tsi = theMesh->getTriangleVertIndexes(j);
+
+		//we look if the central point is one of the triangle's vertices
+		if (tsi->i1 == 0 || tsi->i2 == 0 || tsi->i3 == 0)
+		{
+			const CCVector3 *A = pointAndNeighbors->getPoint(tsi->i1);
+			const CCVector3 *B = pointAndNeighbors->getPoint(tsi->i2);
+			const CCVector3 *C = pointAndNeighbors->getPoint(tsi->i3);
+
+			CCVector3 no = (*B - *A).cross(*C - *A);
+			//no.normalize();
+			N += no;
+		}
+	}
+
+	delete theMesh;
+	theMesh = 0;
+
+	//normalize the 'mean' vector
+	N.normalize();
 
 	return true;
 }
@@ -580,31 +699,11 @@ bool ccNormalVectors::ComputeNormsAtLevelWithQuadric(	const CCLib::DgmOctree::oc
 		if (k >= NUMBER_OF_POINTS_FOR_NORM_WITH_LS)
 		{
 			CCLib::DgmOctreeReferenceCloud neighbours(&nNSS.pointsInNeighbourhood,k);
-			CCLib::Neighbourhood Z(&neighbours);
 
-			Tuple3ub dims;
-			const PointCoordinateType* h = Z.getQuadric(&dims);
-			if (h)
+			CCVector3 N;
+			if (ComputeNormalWithQuadric(&neighbours, nNSS.queryPoint, N))
 			{
-				const CCVector3* gv = Z.getGravityCenter();
-				assert(gv);
-
-				const uchar& iX = dims.x;
-				const uchar& iY = dims.y;
-				const uchar& iZ = dims.z;
-
-				PointCoordinateType lX = nNSS.queryPoint.u[iX] - gv->u[iX];
-				PointCoordinateType lY = nNSS.queryPoint.u[iY] - gv->u[iY];
-
-				PointCoordinateType N[3];
-				N[iX] = h[1] + (2 * h[3] * lX) + (h[4] * lY);
-				N[iY] = h[2] + (2 * h[5] * lY) + (h[4] * lX);
-				N[iZ] = -1;
-
-				//on normalise
-				CCVector3::vnormalize(N);
-
-				theNorms->setValue(cell.points->getPointGlobalIndex(i),N);
+				theNorms->setValue(cell.points->getPointGlobalIndex(i), N.u);
 			}
 		}
 
@@ -651,13 +750,11 @@ bool ccNormalVectors::ComputeNormsAtLevelWithLS(const CCLib::DgmOctree::octreeCe
 		if (k >= NUMBER_OF_POINTS_FOR_NORM_WITH_QUADRIC)
 		{
 			CCLib::DgmOctreeReferenceCloud neighbours(&nNSS.pointsInNeighbourhood,k);
-			CCLib::Neighbourhood Z(&neighbours);
 
-			//compute best fit plane
-			const CCVector3* lsPlaneNormal = Z.getLSPlaneNormal();
-			if (lsPlaneNormal) //should already be unit!
+			CCVector3 N;
+			if (ComputeNormalWithLS(&neighbours, N))
 			{
-				theNorms->setValue(cell.points->getPointGlobalIndex(i),lsPlaneNormal->u);
+				theNorms->setValue(cell.points->getPointGlobalIndex(i), N.u);
 			}
 		}
 
@@ -704,41 +801,10 @@ bool ccNormalVectors::ComputeNormsAtLevelWithTri(	const CCLib::DgmOctree::octree
 			if (k > NUMBER_OF_POINTS_FOR_NORM_WITH_TRI*3)
 				k = NUMBER_OF_POINTS_FOR_NORM_WITH_TRI*3;
 			CCLib::DgmOctreeReferenceCloud neighbours(&nNSS.pointsInNeighbourhood,k);
-			CCLib::Neighbourhood Z(&neighbours);
 
-			//we mesh the neighbour points (2D1/2)
-			CCLib::GenericIndexedMesh* theMesh = Z.triangulateOnPlane();
-			if (theMesh)
+			CCVector3 N;
+			if (ComputeNormalWithTri(&neighbours, N))
 			{
-				CCVector3 N(0,0,0);
-
-				unsigned faceCount = theMesh->size();
-
-				//for all triangles
-				theMesh->placeIteratorAtBegining();
-				for (unsigned j=0; j<faceCount; ++j)
-				{
-					//we can't use getNextTriangleVertIndexes (which is faster on mesh groups but not multi-thread compatible) but anyway we'll never get mesh groups here!
-					const CCLib::VerticesIndexes* tsi = theMesh->getTriangleVertIndexes(j);
-
-					//we look if the central point is one of the triangle's vertices
-					if (tsi->i1 == 0 || tsi->i2 == 0 || tsi->i3 == 0)
-					{
-						const CCVector3 *A = neighbours.getPoint(tsi->i1);
-						const CCVector3 *B = neighbours.getPoint(tsi->i2);
-						const CCVector3 *C = neighbours.getPoint(tsi->i3);
-
-						CCVector3 no = (*B - *A).cross(*C - *A);
-						//no.normalize();
-						N += no;
-					}
-				}
-
-				delete theMesh;
-				theMesh = 0;
-
-				//normalize the 'mean' vector
-				N.normalize();
 				theNorms->setValue(cell.points->getPointGlobalIndex(i),N.u);
 			}
 		}
@@ -748,180 +814,6 @@ bool ccNormalVectors::ComputeNormsAtLevelWithTri(	const CCLib::DgmOctree::octree
 	}
 
 	return true;
-}
-
-/************************************************************************/
-/* Quantize a normal => 2D problem.                                     */
-/* input :																*/
-/*	n : a vector (normalized or not)[xyz]								*/
-/*	level : the level of the quantization result is 3+2*level bits		*/
-/* output :																*/
-/*	res : the result - least significant bits are filled !!!			*/
-/************************************************************************/
-unsigned ccNormalVectors::Quant_quantize_normal(const PointCoordinateType* n, unsigned level)
-{
-	if (level == 0)
-		return 0;
-
-	/// compute in which sector lie the elements
-	unsigned res = 0;
-	PointCoordinateType x,y,z;
-	if (n[0] >= 0) { x = n[0]; } else { res |= 4; x = -n[0]; }
-	if (n[1] >= 0) { y = n[1]; } else { res |= 2; y = -n[1]; }
-	if (n[2] >= 0) { z = n[2]; } else { res |= 1; z = -n[2]; }
-
-	/// scale the sectored vector - early return for null vector
-	PointCoordinateType psnorm = x + y + z;
-	if (psnorm == 0)
-	{
-		res <<= (level<<1);
-		return res;
-	}
-	psnorm = 1 / psnorm;
-	x *= psnorm; y *= psnorm; z *= psnorm;
-
-	/// compute the box
-	PointCoordinateType box[6] = { 0, 0, 0, 1, 1, 1 };
-	/// then for each required level, quantize...
-	bool flip = false;
-	while (level > 0)
-	{
-		//next level
-		res <<= 2;
-		--level;
-		PointCoordinateType halfBox[3] = {	(box[0] + box[3])/2,
-											(box[1] + box[4])/2,
-											(box[2] + box[5])/2 };
-
-		unsigned sector = 3;
-		if (flip)
-		{
-			     if (z < halfBox[2]) sector = 2;
-			else if (y < halfBox[1]) sector = 1;
-			else if (x < halfBox[0]) sector = 0;
-		}
-		else
-		{
-			     if (z > halfBox[2]) sector = 2;
-			else if (y > halfBox[1]) sector = 1;
-			else if (x > halfBox[0]) sector = 0;
-		}
-		res |= sector;
-		/// do not do the last operation ...
-		if (level == 0)
-			return res;
-		// fd : a little waste for less branching and smaller
-		// code.... which one will be fastest ???
-		if (flip)
-		{
-			if (sector != 3)
-				psnorm = box[sector];
-			box[0] = halfBox[0];
-			box[1] = halfBox[1];
-			box[2] = halfBox[2];
-			if (sector != 3)
-			{
-				box[3+sector] = box[sector];
-				box[sector] = psnorm;
-			}
-			else
-			{
-				flip = false;
-			}
-		}
-		else
-		{
-			if (sector != 3)
-				psnorm = box[3+sector];
-			box[3] = halfBox[0];
-			box[4] = halfBox[1];
-			box[5] = halfBox[2];
-			if (sector != 3)
-			{
-				box[sector] = box[3+sector];
-				box[3+sector] = psnorm;
-			}
-			else
-			{
-				flip = true;
-			}
-		}
-	}
-
-	return 0;
-}
-
-/************************************************************************/
-/* DeQuantize a normal => 2D problem.                                   */
-/* input :                                                              */
-/*		q : quantized normal                                            */
-/*		level : the level of the quantized normal has 3+2*level bits	*/
-/* output :																*/
-/*		res : the result : a NON-normalized normal is returned			*/
-/************************************************************************/
-void ccNormalVectors::Quant_dequantize_normal(unsigned q, unsigned level, PointCoordinateType* res)
-{
-	/// special case for level = 0
-	if (level == 0)
-	{
-		res[0] = ((q & 4) != 0 ? -PC_ONE : PC_ONE);
-		res[1] = ((q & 2) != 0 ? -PC_ONE : PC_ONE);
-		res[2] = ((q & 1) != 0 ? -PC_ONE : PC_ONE);
-		return;
-	}
-
-	bool flip = false;
-
-	/// recompute the box in the sector...
-	PointCoordinateType box[6] = { 0, 0, 0, 1, 1, 1 };
-
-	unsigned l_shift = (level<<1);
-	for (unsigned k=0; k<level; ++k)
-	{
-		l_shift -= 2;
-		unsigned sector = (q >> l_shift) & 3;
-		if (flip)
-		{
-			PointCoordinateType tmp = box[sector];
-			box[0] = (box[0] + box[3]) / 2;
-			box[1] = (box[1] + box[4]) / 2;
-			box[2] = (box[2] + box[5]) / 2;
-			if (sector != 3)
-			{
-				box[3+sector] = box[sector];
-				box[sector] = tmp;
-			}
-			else
-			{
-				flip = false;
-			}
-		}
-		else
-		{
-			PointCoordinateType tmp = (sector != 3 ? box[3+sector] : 0);
-			
-			box[3] = (box[0] + box[3]) / 2;
-			box[4] = (box[1] + box[4]) / 2;
-			box[5] = (box[2] + box[5]) / 2;
-			
-			if (sector != 3)
-			{
-				box[sector] = box[3+sector];
-				box[3+sector] = tmp;
-			}
-			else
-			{
-				flip = true;
-			}
-		}
-	}
-
-	//get the sector
-	unsigned sector = q >> (level+level);
-
-	res[0] = ((sector & 4) != 0 ? -(box[3] + box[0]) : box[3] + box[0]);
-	res[1] = ((sector & 2) != 0 ? -(box[4] + box[1]) : box[4] + box[1]);
-	res[2] = ((sector & 1) != 0 ? -(box[5] + box[2]) : box[5] + box[2]);
 }
 
 QString ccNormalVectors::ConvertStrikeAndDipToString(double& strike_deg, double& dip_deg)
@@ -937,7 +829,7 @@ QString ccNormalVectors::ConvertDipAndDipDirToString(PointCoordinateType dip_deg
 	int iDipDir = static_cast<int>(dipDir_deg);
 	int iDip = static_cast<int>(dip_deg);
 
-	return QString("Dip direction: %1° - Dip angle: %2°").arg(iDipDir,3,10,QChar('0')).arg(iDip,3,10,QChar('0'));
+	return QString("Dip direction: %1 deg. - Dip angle: %2 deg.").arg(iDipDir,3,10,QChar('0')).arg(iDip,3,10,QChar('0'));
 }
 
 void ccNormalVectors::ConvertNormalToStrikeAndDip(const CCVector3& N, double& strike_deg, double& dip_deg)
@@ -981,61 +873,21 @@ void ccNormalVectors::ConvertNormalToDipAndDipDir(const CCVector3& N, PointCoord
 	dip_deg = static_cast<PointCoordinateType>(dip_rad * CC_RAD_TO_DEG);
 }
 
-void ccNormalVectors::ConvertNormalToHSV(const CCVector3& N, double& H, double& S, double& V)
+void ccNormalVectors::ConvertNormalToHSV(const CCVector3& N, float& H, float& S, float& V)
 {
 	PointCoordinateType dip = 0, dipDir = 0;
 	ConvertNormalToDipAndDipDir(N,dip,dipDir);
 
-	H = dipDir;
-	if (H == 360.0) //H is in [0;360[
-		H = 0.0;
-	S = dip/90.0; //S is in [0;1]
-	V = 1.0;
+	H = static_cast<float>(dipDir);
+	if (H == 360.0f) //H is in [0;360[
+		H = 0;
+	S = static_cast<float>(dip / 90); //S is in [0;1]
+	V = 1.0f;
 }
 
-void ccNormalVectors::ConvertHSVToRGB(double H, double S, double V, colorType& R, colorType& G, colorType& B)
+ccColor::Rgb ccNormalVectors::ConvertNormalToRGB(const CCVector3& N)
 {
-	int hi = ((static_cast<int>(H)/60) % 6);
-	double f = 0;
-	modf(H/60.0,&f);
-	double l = V*(1.0-S);
-	double m = V*(1.0-f*S);
-	double n = V*(1.0-(1.0-f)*S);
-
-	double r = 0.0;
-	double g = 0.0;
-	double b = 0.0;
-
-	switch(hi)
-	{
-	case 0:
-		r=V; g=n; b=l;
-		break;
-	case 1:
-		r=m; g=V; b=l;
-		break;
-	case 2:
-		r=l; g=V; b=n;
-		break;
-	case 3:
-		r=l; g=m; b=V;
-		break;
-	case 4:
-		r=n; g=l; b=V;
-		break;
-	case 5:
-		r=V; g=l; b=m;
-		break;
-	}
-
-	R = static_cast<colorType>(r * ccColor::MAX);
-	G = static_cast<colorType>(g * ccColor::MAX);
-	B = static_cast<colorType>(b * ccColor::MAX);
-}
-
-void ccNormalVectors::ConvertNormalToRGB(const CCVector3& N, colorType& R, colorType& G, colorType& B)
-{
-	double H,S,V;
+	float H,S,V;
 	ConvertNormalToHSV(N,H,S,V);
-	ConvertHSVToRGB(H,S,V,R,G,B);
+	return ccColor::Convert::hsv2rgb(H,S,V);
 }

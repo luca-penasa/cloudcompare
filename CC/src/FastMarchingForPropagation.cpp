@@ -26,6 +26,7 @@
 //system
 #include <string.h>
 #include <assert.h>
+#include <math.h> //expm1
 
 using namespace CCLib;
 
@@ -38,7 +39,7 @@ FastMarchingForPropagation::FastMarchingForPropagation()
 
 int FastMarchingForPropagation::init(	GenericCloud* theCloud,
 										DgmOctree* theOctree,
-										uchar level,
+										unsigned char level,
 										bool constantAcceleration/*=false*/)
 {
 	assert(theCloud && theOctree);
@@ -216,6 +217,22 @@ bool FastMarchingForPropagation::setPropagationTimingsAsDistances()
 
 	return true;
 }
+
+#ifdef _MSC_VER
+//Visual 2012 (and previous versions) don't know expm1
+#if _MSC_VER <= 1700
+
+// Compute exp(x) - 1 without loss of precision for small values of x.
+template <typename T> T expm1(T x)
+{
+	if (fabs(x) < 1e-5)
+		return x + (x*x)/2;
+	else
+		return exp(x) - 1;
+}
+
+#endif
+#endif
 
 float FastMarchingForPropagation::computeTCoefApprox(Cell* currentCell, Cell* neighbourCell) const
 {

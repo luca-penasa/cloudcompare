@@ -155,6 +155,7 @@ QSize ccPropertiesTreeDelegate::sizeHint(const QStyleOptionViewItem& option, con
 			return QSize(250,200);
 		case OBJECT_SENSOR_MATRIX_EDITOR:
 		case OBJECT_HISTORY_MATRIX_EDITOR:
+		case OBJECT_GLTRANS_MATRIX_EDITOR:
 			return QSize(250,120);
 		}
 	}
@@ -279,6 +280,13 @@ void ccPropertiesTreeDelegate::fillModel(ccHObject* hObject)
 	{
 		addSeparator("Transformation history");
 		appendWideRow(PERSISTENT_EDITOR(OBJECT_HISTORY_MATRIX_EDITOR));
+
+		if (m_currentObject->isGLTransEnabled())
+		{
+			addSeparator("Display transformation");
+			appendWideRow(PERSISTENT_EDITOR(OBJECT_GLTRANS_MATRIX_EDITOR));
+		}
+
 		fillWithMetaData(m_currentObject);
 	}
 	
@@ -459,7 +467,29 @@ void ccPropertiesTreeDelegate::fillWithPointCloud(ccGenericPointCloud* _obj)
 	//custom point size
 	appendRow( ITEM("Point size"), PERSISTENT_EDITOR(OBJECT_CLOUD_POINT_SIZE), true );
 
+	//scalar field
 	fillSFWithPointCloud(_obj);
+
+	//scan grid structure(s)
+	if (_obj->isA(CC_TYPES::POINT_CLOUD))
+	{
+		ccPointCloud* cloud = static_cast<ccPointCloud*>(_obj);
+		size_t gridCount = cloud->gridCount();
+		if (gridCount != 0)
+		{
+			if (gridCount != 1)
+				addSeparator("Scan grids");
+			else
+				addSeparator("Scan grid");
+
+			for (size_t i=0; i<gridCount; ++i)
+			{
+				//grid size + valid point count
+				ccPointCloud::Grid::Shared grid = cloud->grid(i);
+				appendRow( ITEM(QString("Scan #%1").arg(i+1)), ITEM(QString("%1 x %2 (%3 points)").arg(grid->w).arg(grid->h).arg(QLocale(QLocale::English).toString(grid->validCount))) );
+			}
+		}
+	}
 }
 
 void ccPropertiesTreeDelegate::fillSFWithPointCloud(ccGenericPointCloud* _obj)
@@ -635,11 +665,11 @@ void ccPropertiesTreeDelegate::fillWithPointOctree(ccOctree* _obj)
 	assert(level > 0 && level <= ccOctree::MAX_OCTREE_LEVEL);
 
 	//cell size
-	PointCoordinateType cellSize = _obj->getCellSize(static_cast<uchar>(level));
+	PointCoordinateType cellSize = _obj->getCellSize(static_cast<unsigned char>(level));
 	appendRow( ITEM("Cell size"), ITEM(QString::number(cellSize)) );
 
 	//cell count
-	unsigned cellCount = _obj->getCellNumber(static_cast<uchar>(level));
+	unsigned cellCount = _obj->getCellNumber(static_cast<unsigned char>(level));
 	appendRow( ITEM("Cell count"), ITEM(QLocale(QLocale::English).toString(cellCount)) );
 
 	//total volume of filled cells
@@ -791,10 +821,10 @@ void ccPropertiesTreeDelegate::fillWithGBLSensor(ccGBLSensor* _obj)
 {
 	assert(_obj && m_model);
 
-	addSeparator("GBL Sensor");
+	addSeparator("TLS/GBL Sensor");
 
 	//Uncertainty
-	appendRow( ITEM("Uncertainty"), ITEM(QString::number(_obj->getUncertainty())) );
+	appendRow( ITEM("Uncertainty"), PERSISTENT_EDITOR(OBJECT_SENSOR_UNCERTAINTY), true );
 
 	//angles
 	addSeparator("Angular viewport (degrees)");
@@ -909,6 +939,7 @@ bool ccPropertiesTreeDelegate::isWideEditor(int itemData) const
 	case OBJECT_CLOUD_SF_EDITOR:
 	case OBJECT_SENSOR_MATRIX_EDITOR:
 	case OBJECT_HISTORY_MATRIX_EDITOR:
+	case OBJECT_GLTRANS_MATRIX_EDITOR:
 	case TREE_VIEW_HEADER:
 		return true;
 	default:
@@ -1013,6 +1044,7 @@ QWidget* ccPropertiesTreeDelegate::createEditor(QWidget *parent,
 		}
 		break;
 	case OBJECT_HISTORY_MATRIX_EDITOR:
+	case OBJECT_GLTRANS_MATRIX_EDITOR:
 	case OBJECT_SENSOR_MATRIX_EDITOR:
 		{
 			MatrixDisplayDlg* mdd = new MatrixDisplayDlg(parent);
@@ -1183,6 +1215,15 @@ QWidget* ccPropertiesTreeDelegate::createEditor(QWidget *parent,
 			outputWidget = button;
 		}
 		break;
+	case OBJECT_SENSOR_UNCERTAINTY:
+		{
+			QLineEdit* lineEdit = new QLineEdit(parent);
+			lineEdit->setValidator(new QDoubleValidator(1.0e-8,1.0,8,lineEdit));
+			connect(lineEdit, SIGNAL(editingFinished()), this, SLOT(sensorUncertaintyChanged()));
+
+			outputWidget = lineEdit;
+		}
+		break;
 	case OBJECT_SENSOR_DISPLAY_SCALE:
 		{
 			QDoubleSpinBox *spinBox = new QDoubleSpinBox(parent);
@@ -1229,9 +1270,15 @@ QWidget* ccPropertiesTreeDelegate::createEditor(QWidget *parent,
 			if (m_currentObject)
 			{
 				if (m_currentObject->hasColors())
+				{
 					comboBox->addItem(s_rgbColor);
+					comboBox->setItemIcon(comboBox->count()-1, QIcon(QString::fromUtf8(":/CC/images/typeRgbCcolor.png")));
+				}
 				if (m_currentObject->hasScalarFields())
+				{
 					comboBox->addItem(s_sfColor);
+					comboBox->setItemIcon(comboBox->count()-1, QIcon(QString::fromUtf8(":/CC/images/typeSF.png")));
+				}
 				connect(comboBox, SIGNAL(currentIndexChanged(const QString)), this, SLOT(colorSourceChanged(const QString&)));
 			}
 
@@ -1402,6 +1449,15 @@ void ccPropertiesTreeDelegate::setEditorData(QWidget *editor, const QModelIndex 
 			mdd->fillDialogWith(m_currentObject->getGLTransformationHistory());
 			break;
 		}
+	case OBJECT_GLTRANS_MATRIX_EDITOR:
+		{
+			MatrixDisplayDlg *mdd = qobject_cast<MatrixDisplayDlg*>(editor);
+			if (!mdd)
+				return;
+
+			mdd->fillDialogWith(m_currentObject->getGLTransformation());
+			break;
+		}
 	case OBJECT_SENSOR_MATRIX_EDITOR:
 		{
 			MatrixDisplayDlg* mdd = qobject_cast<MatrixDisplayDlg*>(editor);
@@ -1496,6 +1552,17 @@ void ccPropertiesTreeDelegate::setEditorData(QWidget *editor, const QModelIndex 
 			ccSensor* sensor = ccHObjectCaster::ToSensor(m_currentObject);
 			assert(sensor);
 			SetDoubleSpinBoxValue(editor,sensor ? sensor->getActiveIndex() : 0.0);
+			break;
+		}
+	case OBJECT_SENSOR_UNCERTAINTY:
+		{
+			QLineEdit *lineEdit = qobject_cast<QLineEdit*>(editor);
+			if (!lineEdit)
+				return;
+
+			ccGBLSensor* sensor = ccHObjectCaster::ToGBLSensor(m_currentObject);
+			assert(sensor);
+			lineEdit->setText(QString::number(sensor ? sensor->getUncertainty() : 0, 'g', 8));
 			break;
 		}
 	case OBJECT_SENSOR_DISPLAY_SCALE:
@@ -1754,7 +1821,10 @@ void ccPropertiesTreeDelegate::spawnColorRampEditor()
 	ccScalarField* sf = (cloud ? static_cast<ccScalarField*>(cloud->getCurrentDisplayedScalarField()) : 0);
 	if (sf)
 	{
-		ccColorScaleEditorDialog* editorDialog = new ccColorScaleEditorDialog(ccColorScalesManager::GetUniqueInstance(),sf->getColorScale(),static_cast<ccGLWindow*>(cloud->getDisplay()));
+		ccColorScaleEditorDialog* editorDialog = new ccColorScaleEditorDialog(	ccColorScalesManager::GetUniqueInstance(),
+																				MainWindow::TheInstance(),
+																				sf->getColorScale(),
+																				static_cast<ccGLWindow*>(cloud->getDisplay()));
 		editorDialog->setAssociatedScalarField(sf);
 		if (editorDialog->exec())
 		{
@@ -2011,6 +2081,28 @@ void ccPropertiesTreeDelegate::applyLabelViewport()
 
 	win->setViewportParameters(viewport->getParameters());
 	win->redraw();
+}
+
+void ccPropertiesTreeDelegate::sensorUncertaintyChanged()
+{
+	if (!m_currentObject)
+		return;
+
+	QLineEdit* lineEdit = qobject_cast<QLineEdit*>(QObject::sender());
+	if (!lineEdit)
+	{
+		assert(false);
+		return;
+	}
+
+	ccGBLSensor* sensor = ccHObjectCaster::ToGBLSensor(m_currentObject);
+	assert(sensor);
+
+	PointCoordinateType uncertainty = static_cast<PointCoordinateType>(lineEdit->text().toDouble());
+	if (sensor && sensor->getUncertainty() != uncertainty)
+	{
+		sensor->setUncertainty(uncertainty);
+	}
 }
 
 void ccPropertiesTreeDelegate::sensorScaleChanged(double val)

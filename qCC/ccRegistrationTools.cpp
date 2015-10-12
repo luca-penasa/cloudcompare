@@ -17,9 +17,6 @@
 
 #include "ccRegistrationTools.h"
 
-//Local
-#include "ccRegistrationDlg.h"
-
 //CCLib
 #include <MeshSamplingTools.h>
 #include <GenericIndexedCloudPersist.h>
@@ -72,15 +69,11 @@ bool ccRegistrationTools::ICP(	ccHObject* data,
 
 	//if the 'model' entity is a mesh, we need to sample points on it
 	CCLib::GenericIndexedCloudPersist* modelCloud = 0;
+	ccGenericMesh* modelMesh = 0;
 	if (model->isKindOf(CC_TYPES::MESH))
 	{
-		modelCloud = CCLib::MeshSamplingTools::samplePointsOnMesh(ccHObjectCaster::ToGenericMesh(model),s_defaultSampledPointsOnModelMesh,&pDlg);
-		if (!modelCloud)
-		{
-			ccLog::Error("[ICP] Failed to sample points on 'model' mesh!");
-			return false;
-		}
-		cloudGarbage.add(modelCloud);
+		modelMesh = ccHObjectCaster::ToGenericMesh(model);
+		modelCloud = modelMesh->getAssociatedCloud();
 	}
 	else
 	{
@@ -142,41 +135,43 @@ bool ccRegistrationTools::ICP(	ccHObject* data,
 	//low so as we are not registered yet ;)
 	if (finalOverlapRatio < 1.0-s_overlapMarginRatio)
 	{
-		//randomly pick points and deduce some stats on the average distances
-		const unsigned c_randomProbingCount = 5000;
-		CCLib::GenericIndexedCloudPersist* probedCloud = dataCloud;
-		//do we really need to subsample the cloud?
-		if (dataCloud->size() > c_randomProbingCount)
+		//DGM we can now use 'approximate' distances as SAITO algorithm is exact (but with a coarse resolution)
+		//level = 7 if < 1.000.000
+		//level = 8 if < 10.000.000
+		//level = 9 if > 10.000.000
+		int gridLevel = static_cast<int>(floor(log10(static_cast<double>(std::max(dataCloud->size(), modelCloud->size()))))) + 2;
+		gridLevel = std::min(std::max(gridLevel,7),9);
+		int result = -1;
+		if (modelMesh)
 		{
-			CCLib::ReferenceCloud* realSampledCloud = CCLib::CloudSamplingTools::subsampleCloudRandomly(dataCloud,c_randomProbingCount);
-			if (realSampledCloud)
-			{
-				probedCloud = realSampledCloud;
-				cloudGarbage.add(realSampledCloud);
-			}
-			else
-			{
-				ccLog::Warning("[ICP][Partial overlap] Failed to subsample the data cloud (will have to go the long way...)");
-			}
+			CCLib::DistanceComputationTools::Cloud2MeshDistanceComputationParams c2mParams;
+			c2mParams.octreeLevel = gridLevel;
+			c2mParams.maxSearchDist = 0;
+			c2mParams.useDistanceMap = true,
+			c2mParams.signedDistances = false;
+			c2mParams.flipNormals = false;
+			c2mParams.multiThread = false;
+			result = CCLib::DistanceComputationTools::computeCloud2MeshDistance(dataCloud, modelMesh, c2mParams, &pDlg);
+		}
+		else
+		{
+			result = CCLib::DistanceComputationTools::computeApproxCloud2CloudDistance(	dataCloud,
+																						modelCloud,
+																						gridLevel,
+																						-1,
+																						&pDlg);
 		}
 
-		//compute distances on a (significant) subset of the input cloud
+		if (result < 0)
 		{
-			CCLib::DistanceComputationTools::Cloud2CloudDistanceComputationParams params;
-			params.multiThread = true;
-			//params.octreeLevel = 6;
-			int result = CCLib::DistanceComputationTools::computeCloud2CloudDistance(probedCloud,modelCloud,params,&pDlg);
-			if (result < 0)
-			{
-				ccLog::Error("Failed to determine the max (overlap) distance (not enough memory?)");
-				return false;
-			}
+			ccLog::Error("Failed to determine the max (overlap) distance (not enough memory?)");
+			return false;
 		}
 
 		//determine the max distance that (roughly) corresponds to the input overlap ratio
-		ScalarType maxSearchDist = static_cast<ScalarType>(-1.0);
+		ScalarType maxSearchDist = 0;
 		{
-			unsigned count = probedCloud->size();
+			unsigned count = dataCloud->size();
 			std::vector<ScalarType> distances;
 			try
 			{
@@ -188,29 +183,12 @@ bool ccRegistrationTools::ICP(	ccHObject* data,
 				return false;
 			}
 			for (unsigned i=0; i<count; ++i)
-				distances[i] = probedCloud->getPointScalarValue(i);
+			{
+				distances[i] = dataCloud->getPointScalarValue(i);
+			}
 			std::sort(distances.begin(),distances.end());
 			//now look for the max value at 'finalOverlapRatio+margin' percent
 			maxSearchDist = distances[static_cast<unsigned>(std::max(1.0,count*(finalOverlapRatio+s_overlapMarginRatio)))-1];
-		}
-
-		//if we have used a subsampled cloud for probing (instead of the real one)
-		//we must now compute the 'real' distances
-		if (probedCloud != dataCloud)
-		{
-			//free some memory right now
-			cloudGarbage.destroy(probedCloud);
-			probedCloud = dataCloud;
-			//we now have to compute the (bounded) distances on the real cloud
-			CCLib::DistanceComputationTools::Cloud2CloudDistanceComputationParams params;
-			params.multiThread = true;
-			params.maxSearchDist = static_cast<ScalarType>(maxSearchDist * 1.01); //+1% to differentiate the 'max' value from the real values!
-			int result = CCLib::DistanceComputationTools::computeCloud2CloudDistance(dataCloud,modelCloud,params,&pDlg);
-			if (result < 0)
-			{
-				ccLog::Error("Failed to determine the max (overlap) distance (not enough memory?)");
-				return false;
-			}
 		}
 
 		//evntually select the points with distance below 'maxSearchDist'
@@ -238,7 +216,7 @@ bool ccRegistrationTools::ICP(	ccHObject* data,
 
 			unsigned countAfter = dataCloud->size();
 			double keptRatio = static_cast<double>(countAfter)/countBefore;
-			ccLog::Print(QString("[ICP][Partial overlap] Selecting %1 points out of %2 (%3%) for registration").arg(countAfter).arg(countBefore).arg(100.0*keptRatio));
+			ccLog::Print(QString("[ICP][Partial overlap] Selecting %1 points out of %2 (%3%) for registration").arg(countAfter).arg(countBefore).arg(static_cast<int>(100*keptRatio)));
 
 			//update the relative 'final overlap' ratio
 			finalOverlapRatio /= keptRatio;
@@ -249,7 +227,7 @@ bool ccRegistrationTools::ICP(	ccHObject* data,
 	CCLib::ScalarField* modelWeights = 0;
 	CCLib::ScalarField* dataWeights = 0;
 	{
-		if (useModelSFAsWeights)
+		if (!modelMesh && useModelSFAsWeights)
 		{
 			if (modelCloud == dynamic_cast<CCLib::GenericIndexedCloudPersist*>(model) && model->isA(CC_TYPES::POINT_CLOUD))
 			{
@@ -281,22 +259,23 @@ bool ccRegistrationTools::ICP(	ccHObject* data,
 	CCLib::ICPRegistrationTools::RESULT_TYPE result;
 	CCLib::PointProjectionTools::Transformation transform;
 
-	result = CCLib::ICPRegistrationTools::RegisterClouds(	modelCloud,
-															dataCloud,
-															transform,
-															method,
-															minRMSDecrease,
-															maxIterationCount,
-															finalRMS,
-															finalPointCount,
-															adjustScale,
-															static_cast<CCLib::GenericProgressCallback*>(&pDlg),
-															removeFarthestPoints,
-															randomSamplingLimit,
-															finalOverlapRatio,
-															modelWeights,
-															dataWeights,
-															filters);
+	result = CCLib::ICPRegistrationTools::Register(	modelCloud,
+													modelMesh,
+													dataCloud,
+													transform,
+													method,
+													minRMSDecrease,
+													maxIterationCount,
+													finalRMS,
+													finalPointCount,
+													adjustScale,
+													static_cast<CCLib::GenericProgressCallback*>(&pDlg),
+													removeFarthestPoints,
+													randomSamplingLimit,
+													finalOverlapRatio,
+													modelWeights,
+													dataWeights,
+													filters);
 
 	if (result >= CCLib::ICPRegistrationTools::ICP_ERROR)
 	{

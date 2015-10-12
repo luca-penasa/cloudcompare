@@ -240,7 +240,7 @@ static FbxNode* ToFbxMesh(ccGenericMesh* mesh, FbxScene* pScene, QString filenam
 			const ccColor::Rgbaf& emission = mat->getEmission();
 			const ccColor::Rgbaf& ambient = mat->getAmbient();
 			const ccColor::Rgbaf& diffuse = mat->getDiffuseFront();
-			const ccColor::Rgbaf& specular = mat->getDiffuseFront();
+			const ccColor::Rgbaf& specular = mat->getSpecular();
 			lMaterial->Emissive.Set(FbxDouble3(emission.r,emission.g,emission.b));
 			lMaterial->Ambient .Set(FbxDouble3( ambient.r, ambient.g, ambient.b));
 			lMaterial->Diffuse .Set(FbxDouble3( diffuse.r, diffuse.g, diffuse.b));
@@ -335,7 +335,7 @@ static FbxNode* ToFbxMesh(ccGenericMesh* mesh, FbxScene* pScene, QString filenam
 		lGeometryElementVertexColor->GetDirectArray().SetCount(vertCount);
 		for (unsigned i=0; i<vertCount; ++i)
 		{
-			const colorType* C = cloud->getPointColor(i);
+			const ColorCompType* C = cloud->getPointColor(i);
 			FbxColor col(	static_cast<double>(C[0])/ccColor::MAX,
 							static_cast<double>(C[1])/ccColor::MAX,
 							static_cast<double>(C[2])/ccColor::MAX );
@@ -747,9 +747,9 @@ static ccMesh* FromFbxMesh(FbxMesh* fbxMesh, FileIOFilter::LoadParameters& param
 								for (int i=0; i<vertCount; ++i)
 								{
 									FbxColor c = vertColor->GetDirectArray().GetAt(i);
-									vertices->addRGBColor(	static_cast<colorType>(c.mRed	* ccColor::MAX),
-															static_cast<colorType>(c.mGreen	* ccColor::MAX),
-															static_cast<colorType>(c.mBlue	* ccColor::MAX) );
+									vertices->addRGBColor(	static_cast<ColorCompType>(c.mRed	* ccColor::MAX),
+															static_cast<ColorCompType>(c.mGreen	* ccColor::MAX),
+															static_cast<ColorCompType>(c.mBlue	* ccColor::MAX) );
 								}
 							}
 							break;
@@ -759,9 +759,9 @@ static ccMesh* FromFbxMesh(FbxMesh* fbxMesh, FileIOFilter::LoadParameters& param
 								{
 									int id = vertColor->GetIndexArray().GetAt(i);
 									FbxColor c = vertColor->GetDirectArray().GetAt(id);
-									vertices->addRGBColor(	static_cast<colorType>(c.mRed	* ccColor::MAX),
-															static_cast<colorType>(c.mGreen	* ccColor::MAX),
-															static_cast<colorType>(c.mBlue	* ccColor::MAX) );
+									vertices->addRGBColor(	static_cast<ColorCompType>(c.mRed	* ccColor::MAX),
+															static_cast<ColorCompType>(c.mGreen	* ccColor::MAX),
+															static_cast<ColorCompType>(c.mBlue	* ccColor::MAX) );
 								}
 							}
 							break;

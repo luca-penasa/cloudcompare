@@ -99,9 +99,6 @@ CC_FILE_ERROR PTXFilter::loadFile(	QString filename,
 
 	QTextStream inFile(&file);
 
-	//by default we don't compute normals without asking the user
-	bool computeNormals = (parameters.autoComputeNormals == ccGriddedTools::ALWAYS);
-
 	CCVector3d PshiftTrans(0,0,0);
 	CCVector3d PshiftCloud(0,0,0);
 
@@ -231,16 +228,18 @@ CC_FILE_ERROR PTXFilter::loadFile(	QString filename,
 			intensitySF = 0;
 		}
 
-		//grid for computing normals
-		std::vector<int> indexGrid;
+		//grid structure
+		ccPointCloud::Grid::Shared grid(new ccPointCloud::Grid);
+		grid->w = width;
+		grid->h = height;
 		bool hasIndexGrid = true;
 		try
 		{
-			indexGrid.resize(gridSize,-1);
+			grid->indexes.resize(gridSize,-1); //-1 means no cell/point
 		}
 		catch (const std::bad_alloc&)
 		{
-			ccLog::Warning("[PTX] Not enough memory to save grid structure (required to compute normals!)");
+			ccLog::Warning("[PTX] Not enough memory to load the grid structure");
 			hasIndexGrid = false;
 		}
 
@@ -256,7 +255,7 @@ CC_FILE_ERROR PTXFilter::loadFile(	QString filename,
 			bool firstPoint = true;
 			bool hasColors = false;
 			bool loadColors = false;
-			int* _indexGrid = hasIndexGrid ? &(indexGrid[0]) : 0;
+			int* _indexGrid = hasIndexGrid ? &(grid->indexes[0]) : 0;
 
 			for (unsigned j=0; j<height; ++j)
 			{
@@ -332,7 +331,7 @@ CC_FILE_ERROR PTXFilter::loadFile(	QString filename,
 						//color
 						if (loadColors)
 						{
-							colorType rgb[3];
+							ColorCompType rgb[3];
 							for (int c=0; c<3; ++c)
 							{
 								bool ok;
@@ -340,7 +339,7 @@ CC_FILE_ERROR PTXFilter::loadFile(	QString filename,
 								ok &= (temp <= static_cast<unsigned>(ccColor::MAX));
 								if (ok)
 								{
-									rgb[c] = static_cast<colorType>(temp);
+									rgb[c] = static_cast<ColorCompType>(temp);
 								}
 								else
 								{
@@ -407,36 +406,8 @@ CC_FILE_ERROR PTXFilter::loadFile(	QString filename,
 			{
 				//determine best sensor parameters (mainly yaw and pitch steps)
 				ccGLMatrix cloudToSensorTrans((sensorTransD.inverse() * cloudTransD).data());
-				sensor = ccGriddedTools::ComputeBestSensor(cloud,indexGrid,width,height,&cloudToSensorTrans);
-
-#ifndef _DEBUG
-				if (cloudIndex == 0)
-				{
-					//shall we ask the user if he wants to compute normals or not?
-					computeNormals = ccGriddedTools::HandleAutoComputeNormalsFeature(parameters.autoComputeNormals);
-				}
-#endif
-				if (computeNormals)
-				{
-					//try to compute normals
-					bool canceledByUser = false;
-					if (!ccGriddedTools::ComputeNormals(cloud,indexGrid,static_cast<int>(width),static_cast<int>(height),&canceledByUser))
-					{
-						if (canceledByUser)
-						{
-							//if the user cancelled the normal process, we cancel everything!
-							result = CC_FERR_CANCELED_BY_USER;
-						}
-						else
-						{
-							computeNormals = false;
-						}
-					}
-				}
+				sensor = ccGriddedTools::ComputeBestSensor(cloud, grid, &cloudToSensorTrans);
 			}
-
-			//don't need it anymore
-			indexGrid.clear();
 
 			//we apply the transformation
 			ccGLMatrix cloudTrans(cloudTransD.data());
@@ -447,6 +418,23 @@ CC_FILE_ERROR PTXFilter::loadFile(	QString filename,
 				ccGLMatrix sensorTrans(sensorTransD.data());
 				sensor->setRigidTransformation(sensorTrans); //after cloud->applyGLTransformation_recursive!
 				cloud->addChild(sensor);
+			}
+
+			//scan grid
+			if (hasIndexGrid)
+			{
+				grid->validCount = static_cast<unsigned>(cloud->size());
+				grid->minValidIndex = 0;
+				grid->maxValidIndex = grid->validCount-1;
+				grid->sensorPosition = sensorTransD;
+				cloud->addGrid(grid);
+
+				//by default we don't compute normals without asking the user
+				if (parameters.autoComputeNormals)
+				{
+					ccProgressDialog pdlg(true);
+					cloud->computeNormalsWithGrids(LS, 2, true, &pdlg);
+				}
 			}
 
 			cloud->setVisible(true);

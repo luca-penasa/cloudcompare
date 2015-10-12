@@ -41,6 +41,7 @@ ccScalarField::ccScalarField(const char* name/*=0*/)
 	, m_colorScale(0)
 	, m_colorRampSteps(0)
 	, m_modified(true)
+	, m_globalShift(0)
 {
 	setColorRampSteps(ccColorScale::DEFAULT_STEPS);
 	setColorScale(ccColorScalesManager::GetUniqueInstance()->getDefaultScale(ccColorScalesManager::BGYR));
@@ -357,7 +358,11 @@ bool ccScalarField::toFile(QFile& out) const
 
 	//color ramp steps (dataVersion>=20)
 	uint32_t colorRampSteps = (uint32_t)m_colorRampSteps;
-	if (out.write((const char*)&colorRampSteps,4) < 0)
+	if (out.write((const char*)&colorRampSteps, 4) < 0)
+		return WriteError();
+
+	//global shift (dataVersion>=42)
+	if (out.write((const char*)&m_globalShift, sizeof(double)) < 0)
 		return WriteError();
 
 	return true;
@@ -370,7 +375,7 @@ bool ccScalarField::fromFile(QFile& in, short dataVersion, int flags)
 	if (dataVersion < 20)
 		return CorruptError();
 
-	//name (dataVersion>=20)
+	//name (dataVersion >= 20)
 	if (in.read(m_name,256) < 0)
 		return ReadError();
 
@@ -382,7 +387,7 @@ bool ccScalarField::fromFile(QFile& in, short dataVersion, int flags)
 			return ReadError();
 	}
 
-	//data (dataVersion>=20)
+	//data (dataVersion >= 20)
 	bool result = false;
 	{
 		bool fileScalarIsFloat = (flags & ccSerializableObject::DF_SCALAR_VAL_32_BITS);
@@ -407,7 +412,7 @@ bool ccScalarField::fromFile(QFile& in, short dataVersion, int flags)
 	{
 		const ScalarType FORMER_BIG_VALUE = static_cast<ScalarType>(sqrt(3.4e38f)-1.0f);
 
-		for (unsigned i=0; i<m_maxCount; ++i)
+		for (unsigned i=0; i<currentSize(); ++i)
 		{
 			ScalarType val = getValue(i);
 			//convert former 'HIDDEN_VALUE' and 'BIG_VALUE' to 'NAN_VALUE'
@@ -559,6 +564,13 @@ bool ccScalarField::fromFile(QFile& in, short dataVersion, int flags)
 		if (in.read((char*)&colorRampSteps,4) < 0)
 			return ReadError();
 		setColorRampSteps(static_cast<unsigned>(colorRampSteps));
+	}
+
+	if (dataVersion >= 42)
+	{
+		//global shift (dataVersion>=42)
+		if (in.read((char*)&m_globalShift,sizeof(double)) < 0)
+			return ReadError();
 	}
 
 	//update values

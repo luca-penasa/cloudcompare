@@ -20,13 +20,14 @@
 //local
 #include "GenericCloud.h"
 #include "GenericIndexedCloudPersist.h"
+#include "ChunkedPointCloud.h"
 #include "DgmOctreeReferenceCloud.h"
 #include "ReferenceCloud.h"
 #include "Neighbourhood.h"
 #include "GenericTriangle.h"
 #include "GenericIndexedMesh.h"
 #include "GenericProgressCallback.h"
-#include "ChamferDistanceTransform.h"
+#include "SaitoSquaredDistanceTransform.h"
 #include "FastMarchingForPropagation.h"
 #include "ScalarFieldTools.h"
 #include "CCConst.h"
@@ -84,7 +85,7 @@ namespace CCLib
 		//! Mesh
 		GenericIndexedMesh* mesh;
 		//! Distance transform
-		ChamferDistanceTransform* distanceTransform;
+		SaitoSquaredDistanceTransform* distanceTransform;
 
 		//! Grid occupancy of mesh (minimum indexes for each dimension)
 		Tuple3i minFillIndexes;
@@ -145,9 +146,10 @@ int DistanceComputationTools::computeCloud2CloudDistance(	GenericIndexedCloudPer
 {
 	assert(comparedCloud && referenceCloud);
 
-	if (params.CPSet && params.maxSearchDist >= 0)
+	if (params.CPSet && params.maxSearchDist > 0)
 	{
 		//we can't use a 'max search distance' criterion if the "Closest Point Set" is requested
+		assert(false);
 		return -666;
 	}
 
@@ -174,12 +176,12 @@ int DistanceComputationTools::computeCloud2CloudDistance(	GenericIndexedCloudPer
 	}
 
 	//internally we don't use the maxSearchDist parameters as is, but the square of it
-	double maxSearchSquareDistd = params.maxSearchDist < 0 ? -1.0 : static_cast<double>(params.maxSearchDist)*params.maxSearchDist;
+	double maxSearchSquareDistd = params.maxSearchDist <= 0 ? 0 : static_cast<double>(params.maxSearchDist) * params.maxSearchDist;
 
 	//closest point set
 	if (params.CPSet)
 	{
-		assert(maxSearchSquareDistd < 0);
+		assert(maxSearchSquareDistd <= 0);
 		
 		if (!params.CPSet->resize(comparedCloud->size()))
 		{
@@ -193,7 +195,7 @@ int DistanceComputationTools::computeCloud2CloudDistance(	GenericIndexedCloudPer
 	}
 
 	//by default we reset any former value stored in the 'enabled' scalar field
-	const ScalarType resetValue = maxSearchSquareDistd < 0 ? NAN_VALUE : params.maxSearchDist;
+	const ScalarType resetValue = maxSearchSquareDistd <= 0 ? NAN_VALUE : params.maxSearchDist;
 	if (params.resetFormerDistances)
 	{
 		for (unsigned i=0; i<comparedCloud->size(); ++i)
@@ -201,14 +203,14 @@ int DistanceComputationTools::computeCloud2CloudDistance(	GenericIndexedCloudPer
 	}
 
 	//specific case: a max search distance has been defined and octrees are totally disjoint
-	if (maxSearchSquareDistd >= 0 && soCode == DISJOINT)
+	if (maxSearchSquareDistd > 0 && soCode == DISJOINT)
 	{
 		//nothing to do! (all points are farther than 'maxSearchDist'
 		return 0;
 	}
 
 	//if necessary we try to guess the best octree level for distances computation
-	if (params.octreeLevel == 0)
+	if (params.octreeLevel == 0 && referenceOctree) //DGM: referenceOctree can be 0 if the input entities bounding-boxes are disjoint!
 	{
 		params.octreeLevel = comparedOctree->findBestLevelForComparisonWithOctree(referenceOctree);
 	}
@@ -268,18 +270,20 @@ DistanceComputationTools::SOReturnCode
 	comparedCloud->getBoundingBox(minsA,maxsA);
 	referenceCloud->getBoundingBox(minsB,maxsB);
 
-	CCVector3 maxD,minD;
 	//we compute the union of both bounding-boxes
-	for (uchar k=0; k<3; k++)
+	CCVector3 maxD,minD;
 	{
-		minD.u[k] = std::min(minsA.u[k],minsB.u[k]);
-		maxD.u[k] = std::max(maxsA.u[k],maxsB.u[k]);
+		for (unsigned char k=0; k<3; k++)
+		{
+			minD.u[k] = std::min(minsA.u[k],minsB.u[k]);
+			maxD.u[k] = std::max(maxsA.u[k],maxsB.u[k]);
+		}
 	}
 
-	if (maxDist >= 0)
+	if (maxDist > 0)
 	{
 		//we reduce the bouding box to the intersection of both bounding-boxes enlarged by 'maxDist'
-		for (uchar k=0; k<3; k++)
+		for (unsigned char k=0; k<3; k++)
 		{
 			minD.u[k] = std::max(minD.u[k],std::max(minsA.u[k],minsB.u[k])-maxDist);
 			maxD.u[k] = std::min(maxD.u[k],std::min(maxsA.u[k],maxsB.u[k])+maxDist);
@@ -301,7 +305,7 @@ DistanceComputationTools::SOReturnCode
 	if (comparedOctree && comparedOctree->getNumberOfProjectedPoints() != 0)
 	{
 		needToRecalculateOctreeA = false;
-		for (uchar k=0; k<3; k++)
+		for (unsigned char k=0; k<3; k++)
 		{
 			if (	maxD.u[k] != comparedOctree->getOctreeMaxs().u[k]
 				||	minD.u[k] != comparedOctree->getOctreeMins().u[k] )
@@ -341,7 +345,7 @@ DistanceComputationTools::SOReturnCode
 	if (referenceOctree && referenceOctree->getNumberOfProjectedPoints() != 0)
 	{
 		needToRecalculateOctreeB = false;
-		for (uchar k=0; k<3; k++)
+		for (unsigned char k=0; k<3; k++)
 		{
 			if (	maxD.u[k] != referenceOctree->getOctreeMaxs().u[k]
 				||	minD.u[k] != referenceOctree->getOctreeMins().u[k] )
@@ -666,11 +670,11 @@ struct CellToTest
 	//! Cell size
 	int cellSize;
 	//! Subdivision level
-	uchar level;
+	unsigned char level;
 };
 
 int DistanceComputationTools::intersectMeshWithOctree(	OctreeAndMeshIntersection* intersection,
-														uchar octreeLevel,
+														unsigned char octreeLevel,
 														GenericProgressCallback* progressCb/*=0*/)
 {
 	if (!intersection)
@@ -750,7 +754,7 @@ int DistanceComputationTools::intersectMeshWithOctree(	OctreeAndMeshIntersection
 			CellToTest* _currentCell = &cellsToTest[0/*cellsToTestCount-1*/];
 
 			_currentCell->pos = minPos;
-			CCVector3 distanceToOctreeMinBorder = minBB-(*triPoints[0]);
+			CCVector3 distanceToOctreeMinBorder = minBB - (*triPoints[0]);
 
 			//compute the triangle normal
 			CCVector3 N = AB.cross(BC);
@@ -767,7 +771,7 @@ int DistanceComputationTools::intersectMeshWithOctree(	OctreeAndMeshIntersection
 			//(not a real octree cell in fact as its starting position is anywhere in the grid
 			//and it can even 'outbounds' the grid, i.e. currentCell.pos.u[k]+currentCell.cellSize > octreeLength)
 			static const double LOG_2 = log(2.0);
-			_currentCell->level = octreeLevel-(maxSize > 1 ? static_cast<uchar>(ceil(log(static_cast<double>(maxSize))/LOG_2)) : 0);
+			_currentCell->level = octreeLevel-(maxSize > 1 ? static_cast<unsigned char>(ceil(log(static_cast<double>(maxSize))/LOG_2)) : 0);
 			_currentCell->cellSize = (1 << (octreeLevel-_currentCell->level));
 
 			//now we can (recursively) find the intersecting cells
@@ -809,7 +813,7 @@ int DistanceComputationTools::intersectMeshWithOctree(	OctreeAndMeshIntersection
 
 							if (intersection->distanceTransform)
 							{
-								intersection->distanceTransform->setValue(cellPos, 0);
+								intersection->distanceTransform->setValue(cellPos, 1);
 							}
 						}
 					}
@@ -911,6 +915,114 @@ int DistanceComputationTools::intersectMeshWithOctree(	OctreeAndMeshIntersection
 	return result;
 }
 
+//! Method used by computeCloud2MeshDistanceWithOctree
+void ComparePointsAndTriangles(	ReferenceCloud& Yk,
+								unsigned& remainingPoints,
+								CCLib::GenericIndexedMesh* mesh,
+								std::vector<unsigned>& trianglesToTest,
+								size_t& trianglesToTestCount,
+								std::vector<ScalarType>& minDists,
+								ScalarType maxRadius,
+								CCLib::DistanceComputationTools::Cloud2MeshDistanceComputationParams& params)
+{
+	assert(mesh);
+	assert(remainingPoints <= Yk.size());
+	assert(trianglesToTestCount <= trianglesToTest.size());
+
+	bool firstComparisonDone = (trianglesToTestCount != 0);
+
+	CCVector3 nearestPoint;
+	CCVector3* _nearestPoint = params.CPSet ? &nearestPoint : 0;
+
+	//for each triangle
+	while (trianglesToTestCount != 0)
+	{
+		//we query the vertex coordinates
+		CCLib::SimpleTriangle tri;
+		mesh->getTriangleVertices(trianglesToTest[--trianglesToTestCount], tri.A, tri.B, tri.C);
+
+		//for each point inside the current cell
+		if (params.signedDistances)
+		{
+			//we have to use absolute distances
+			for (unsigned j=0; j<remainingPoints; ++j)
+			{
+				//compute the distance to the triangle
+				ScalarType dPTri = DistanceComputationTools::computePoint2TriangleDistance(Yk.getPoint(j), &tri, true, _nearestPoint);
+				//keep it if it's smaller
+				ScalarType min_d = Yk.getPointScalarValue(j);
+				if (!ScalarField::ValidValue(min_d) || min_d*min_d > dPTri*dPTri)
+				{
+					Yk.setPointScalarValue(j, params.flipNormals ? -dPTri : dPTri);
+					if (params.CPSet)
+					{
+						//Closest Point Set: save the nearest point as well
+						assert(_nearestPoint);
+						*const_cast<CCVector3*>(params.CPSet->getPoint(Yk.getPointGlobalIndex(j))) = *_nearestPoint;
+					}
+				}
+			}
+		}
+		else //squared distances
+		{
+			for (unsigned j = 0; j<remainingPoints; ++j)
+			{
+				//compute the (SQUARED) distance to the triangle
+				ScalarType dPTri = DistanceComputationTools::computePoint2TriangleDistance(Yk.getPoint(j), &tri, false, _nearestPoint);
+				//keep it if it's smaller
+				ScalarType min_d = Yk.getPointScalarValue(j);
+				if (!ScalarField::ValidValue(min_d) || dPTri < min_d)
+				{
+					Yk.setPointScalarValue(j, dPTri);
+					if (params.CPSet)
+					{
+						//Closest Point Set: save the nearest point as well
+						assert(_nearestPoint);
+						*const_cast<CCVector3*>(params.CPSet->getPoint(Yk.getPointGlobalIndex(j))) = *_nearestPoint;
+					}
+				}
+			}
+		}
+	}
+
+	//we can 'remove' all the eligible points at the current neighborhood radius
+	if (firstComparisonDone)
+	{
+		Yk.placeIteratorAtBegining();
+		for (unsigned j=0; j<remainingPoints; ++j)
+		{
+			//eligibility distance
+			ScalarType eligibleDist = minDists[j] + maxRadius;
+			ScalarType dPTri = Yk.getCurrentPointScalarValue();
+			if (params.signedDistances)
+			{
+				//need to get the square distance in all cases
+				dPTri *= dPTri;
+			}
+			if (dPTri <= eligibleDist*eligibleDist)
+			{
+				//remove this point
+				Yk.removeCurrentPointGlobalIndex();
+				//and do the same for the 'minDists' array! (see ReferenceCloud::removeCurrentPointGlobalIndex)
+				assert(remainingPoints != 0);
+				minDists[j] = minDists[--remainingPoints];
+				//minDists.pop_back();
+				--j;
+			}
+			else
+			{
+				Yk.forwardIterator();
+			}
+		}
+	}
+}
+
+
+int ComputeMaxNeighborhoodLength(ScalarType maxSearchDist, PointCoordinateType cellSize)
+{
+	return static_cast<int>(ceil(maxSearchDist / cellSize + static_cast<ScalarType>((sqrt(2.0) - 1.0) / 2)));
+}
+
 #ifdef ENABLE_CLOUD2MESH_DIST_MT
 
 #include <QtCore>
@@ -921,11 +1033,9 @@ int DistanceComputationTools::intersectMeshWithOctree(	OctreeAndMeshIntersection
 
 static DgmOctree* s_octree_MT = 0;
 static NormalizedProgress* s_normProgressCb_MT = 0;
-static bool s_cellFunc_MT_success = true;
-static unsigned char s_octreeLevel_MT = 0;
 static OctreeAndMeshIntersection* s_intersection_MT = 0;
-static bool s_signedDistances_MT = true;
-static ScalarType s_normalSign_MT = 1.0f;
+static bool s_cellFunc_MT_success = true;
+static CCLib::DistanceComputationTools::Cloud2MeshDistanceComputationParams s_params_MT;
 
 //'processTriangles' mechanism (based on bit mask)
 #include <QtCore/QBitArray>
@@ -935,9 +1045,11 @@ static QMutex s_currentBitMaskMutex;
 
 void cloudMeshDistCellFunc_MT(const DgmOctree::IndexAndCode& desc)
 {
-	//skip cell if process is aborted/has failed
 	if (!s_cellFunc_MT_success)
+	{
+		//skip this cell if the process is aborted / has failed
 		return;
+	}
 
 	if (s_normProgressCb_MT)
 	{
@@ -950,9 +1062,9 @@ void cloudMeshDistCellFunc_MT(const DgmOctree::IndexAndCode& desc)
 	}
 
 	ReferenceCloud Yk(s_octree_MT->associatedCloud());
-	s_octree_MT->getPointsInCellByCellIndex(&Yk, desc.theIndex, s_octreeLevel_MT);
+	s_octree_MT->getPointsInCellByCellIndex(&Yk, desc.theIndex, s_params_MT.octreeLevel);
 
-	//tableau des distances minimales
+	//min distance array
 	unsigned remainingPoints = Yk.size();
 
 	std::vector<ScalarType> minDists;
@@ -967,11 +1079,11 @@ void cloudMeshDistCellFunc_MT(const DgmOctree::IndexAndCode& desc)
 		return;
 	}
 
-	//on recupere la position de la cellule (dans startPos)
+	//get cell pos
 	Tuple3i startPos;
-	s_octree_MT->getCellPos(desc.theCode, s_octreeLevel_MT, startPos, true);
+	s_octree_MT->getCellPos(desc.theCode, s_params_MT.octreeLevel, startPos, true);
 
-	//on en deduit le symetrique ainsi que la distance au bord de la grille le plus eloigne (maxDistToBoundaries)
+	//get the distance to the nearest and farthest boundaries
 	int maxDistToBoundaries = 0;
 	Tuple3i distToLowerBorder = startPos - s_intersection_MT->minFillIndexes;
 	Tuple3i distToUpperBorder = s_intersection_MT->maxFillIndexes - startPos;
@@ -980,24 +1092,42 @@ void cloudMeshDistCellFunc_MT(const DgmOctree::IndexAndCode& desc)
 		maxDistToBoundaries = std::max(maxDistToBoundaries, distToLowerBorder.u[k]);
 		maxDistToBoundaries = std::max(maxDistToBoundaries, distToUpperBorder.u[k]);
 	}
-	int maxDist = maxDistToBoundaries;
+	int maxIntDist = maxDistToBoundaries;
 
-	//on determine son centre
+	if (s_params_MT.maxSearchDist > 0)
+	{
+		//no need to look farther than 'maxNeighbourhoodLength'
+		int maxNeighbourhoodLength = ComputeMaxNeighborhoodLength(s_params_MT.maxSearchDist, s_octree_MT->getCellSize(s_params_MT.octreeLevel));
+		if (maxNeighbourhoodLength < maxIntDist)
+			maxIntDist = maxNeighbourhoodLength;
+
+		ScalarType maxDistance = s_params_MT.maxSearchDist;
+		if (!s_params_MT.signedDistances)
+		{
+			//we compute squared distances when not in 'signed' mode!
+			maxDistance = s_params_MT.maxSearchDist*s_params_MT.maxSearchDist;
+		}
+
+		for (unsigned j = 0; j < remainingPoints; ++j)
+			Yk.setPointScalarValue(j, maxDistance);
+	}
+
+	//determine the cell center
 	CCVector3 cellCenter;
-	s_octree_MT->computeCellCenter(startPos, s_octreeLevel_MT, cellCenter);
+	s_octree_MT->computeCellCenter(startPos, s_params_MT.octreeLevel, cellCenter);
 
-	//on exprime maintenant startPos relativement aux bords de la grille
+	//express 'startPos' relatively to the grid borders
 	startPos -= s_intersection_MT->minFillIndexes;
 
-	//taille d'une cellule d'octree
-	const PointCoordinateType& cellLength = s_octree_MT->getCellSize(s_octreeLevel_MT);
+	//octree cell size
+	const PointCoordinateType& cellLength = s_octree_MT->getCellSize(s_params_MT.octreeLevel);
 
-	//variables et structures utiles
+	//useful variables
 	std::vector<unsigned> trianglesToTest;
 	size_t trianglesToTestCount = 0;
 	size_t trianglesToTestCapacity = 0;
 
-	//Bit mask for efficient comparisons
+	//bit mask for efficient comparisons
 	QBitArray* bitArray = 0;
 	if (s_useBitArrays_MT)
 	{
@@ -1017,29 +1147,28 @@ void cloudMeshDistCellFunc_MT(const DgmOctree::IndexAndCode& desc)
 		bitArray->fill(0);
 	}
 
-	//on calcule pour chaque point sa distance au bord de la cellule la plus proche
-	//cela nous permettra de recalculer plus rapidement la distance d'eligibilite
-	//du triangle le plus proche
+	//for each point, we pre-compute its distance to the nearest cell border
+	//(will be handy later)
 	Yk.placeIteratorAtBegining();
 	for (unsigned j = 0; j<remainingPoints; ++j)
 	{
-		//coordonnees du point courant
+		//coordinates of the current point
 		const CCVector3 *tempPt = Yk.getCurrentPointCoordinates();
 		//distance du bord le plus proche = taille de la cellule - distance la plus grande par rapport au centre de la cellule
 		minDists[j] = DgmOctree::ComputeMinDistanceToCellBorder(*tempPt, cellLength, cellCenter);
 		Yk.forwardIterator();
 	}
 
-	//initialisation de la recurrence
-	ScalarType maxRadius = 0;
-	int dist = 0;
+	CCVector3 nearestPoint;
+	CCVector3* _nearestPoint = s_params_MT.CPSet ? &nearestPoint : 0;
 
-	//on va essayer de trouver les triangles les plus proches de chaque point du "voisinage" Yk
-	while (remainingPoints>0 && dist <= maxDist)
+	//let's find the nearest triangles for each point in the neighborhood 'Yk'
+	ScalarType maxRadius = 0;
+	for (int dist = 0; remainingPoints != 0 && dist <= maxIntDist; ++dist, maxRadius += static_cast<ScalarType>(cellLength))
 	{
-		//on va tester les cellules voisines a une distance "dist"
-		//a,b,c,d,e,f representent l'extension spatiale du voisinage INCLUS DANS LA GRILLE 3D
-		//selon les 6 directions -X,+X,-Y,+Y,-Z,+Z
+		//test the neighbor cells at distance = 'dist'
+		//a,b,c,d,e,f are the extents of this neighborhood
+		//for the 6 main directions -X,+X,-Y,+Y,-Z,+Z
 		int a = std::min(dist, distToLowerBorder.x);
 		int b = std::min(dist, distToUpperBorder.x);
 		int c = std::min(dist, distToLowerBorder.y);
@@ -1164,79 +1293,7 @@ void cloudMeshDistCellFunc_MT(const DgmOctree::IndexAndCode& desc)
 			}
 		}
 
-		bool firstComparisonDone = (trianglesToTestCount != 0);
-
-		//for each triangle
-		while (trianglesToTestCount != 0)
-		{
-			//we query the vertex coordinates
-			CCLib::SimpleTriangle tri;
-			s_intersection_MT->mesh->getTriangleVertices(trianglesToTest[--trianglesToTestCount], tri.A, tri.B, tri.C);
-
-			//for each point inside the current cell
-			Yk.placeIteratorAtBegining();
-			if (s_signedDistances_MT)
-			{
-				//we have to use absolute distances
-				for (unsigned j = 0; j<remainingPoints; ++j)
-				{
-					//compute the distance to the triangle
-					ScalarType dPTri = DistanceComputationTools::computePoint2TriangleDistance(Yk.getCurrentPointCoordinates(), &tri, true);
-					//keep it if it's smaller
-					ScalarType min_d = Yk.getCurrentPointScalarValue();
-					if (!ScalarField::ValidValue(min_d) || min_d*min_d > dPTri*dPTri)
-						Yk.setCurrentPointScalarValue(s_normalSign_MT*dPTri);
-					Yk.forwardIterator();
-				}
-			}
-			else //squared distances
-			{
-				for (unsigned j = 0; j<remainingPoints; ++j)
-				{
-					//compute the (SQUARED) distance to the triangle
-					ScalarType dPTri = DistanceComputationTools::computePoint2TriangleDistance(Yk.getCurrentPointCoordinates(), &tri, false);
-					//keep it if it's smaller
-					ScalarType min_d = Yk.getCurrentPointScalarValue();
-					if (!ScalarField::ValidValue(min_d) || dPTri < min_d)
-						Yk.setCurrentPointScalarValue(dPTri);
-					Yk.forwardIterator();
-				}
-			}
-		}
-
-		//we can 'remove' all the eligible points at the current neighborhood radius
-		if (firstComparisonDone)
-		{
-			Yk.placeIteratorAtBegining();
-			for (unsigned j = 0; j<remainingPoints; ++j)
-			{
-				//eligibility distance
-				ScalarType eligibleDist = minDists[j] + maxRadius;
-				ScalarType dPTri = Yk.getCurrentPointScalarValue();
-				if (s_signedDistances_MT)
-				{
-					//need to get the square distance in all cases
-					dPTri *= dPTri;
-				}
-				if (dPTri <= eligibleDist*eligibleDist)
-				{
-					//remove this point
-					Yk.removeCurrentPointGlobalIndex();
-					//and do the same for the 'minDists' array! (see ReferenceCloud::removeCurrentPointGlobalIndex)
-					assert(remainingPoints != 0);
-					minDists[j] = minDists[remainingPoints - 1];
-					//minDists.pop_back();
-					--remainingPoints;
-					--j;
-
-				}
-				else Yk.forwardIterator();
-			}
-		}
-		//*/
-
-		++dist;
-		maxRadius += cellLength;
+		ComparePointsAndTriangles(Yk, remainingPoints, s_intersection_MT->mesh, trianglesToTest, trianglesToTestCount, minDists, maxRadius, s_params_MT);
 	}
 
 	//release bit mask
@@ -1251,67 +1308,81 @@ void cloudMeshDistCellFunc_MT(const DgmOctree::IndexAndCode& desc)
 #endif
 
 int DistanceComputationTools::computeCloud2MeshDistanceWithOctree(	OctreeAndMeshIntersection* intersection,
-																	uchar octreeLevel,
-																	bool signedDistances,
-																	bool flipTriangleNormals/*=false*/,
-																	bool multiThread/*=false*/,
-																	ScalarType maxSearchDist/*=-1.0*/,
+																	Cloud2MeshDistanceComputationParams& params,
 																	GenericProgressCallback* progressCb/*=0*/)
 {
 	assert(intersection);
-	assert(!signedDistances || !intersection->distanceTransform); //signed distances are not compatible with Distance Transform acceleration
-	assert(!multiThread || maxSearchDist < 0); //maxSearchDist is not compatible with parallel processing
+	assert(!params.signedDistances || !intersection->distanceTransform); //signed distances are not compatible with Distance Transform acceleration
+	assert(!params.multiThread || params.maxSearchDist <= 0); //maxSearchDist is not compatible with parallel processing
 
 	DgmOctree* octree = intersection->octree;
+	if (!octree)
+	{
+		//invalid input
+		assert(false);
+		return -2;
+	}
+
+	//Closest Point Set
+	if (params.CPSet)
+	{
+		assert(params.maxSearchDist <= 0);
+		assert(params.useDistanceMap == false);
+
+		//reserve memory for the Closest Point Set
+		if (!params.CPSet->resize(octree->associatedCloud()->size()))
+		{
+			//not enough memory
+			return -1;
+		}
+	}
 
 #ifdef ENABLE_CLOUD2MESH_DIST_MT
-	if (!multiThread)
+	if (!params.multiThread)
 #endif
 	{
 		GenericIndexedMesh* mesh = intersection->mesh;
 
 		//dimension of an octree cell
-		PointCoordinateType cellLength = octree->getCellSize(octreeLevel);
+		PointCoordinateType cellLength = octree->getCellSize(params.octreeLevel);
 
 		//get the cell indexes at level "octreeLevel"
 		DgmOctree::cellsContainer cellCodesAndIndexes;
-		if (!octree->getCellCodesAndIndexes(octreeLevel, cellCodesAndIndexes, true))
+		if (!octree->getCellCodesAndIndexes(params.octreeLevel, cellCodesAndIndexes, true))
 		{
 			//not enough memory
 			return -1;
 		}
 
 		unsigned numberOfCells = static_cast<unsigned>(cellCodesAndIndexes.size());
+		bool boundedSearch = (params.maxSearchDist > 0);
 
 		DgmOctree::cellsContainer::const_iterator pCodeAndIndex = cellCodesAndIndexes.begin();
 		ReferenceCloud Yk(octree->associatedCloud());
 
-		//bounded search
-		bool boundedSearch = (maxSearchDist >= 0);
-		int maxNeighbourhoodLength = 0; //maximale neighbors search distance (if maxSearchDist is defined)
-		if (boundedSearch)
-		{
-			maxNeighbourhoodLength = static_cast<int>(ceil(maxSearchDist / cellLength + static_cast<ScalarType>((sqrt(2.0) - 1.0) / 2)));
-		}
-
 		//if we only need approximate distances
-		if (intersection->distanceTransform && !boundedSearch)
+		if (intersection->distanceTransform)
 		{
 			//for each cell
 			for (unsigned i = 0; i < numberOfCells; ++i, ++pCodeAndIndex)
 			{
-				octree->getPointsInCellByCellIndex(&Yk, pCodeAndIndex->theIndex, octreeLevel);
+				octree->getPointsInCellByCellIndex(&Yk, pCodeAndIndex->theIndex, params.octreeLevel);
 
 				//get the cell pos
 				Tuple3i cellPos;
-				octree->getCellPos(pCodeAndIndex->theCode, octreeLevel, cellPos, true);
+				octree->getCellPos(pCodeAndIndex->theCode, params.octreeLevel, cellPos, true);
 				cellPos -= intersection->minFillIndexes;
 
-				//get the Chamfer distance
-				int dist = intersection->distanceTransform->getValue(cellPos);
+				//get the Distance Transform distance
+				unsigned squareDist = intersection->distanceTransform->getValue(cellPos);
 
-				//assign the (Chamfer) distance to all points inside this cell
-				ScalarType maxRadius = static_cast<ScalarType>(dist) / 3 * cellLength;
+				//assign the distance to all points inside this cell
+				ScalarType maxRadius = sqrt(static_cast<ScalarType>(squareDist)) * cellLength;
+
+				if (boundedSearch && maxRadius > params.maxSearchDist)
+				{
+					maxRadius = params.maxSearchDist;
+				}
 
 				unsigned count = Yk.size();
 				for (unsigned j = 0; j < count; ++j)
@@ -1335,7 +1406,7 @@ int DistanceComputationTools::computeCloud2MeshDistanceWithOctree(	OctreeAndMesh
 			sprintf(buffer, "Cells: %u", numberOfCells);
 			progressCb->reset();
 			progressCb->setInfo(buffer);
-			progressCb->setMethodTitle(signedDistances ? "Compute signed distances" : "Compute distances");
+			progressCb->setMethodTitle(params.signedDistances ? "Compute signed distances" : "Compute distances");
 			progressCb->start();
 		}
 
@@ -1343,7 +1414,7 @@ int DistanceComputationTools::computeCloud2MeshDistanceWithOctree(	OctreeAndMesh
 		std::vector<unsigned> trianglesToTest;
 		size_t trianglesToTestCount = 0;
 		size_t trianglesToTestCapacity = 0;
-		const ScalarType normalSign = static_cast<ScalarType>(flipTriangleNormals ? -1.0 : 1.0);
+		const ScalarType normalSign = static_cast<ScalarType>(params.flipNormals ? -1.0 : 1.0);
 		unsigned numberOfTriangles = mesh->size();
 
 		//acceleration structure
@@ -1360,14 +1431,24 @@ int DistanceComputationTools::computeCloud2MeshDistanceWithOctree(	OctreeAndMesh
 		//min distance array ('persistent' version to save some memory)
 		std::vector<ScalarType> minDists;
 
+		CCVector3 nearestPoint;
+		CCVector3* _nearestPoint = params.CPSet ? &nearestPoint : 0;
+
+		//maximal neighbors search distance (if maxSearchDist is defined)
+		int maxNeighbourhoodLength = 0; 
+		if (boundedSearch)
+		{
+			maxNeighbourhoodLength = ComputeMaxNeighborhoodLength(params.maxSearchDist, cellLength);
+		}
+
 		//for each cell
 		for (unsigned cellIndex = 1; cellIndex <= numberOfCells; ++cellIndex, ++pCodeAndIndex) //cellIndex = unique ID for the current cell
 		{
-			octree->getPointsInCellByCellIndex(&Yk, pCodeAndIndex->theIndex, octreeLevel);
+			octree->getPointsInCellByCellIndex(&Yk, pCodeAndIndex->theIndex, params.octreeLevel);
 
 			//get cell pos
 			Tuple3i startPos;
-			octree->getCellPos(pCodeAndIndex->theCode, octreeLevel, startPos, true);
+			octree->getCellPos(pCodeAndIndex->theCode, params.octreeLevel, startPos, true);
 
 			//get the distance to the nearest and farthest boundaries
 			int maxDistToBoundaries = 0;
@@ -1378,28 +1459,14 @@ int DistanceComputationTools::computeCloud2MeshDistanceWithOctree(	OctreeAndMesh
 				maxDistToBoundaries = std::max(maxDistToBoundaries, distToLowerBorder.u[k]);
 				maxDistToBoundaries = std::max(maxDistToBoundaries, distToUpperBorder.u[k]);
 			}
-			int maxDist = maxDistToBoundaries;
+			int maxIntDist = maxDistToBoundaries;
 
 			//determine the cell center
 			CCVector3 cellCenter;
-			octree->computeCellCenter(startPos, octreeLevel, cellCenter);
+			octree->computeCellCenter(startPos, params.octreeLevel, cellCenter);
 
 			//express 'startPos' relatively to the grid borders
 			startPos -= intersection->minFillIndexes;
-
-			ScalarType maxRadius = 0;
-			int dist = 0;
-			if (intersection->distanceTransform)
-			{
-				unsigned short chamferDist = intersection->distanceTransform->getValue(startPos);
-				maxRadius = static_cast<ScalarType>(chamferDist) / 3 * cellLength;
-
-				//if (boundedSearch)  //should always be true if we are here!
-				{
-					if (maxRadius > maxSearchDist)
-						maxSearchDist = maxRadius;
-				}
-			}
 
 			//minDists.clear(); //not necessary 
 			unsigned remainingPoints = Yk.size();
@@ -1424,19 +1491,27 @@ int DistanceComputationTools::computeCloud2MeshDistanceWithOctree(	OctreeAndMesh
 				minDists[j] = static_cast<ScalarType>(DgmOctree::ComputeMinDistanceToCellBorder(*tempPt, cellLength, cellCenter));
 			}
 
-			//boundedSearch: compute the accurate distance below 'maxSearchDist'
-			//and use the approximate (Chamfer) distances above
 			if (boundedSearch)
 			{
 				//no need to look farther than 'maxNeighbourhoodLength'
-				maxDist = std::min(maxDistToBoundaries, maxNeighbourhoodLength);
+				if (maxNeighbourhoodLength < maxIntDist)
+					maxIntDist = maxNeighbourhoodLength;
 
+				//we compute squared distances when not in 'signed' mode!
+				ScalarType maxDistance = params.maxSearchDist;
+				if (!params.signedDistances)
+				{
+					//we compute squared distances when not in 'signed' mode!
+					maxDistance = params.maxSearchDist*params.maxSearchDist;
+				}
+				
 				for (unsigned j = 0; j < remainingPoints; ++j)
-					Yk.setPointScalarValue(j, maxSearchDist);
+					Yk.setPointScalarValue(j, maxDistance);
 			}
 
 			//let's find the nearest triangles for each point in the neighborhood 'Yk'
-			while (remainingPoints != 0 && dist <= maxDist)
+			ScalarType maxRadius = 0;
+			for (int dist = 0; dist <= maxIntDist && remainingPoints != 0; ++dist, maxRadius += static_cast<ScalarType>(cellLength))
 			{
 				//test the neighbor cells at distance = 'dist'
 				//a,b,c,d,e,f are the extents of this neighborhood
@@ -1565,78 +1640,7 @@ int DistanceComputationTools::computeCloud2MeshDistanceWithOctree(	OctreeAndMesh
 					}
 				}
 
-				//thanks to 'processTriangles' we shouldn't have tested the triangle yet
-				//for smaller neighborhood radii
-				bool firstComparisonDone = (trianglesToTestCount != 0);
-
-				//for each triangle
-				while (trianglesToTestCount != 0)
-				{
-					//we query the vertex coordinates (pointers to)
-					GenericTriangle *tempTri = mesh->_getTriangle(trianglesToTest[--trianglesToTestCount]);
-
-					//for each point inside the current cell
-					Yk.placeIteratorAtBegining();
-					if (signedDistances)
-					{
-						//we have to use absolute distances
-						for (unsigned j = 0; j < remainingPoints; ++j)
-						{
-							//compute the distance to the triangle
-							ScalarType dPTri = computePoint2TriangleDistance(Yk.getCurrentPointCoordinates(), tempTri, true);
-							//keep it if it's smaller
-							ScalarType min_d = Yk.getCurrentPointScalarValue();
-							if (!ScalarField::ValidValue(min_d) || min_d*min_d > dPTri*dPTri)
-								Yk.setCurrentPointScalarValue(normalSign*dPTri);
-							Yk.forwardIterator();
-						}
-					}
-					else //squared distances
-					{
-						for (unsigned j = 0; j < remainingPoints; ++j)
-						{
-							//compute the (SQUARED) distance to the triangle
-							ScalarType dPTri = computePoint2TriangleDistance(Yk.getCurrentPointCoordinates(), tempTri, false);
-							//keep it if it's smaller
-							ScalarType min_d = Yk.getCurrentPointScalarValue();
-							if (!ScalarField::ValidValue(min_d) || dPTri < min_d)
-								Yk.setCurrentPointScalarValue(dPTri);
-							Yk.forwardIterator();
-						}
-					}
-				}
-
-				//we can 'remove' all the eligible points at the current neighborhood radius
-				if (firstComparisonDone)
-				{
-					for (unsigned j = 0; j < remainingPoints;)
-					{
-						//eligibility distance
-						ScalarType eligibleDist = minDists[j] + maxRadius;
-						ScalarType dPTri = Yk.getPointScalarValue(j);
-						if (signedDistances)
-						{
-							//need to get the square distance in all cases
-							dPTri *= dPTri;
-						}
-						if (dPTri <= eligibleDist*eligibleDist)
-						{
-							//remove this point
-							Yk.removePointGlobalIndex(j);
-							//and do the same for the 'minDists' array! (see ReferenceCloud::removeCurrentPointGlobalIndex)
-							assert(remainingPoints != 0);
-							minDists[j] = minDists[--remainingPoints];
-							//minDists.pop_back();
-						}
-						else
-						{
-							++j;
-						}
-					}
-				}
-
-				++dist;
-				maxRadius += static_cast<ScalarType>(cellLength);
+				ComparePointsAndTriangles(Yk, remainingPoints, mesh, trianglesToTest, trianglesToTestCount, minDists, maxRadius, params);
 			}
 
 			//Yk.clear(); //not necessary
@@ -1655,7 +1659,7 @@ int DistanceComputationTools::computeCloud2MeshDistanceWithOctree(	OctreeAndMesh
 	{
 		//extraction des indexes et codes des cellules du niveau "octreeLevel"
 		DgmOctree::cellsContainer cellsDescs;
-		octree->getCellCodesAndIndexes(octreeLevel,cellsDescs,true);
+		octree->getCellCodesAndIndexes(params.octreeLevel,cellsDescs,true);
 
 		unsigned numberOfCells = (unsigned)cellsDescs.size();
 
@@ -1674,9 +1678,7 @@ int DistanceComputationTools::computeCloud2MeshDistanceWithOctree(	OctreeAndMesh
 		s_octree_MT = octree;
 		s_normProgressCb_MT = &nProgress;
 		s_cellFunc_MT_success = true;
-		s_signedDistances_MT = signedDistances;
-		s_normalSign_MT = (flipTriangleNormals ? -1.0f : 1.0f);
-		s_octreeLevel_MT = octreeLevel;
+		s_params_MT = params;
 		s_intersection_MT = intersection;
 		//acceleration structure
 		s_useBitArrays_MT = true;
@@ -1712,12 +1714,7 @@ inline void applySqrtToPointDist(const CCVector3 &aPoint, ScalarType& aScalarVal
 
 int DistanceComputationTools::computeCloud2MeshDistance(	GenericIndexedCloudPersist* pointCloud,
 															GenericIndexedMesh* mesh,
-															uchar octreeLevel,
-															ScalarType maxSearchDist,
-															bool useDistanceMap/*=false*/,
-															bool signedDistances/*=false*/,
-															bool flipNormals/*=false*/,
-															bool multiThread/*=true*/,
+															Cloud2MeshDistanceComputationParams& params,
 															GenericProgressCallback* progressCb/*=0*/,
 															DgmOctree* cloudOctree/*=0*/)
 {
@@ -1728,10 +1725,16 @@ int DistanceComputationTools::computeCloud2MeshDistance(	GenericIndexedCloudPers
 		return -2;
 	}
 
-	//signed distances are incompatible with Chamfer approximation
-	if (signedDistances)
+	if (params.signedDistances)
 	{
-		useDistanceMap = false;
+		//signed distances are incompatible with approximate distances (with Distance Transform)
+		params.useDistanceMap = false;
+	}
+	if (params.CPSet)
+	{
+		//Closest Point Set determination is incompatible with distance map approximation and max seach distance
+		params.useDistanceMap = false;
+		params.maxSearchDist = 0;
 	}
 
 	//compute the (cubical) bounding box that contains both the cloud and the mehs BBs
@@ -1744,7 +1747,7 @@ int DistanceComputationTools::computeCloud2MeshDistance(	GenericIndexedCloudPers
 		mesh->getBoundingBox(meshMinBB,meshMaxBB);
 
 		//max bounding-box (non-cubical)
-		for (uchar k=0; k<3; ++k)
+		for (unsigned char k=0; k<3; ++k)
 		{
 			minBB.u[k] = std::min(meshMinBB.u[k],cloudMinBB.u[k]);
 			maxBB.u[k] = std::max(meshMaxBB.u[k],cloudMaxBB.u[k]);
@@ -1756,7 +1759,7 @@ int DistanceComputationTools::computeCloud2MeshDistance(	GenericIndexedCloudPers
 		CCMiscTools::MakeMinAndMaxCubical(minCubifiedBB,maxCubifiedBB);
 	}
 
-	//ccompute the octree if necessary
+	//compute the octree if necessary
 	DgmOctree tempOctree(pointCloud);
 	DgmOctree* octree = cloudOctree;
 	bool rebuildTheOctree = false;
@@ -1770,7 +1773,7 @@ int DistanceComputationTools::computeCloud2MeshDistance(	GenericIndexedCloudPers
 		//check the input octree dimensions
 		const CCVector3& theOctreeMins = octree->getOctreeMins();
 		const CCVector3& theOctreeMaxs = octree->getOctreeMaxs();
-		for (uchar k=0; k<3; ++k)
+		for (unsigned char k=0; k<3; ++k)
 		{
 			if (	theOctreeMins.u[k] != minCubifiedBB.u[k]
 				||	theOctreeMaxs.u[k] != maxCubifiedBB.u[k] )
@@ -1795,11 +1798,11 @@ int DistanceComputationTools::computeCloud2MeshDistance(	GenericIndexedCloudPers
 	intersection.mesh = mesh;
 
 	//we deduce the grid cell size very simply (as the bbox has been "cubified")
-	PointCoordinateType cellSize = (maxCubifiedBB.x - minCubifiedBB.x) / (1 << octreeLevel);
+	PointCoordinateType cellSize = (maxCubifiedBB.x - minCubifiedBB.x) / (1 << params.octreeLevel);
 	//we compute grid occupancy ... and we deduce the grid dimensions
 	Tuple3ui gridSize;
 	{
-		for (uchar k=0; k<3; ++k)
+		for (unsigned char k=0; k<3; ++k)
 		{
 			intersection.minFillIndexes.u[k] = static_cast<int>(floor((minBB.u[k]-minCubifiedBB.u[k])/cellSize));
 			intersection.maxFillIndexes.u[k] = static_cast<int>(floor((maxBB.u[k]-minCubifiedBB.u[k])/cellSize));
@@ -1807,34 +1810,27 @@ int DistanceComputationTools::computeCloud2MeshDistance(	GenericIndexedCloudPers
 		}
 	}
 
-	bool boundedSearch = (maxSearchDist >= 0);
-	multiThread &= (!boundedSearch); //MT doesn't support boundedSearch yet!
-	if (!useDistanceMap || boundedSearch)
+	//if the user (or the current cloud/mesh configuration) requires that we use a Distance Transform
+	if (params.useDistanceMap)
 	{
-		//list of the triangles intersecting each cell of the 3D grid
+		intersection.distanceTransform = new SaitoSquaredDistanceTransform;
+		if ( !intersection.distanceTransform || !intersection.distanceTransform->initGrid(gridSize))
+		{
+			return -5;
+		}
+		params.multiThread = false; //not necessary/supported
+	}
+	else
+	{
+		//we need to build the list of triangles intersecting each cell of the 3D grid
 		if (!intersection.perCellTriangleList.init(gridSize.x, gridSize.y, gridSize.z, 0, 0))
 		{
 			return -4;
 		}
 	}
-	else
-	{
-		//we only compute approximate (Chamfer) distances
-		multiThread = false; //not necessary/supported
-	}
 
-	//if the user (or the current cloud/mesh configuration) requires that we use a Distance Transform
-	if (useDistanceMap)
-	{
-		intersection.distanceTransform = new ChamferDistanceTransform;
-		if ( !intersection.distanceTransform || !intersection.distanceTransform->init(gridSize))
-		{
-			return -5;
-		}
-	}
-
-	//INTERSECT THE OCTREE WITH THE MAILLAGE
-	int result = intersectMeshWithOctree(&intersection,octreeLevel,progressCb);
+	//INTERSECT THE OCTREE WITH THE MESH
+	int result = intersectMeshWithOctree(&intersection,params.octreeLevel,progressCb);
 	if (result < 0)
 	{
 		return -6;
@@ -1845,22 +1841,19 @@ int DistanceComputationTools::computeCloud2MeshDistance(	GenericIndexedCloudPers
 	pointCloud->forEach(ScalarFieldTools::SetScalarValueToNaN);
 
     //acceleration by approximating the distance
-	if (useDistanceMap && intersection.distanceTransform)
+	if (params.useDistanceMap && intersection.distanceTransform)
 	{
-        intersection.distanceTransform->propagateDistance(CHAMFER_345, progressCb);
+        intersection.distanceTransform->propagateDistance(progressCb);
 	}
 
 	//WE CAN EVENTUALLY COMPUTE THE DISTANCES!
-	result = computeCloud2MeshDistanceWithOctree(&intersection, octreeLevel, signedDistances, flipNormals, multiThread, maxSearchDist, progressCb);
+	result = computeCloud2MeshDistanceWithOctree(&intersection, params, progressCb);
 
-	//special operation for non-signed distances
-	if (result == 0 && !signedDistances)
+	//don't forget to compute the square root of the (squared) unsigned distances
+	if (result == 0 && !params.signedDistances && !params.useDistanceMap)
 	{
-		//don't forget to pass the result to the square root
-		if (!useDistanceMap || boundedSearch)
-			pointCloud->forEach(applySqrtToPointDist);
+		pointCloud->forEach(applySqrtToPointDist);
 	}
-
 
 	if (result < 0)
 	{
@@ -1870,14 +1863,13 @@ int DistanceComputationTools::computeCloud2MeshDistance(	GenericIndexedCloudPers
 	return 0;
 }
 
-/******* Calcul de distance entre un point et un triangle *****/
 // Inspired from documents and code by:
 // David Eberly
 // Geometric Tools, LLC
 // http://www.geometrictools.com/
-ScalarType DistanceComputationTools::computePoint2TriangleDistance(const CCVector3* P, const GenericTriangle* theTriangle, bool signedDist)
+ScalarType DistanceComputationTools::computePoint2TriangleDistance(const CCVector3* P, const GenericTriangle* theTriangle, bool signedDist, CCVector3* nearestP/*=0*/)
 {
-    assert(P && theTriangle);
+	assert(P && theTriangle);
 
 	const CCVector3* A = theTriangle->_getA();
 	const CCVector3* B = theTriangle->_getB();
@@ -1885,194 +1877,207 @@ ScalarType DistanceComputationTools::computePoint2TriangleDistance(const CCVecto
 
 	//we do all computations with double precision, otherwise
 	//some triangles with sharp angles will give very poor results.
-	CCVector3d AP(P->x-A->x,P->y-A->y,P->z-A->z);
-	CCVector3d AB(B->x-A->x,B->y-A->y,B->z-A->z);
-	CCVector3d AC(C->x-A->x,C->y-A->y,C->z-A->z);
+	CCVector3d AP(P->x-A->x, P->y-A->y, P->z-A->z);
+	CCVector3d AB(B->x-A->x, B->y-A->y, B->z-A->z);
+	CCVector3d AC(C->x-A->x, C->y-A->y, C->z-A->z);
 
-	double fSqrDist;
+    double a00 = AB.dot(AB);
+    double a01 = AB.dot(AC);
+    double a11 = AC.dot(AC);
+    double b0 = -AP.dot(AB);
+    double b1 = -AP.dot(AC);
+    double det = a00 * a11 - a01 * a01;
+    double t0 = a01 * b1 - a11 * b0;
+    double t1 = a01 * b0 - a00 * b1;
+
+    if (t0 + t1 <= det)
+    {
+        if (t0 < 0)
+        {
+            if (t1 < 0)  // region 4
+            {
+                if (b0 < 0)
+                {
+                    t1 = 0;
+                    if (-b0 >= a00)  // V0
+                    {
+                        t0 = 1.0;
+                    }
+                    else  // E01
+                    {
+                        t0 = -b0 / a00;
+                    }
+                }
+                else
+                {
+                    t0 = 0;
+                    if (b1 >= 0)  // V0
+                    {
+                        t1 = 0;
+                    }
+                    else if (-b1 >= a11)  // V2
+                    {
+                        t1 = 1.0;
+                    }
+                    else  // E20
+                    {
+                        t1 = -b1 / a11;
+                    }
+                }
+            }
+            else  // region 3
+            {
+                t0 = 0;
+                if (b1 >= 0)  // V0
+                {
+                    t1 = 0;
+                }
+                else if (-b1 >= a11)  // V2
+                {
+                    t1 = 1.0;
+                }
+                else  // E20
+                {
+                    t1 = -b1 / a11;
+                }
+            }
+        }
+        else if (t1 < 0)  // region 5
+        {
+            t1 = 0;
+            if (b0 >= 0)  // V0
+            {
+                t0 = 0;
+            }
+            else if (-b0 >= a00)  // V1
+            {
+                t0 = 1.0;
+            }
+            else  // E01
+            {
+                t0 = -b0 / a00;
+            }
+        }
+        else  // region 0, interior
+        {
+            t0 /= det;
+            t1 /= det;
+        }
+    }
+    else
+    {
+        double tmp0, tmp1, numer, denom;
+
+        if (t0 < 0)  // region 2
+        {
+            tmp0 = a01 + b0;
+            tmp1 = a11 + b1;
+            if (tmp1 > tmp0)
+            {
+                numer = tmp1 - tmp0;
+                denom = a00 - 2*a01 + a11;
+                if (numer >= denom)  // V1
+                {
+                    t0 = 1.0;
+                    t1 = 0;
+                }
+                else  // E12
+                {
+                    t0 = numer / denom;
+                    t1 = 1.0 - t0;
+                }
+            }
+            else
+            {
+                t0 = 0;
+                if (tmp1 <= 0)  // V2
+                {
+                    t1 = 1.0;
+                }
+                else if (b1 >= 0)  // V0
+                {
+                    t1 = 0;
+                }
+                else  // E20
+                {
+                    t1 = -b1 / a11;
+                }
+            }
+        }
+        else if (t1 < 0)  // region 6
+        {
+            tmp0 = a01 + b1;
+            tmp1 = a00 + b0;
+            if (tmp1 > tmp0)
+            {
+                numer = tmp1 - tmp0;
+                denom = a00 - 2*a01 + a11;
+                if (numer >= denom)  // V2
+                {
+                    t1 = 1.0;
+                    t0 = 0;
+                }
+                else  // E12
+                {
+                    t1 = numer / denom;
+                    t0 = 1.0 - t1;
+                }
+            }
+            else
+            {
+                t1 = 0;
+                if (tmp1 <= 0)  // V1
+                {
+                    t0 = 1.0;
+                }
+                else if (b0 >= 0)  // V0
+                {
+                    t0 = 0;
+                }
+                else  // E01
+                {
+                    t0 = -b0 / a00;
+                }
+            }
+        }
+        else  // region 1
+        {
+            numer = a11 + b1 - a01 - b0;
+            if (numer <= 0)  // V2
+            {
+                t0 = 0;
+                t1 = 1.0;
+            }
+            else
+            {
+                denom = a00 - 2*a01 + a11;
+                if (numer >= denom)  // V1
+                {
+                    t0 = 1.0;
+                    t1 = 0;
+                }
+                else  // 12
+                {
+                    t0 = numer / denom;
+                    t1 = 1.0 - t0;
+                }
+            }
+        }
+    }
+
+	//point on the plane (relative to A)
+	CCVector3d Q = t0 * AB + t1 * AC;
+
+	if (nearestP)
 	{
-		double fA00 = AB.dot(AB);
-		double fA11 = AC.dot(AC);
-		double fA01 = AB.dot(AC);
-		double fB0 = -AP.dot(AB);
-		double fB1 = -AP.dot(AC);
-		fSqrDist = /*double fC =*/ AP.dot(AP); //DGM: in fact, fSqrDist is always equal to fC + something
-		double fDet = fabs(fA00*fA11-fA01*fA01);
-		double fS = fA01*fB1-fA11*fB0;
-		double fT = fA01*fB0-fA00*fB1;
-
-		if ( fS + fT <= fDet )
-		{
-			if ( fS < 0 )
-			{
-				if ( fT < 0 )  // region 4
-				{
-					if ( fB0 < 0 )
-					{
-						if ( -fB0 >= fA00 )
-						{
-							fSqrDist += fA00+2.0*fB0/*+fC*/;
-						}
-						else
-						{
-							fSqrDist += -fB0*fB0/fA00/*+fC*/;
-						}
-					}
-					else
-					{
-						if ( fB1 >= 0 )
-						{
-							//fSqrDist = fC;
-						}
-						else if ( -fB1 >= fA11 )
-						{
-							fSqrDist += fA11+2.0*fB1/*+fC*/;
-						}
-						else
-						{
-							fSqrDist += -fB1*fB1/fA11/*+fC*/;
-						}
-					}
-				}
-				else  // region 3
-				{
-					if ( fB1 >= 0 )
-					{
-						//fSqrDist += fC;
-					}
-					else if ( -fB1 >= fA11 )
-					{
-						fSqrDist += fA11+2.0*fB1/*+fC*/;
-					}
-					else
-					{
-						fSqrDist += -fB1*fB1/fA11/*+fC*/;
-					}
-				}
-			}
-			else if ( fT < 0 )  // region 5
-			{
-				if ( fB0 >= 0 )
-				{
-					//fSqrDist += fC;
-				}
-				else if ( -fB0 >= fA00 )
-				{
-					fSqrDist += fA00+2.0*fB0/*+fC*/;
-				}
-				else
-				{
-					fSqrDist += -fB0*fB0/fA00/*+fC*/;
-				}
-			}
-			else  // region 0
-			{
-				// minimum at interior point
-				fS /= fDet;
-				fT /= fDet;
-				fSqrDist += fS*(fA00*fS+fA01*fT+2.0*fB0) + fT*(fA01*fS+fA11*fT+2.0*fB1) /*+fC*/;
-			}
-		}
-		else
-		{
-			if ( fS < 0 )  // region 2
-			{
-				double fTmp0 = fA01 + fB0;
-				double fTmp1 = fA11 + fB1;
-				if ( fTmp1 > fTmp0 )
-				{
-					double fNumer = fTmp1 - fTmp0;
-					double fDenom = fA00-2.0*fA01+fA11;
-					if ( fNumer >= fDenom )
-					{
-						fSqrDist += fA00+2.0*fB0/*+fC*/;
-					}
-					else
-					{
-						fS = fNumer/fDenom;
-						fT = 1.0 - fS;
-						fSqrDist += fS*(fA00*fS+fA01*fT+2.0*fB0) + fT*(fA01*fS+fA11*fT+2.0*fB1)/*+fC*/;
-					}
-				}
-				else
-				{
-					if ( fTmp1 <= 0 )
-					{
-						fSqrDist += fA11+2.0*fB1/*+fC*/;
-					}
-					else /*if ( fB1 >= 0 )
-					{
-						fSqrDist += fC;
-					}
-					else*/ if (fB1 < 0)
-					{
-						fSqrDist += -fB1*fB1/fA11/*+fC*/;
-					}
-				}
-			}
-			else if ( fT < 0 )  // region 6
-			{
-				double fTmp0 = fA01 + fB1;
-				double fTmp1 = fA00 + fB0;
-				if ( fTmp1 > fTmp0 )
-				{
-					double fNumer = fTmp1 - fTmp0;
-					double fDenom = fA00-2.0*fA01+fA11;
-					if ( fNumer >= fDenom )
-					{
-						fSqrDist += fA11+(2.0)*fB1/*+fC*/;
-					}
-					else
-					{
-						fT = fNumer/fDenom;
-						fS = 1.0 - fT;
-						fSqrDist += fS*(fA00*fS+fA01*fT+2.0*fB0) + fT*(fA01*fS+fA11*fT+2.0*fB1)/*+fC*/;
-					}
-				}
-				else
-				{
-					if ( fTmp1 <= 0 )
-					{
-						fSqrDist += fA00+2.0*fB0/*+fC*/;
-					}
-					else /*if ( fB0 >= 0 )
-					{
-						fSqrDist += fC;
-					}
-					else*/ if ( fB0 < 0 )
-					{
-						fSqrDist += -fB0*fB0/fA00/*+fC*/;
-					}
-				}
-			}
-			else  // region 1
-			{
-				double fNumer = fA11 + fB1 - fA01 - fB0;
-				if ( fNumer <= 0 )
-				{
-					fSqrDist += fA11+2.0*fB1/*+fC*/;
-				}
-				else
-				{
-					double fDenom = fA00-2.0*fA01+fA11;
-					if ( fNumer >= fDenom )
-					{
-						fSqrDist += fA00+2.0*fB0/*+fC*/;
-					}
-					else
-					{
-						fS = fNumer/fDenom;
-						fT = 1.0 - fS;
-						fSqrDist += fS*(fA00*fS+fA01*fT+2.0*fB0) + fT*(fA01*fS+fA11*fT+2.0*fB1)/*+fC*/;
-					}
-				}
-			}
-		}
+		//if requested we also output the nearest point
+		*nearestP = *A + CCVector3::fromArray(Q.u);
 	}
 
+	double squareDist = (Q - AP).norm2();
 	if (signedDist)
 	{
-		ScalarType d = (ScalarType)sqrt(fabs(fSqrDist)); //fabs --> sometimes we get near-0 negative values!
+		ScalarType d = static_cast<ScalarType>(sqrt(squareDist));
 
 		//triangle normal
 		CCVector3d N = AB.cross(AC);
@@ -2082,7 +2087,7 @@ ScalarType DistanceComputationTools::computePoint2TriangleDistance(const CCVecto
 	}
 	else
 	{
-		return (ScalarType)fabs(fSqrDist); //fabs --> sometimes we get near-0 negative values!
+		return static_cast<ScalarType>(squareDist);
 	}
 }
 
@@ -2161,7 +2166,7 @@ ScalarType DistanceComputationTools::ComputeCloud2PlaneRobustMax(	GenericCloud* 
 
 		if (pos < tailSize)
 		{
-			tail[++pos] = d;
+			tail[pos++] = d;
 		}
 		else if (tail.back() < d)
 		{
@@ -2241,7 +2246,7 @@ ScalarType DistanceComputationTools::ComputeCloud2PlaneDistance(CCLib::GenericCl
 	}
 }
 
-bool DistanceComputationTools::computeGeodesicDistances(GenericIndexedCloudPersist* cloud, unsigned seedPointIndex, uchar octreeLevel, GenericProgressCallback* progressCb)
+bool DistanceComputationTools::computeGeodesicDistances(GenericIndexedCloudPersist* cloud, unsigned seedPointIndex, unsigned char octreeLevel, GenericProgressCallback* progressCb)
 {
 	assert(cloud);
 
@@ -2315,10 +2320,9 @@ int DistanceComputationTools::diff(	GenericIndexedCloudPersist* comparedCloud,
 	return 0;
 }
 
-int DistanceComputationTools::computeApproxCloud2CloudDistance(	CC_CHAMFER_DISTANCE_TYPE cType,
-																GenericIndexedCloudPersist* comparedCloud,
+int DistanceComputationTools::computeApproxCloud2CloudDistance(	GenericIndexedCloudPersist* comparedCloud,
 																GenericIndexedCloudPersist* referenceCloud,
-																uchar octreeLevel,
+																unsigned char octreeLevel,
 																PointCoordinateType maxSearchDist/*=-PC_ONE*/,
 																GenericProgressCallback* progressCb/*=0*/,
 																DgmOctree* compOctree/*=0*/,
@@ -2340,11 +2344,11 @@ int DistanceComputationTools::computeApproxCloud2CloudDistance(	CC_CHAMFER_DISTA
 	const int* maxIndexesB = octreeB->getMaxFillIndexes(octreeLevel);
 
 	Tuple3i minIndexes(	std::min(minIndexesA[0],minIndexesB[0]),
-								std::min(minIndexesA[1],minIndexesB[1]),
-								std::min(minIndexesA[2],minIndexesB[2]) );
+						std::min(minIndexesA[1],minIndexesB[1]),
+						std::min(minIndexesA[2],minIndexesB[2]) );
 	Tuple3i maxIndexes(	std::max(maxIndexesA[0],maxIndexesB[0]),
-								std::max(maxIndexesA[1],maxIndexesB[1]),
-								std::max(maxIndexesA[2],maxIndexesB[2]) );
+						std::max(maxIndexesA[1],maxIndexesB[1]),
+						std::max(maxIndexesA[2],maxIndexesB[2]) );
 	
 	Tuple3ui boxSize(	static_cast<unsigned>(maxIndexes.x - minIndexes.x + 1),
 						static_cast<unsigned>(maxIndexes.y - minIndexes.y + 1),
@@ -2355,7 +2359,7 @@ int DistanceComputationTools::computeApproxCloud2CloudDistance(	CC_CHAMFER_DISTA
 		//not enough memory
 		return -1;
 	}
-	if (maxSearchDist >= 0)
+	if (maxSearchDist > 0)
 	{
 		//if maxSearchDist is defined, we might skip some points
 		//so we set a default distance for all of them
@@ -2366,11 +2370,11 @@ int DistanceComputationTools::computeApproxCloud2CloudDistance(	CC_CHAMFER_DISTA
 
 	int result = 0;
 
-	//instantiate the Chamfer grid
-	ChamferDistanceTransform chamferGrid;
-	if (chamferGrid.init(boxSize))
+	//instantiate the Distance Transform grid
+	SaitoSquaredDistanceTransform dtGrid;
+	if (dtGrid.initGrid(boxSize))
 	{
-		//project the (filled) cells of octree B in the Chamfer grid
+		//project the (filled) cells of octree B in the DT grid
 		{
 			DgmOctree::cellCodesContainer theCodes;
 			octreeB->getCellCodes(octreeLevel,theCodes,true);
@@ -2382,18 +2386,16 @@ int DistanceComputationTools::computeApproxCloud2CloudDistance(	CC_CHAMFER_DISTA
 				Tuple3i cellPos;
 				octreeB->getCellPos(theCode,octreeLevel,cellPos,true);
 				cellPos -= minIndexes;
-				chamferGrid.setValue(cellPos,0);
+				dtGrid.setValue(cellPos,1);
 			}
 		}
 
-		//propagate the Chamfer distance over the grid
-		chamferGrid.propagateDistance(cType,progressCb);
+		//propagate the Distance Transform over the grid
+		dtGrid.propagateDistance(progressCb);
 
-		//eventually get the (Chamfer) distance for each cell of octree A
+		//eventually get the approx. distance for each cell of octree A
 		//and assign it to the points inside
 		ScalarType cellSize = static_cast<ScalarType>(octreeA->getCellSize(octreeLevel));
-		if (cType == CHAMFER_345)
-			cellSize /= 3;
 
 		DgmOctree::cellIndexesContainer theIndexes;
 		if (!octreeA->getCellIndexes(octreeLevel,theIndexes))
@@ -2406,7 +2408,7 @@ int DistanceComputationTools::computeApproxCloud2CloudDistance(	CC_CHAMFER_DISTA
 			return -5;
 		}
 
-		int maxDi = 0;
+		ScalarType maxD = 0;
 		ReferenceCloud Yk(octreeA->associatedCloud());
 
 		while (!theIndexes.empty())
@@ -2417,13 +2419,13 @@ int DistanceComputationTools::computeApproxCloud2CloudDistance(	CC_CHAMFER_DISTA
 			Tuple3i cellPos;
 			octreeA->getCellPos(octreeA->getCellCode(theIndex),octreeLevel,cellPos,false);
 			cellPos -= minIndexes;
-			int di = static_cast<int>(chamferGrid.getValue(cellPos));
-			if (di > maxDi)
-				maxDi = di;
-			ScalarType d = static_cast<ScalarType>(di) * cellSize;
+			unsigned di = dtGrid.getValue(cellPos);
+			ScalarType d = sqrt(static_cast<ScalarType>(di)) * cellSize;
+			if (d > maxD)
+				maxD = d;
 			
 			//the maximum distance is 'maxSearchDist' (if defined)
-			if (maxSearchDist < 0 || d < maxSearchDist)
+			if (maxSearchDist <= 0 || d < maxSearchDist)
 			{
 				octreeA->getPointsInCellByCellIndex(&Yk,theIndex,octreeLevel);
 				for (unsigned j=0; j<Yk.size(); ++j)
@@ -2431,12 +2433,9 @@ int DistanceComputationTools::computeApproxCloud2CloudDistance(	CC_CHAMFER_DISTA
 			}
 		}
 
-		if (cType == CHAMFER_345)
-			maxDi /= 3;
-
-		result = maxDi;
+		result = static_cast<int>(maxD);
 	}
-	else //Chamfer grid init failed
+	else //DT grid init failed
 	{
 		result = -4;
 	}

@@ -24,6 +24,10 @@
 #include "ccPointCloud.h"
 #include "ccSphere.h"
 #include "ccGenericGLDisplay.h"
+#include "ccProgressDialog.h"
+
+//Qt
+#include <QCoreApplication>
 
 //system
 #include <string.h>
@@ -32,8 +36,34 @@
 //maximum depth buffer dimension (width or height)
 static const int s_MaxDepthBufferSize = (1 << 14); //16384
 
+enum Errors {	ERROR_BAD_INPUT      = -1,
+				ERROR_MEMORY         = -2,
+				ERROR_PROC_CANCELLED = -3,
+				ERROR_DB_TOO_SMALL   = -4,
+};
+								
+QString ccGBLSensor::GetErrorString(int errorCode)
+{
+	switch (errorCode)
+	{
+	case ERROR_BAD_INPUT:
+		return "Internal error: bad input";
+	case ERROR_MEMORY:
+		return "Error: not enough memory";
+	case ERROR_PROC_CANCELLED:
+		return "Error: process cancelled by user";
+	case ERROR_DB_TOO_SMALL:
+		return "Error: depth buffer is void (check input cloud and angular steps)";
+	default:
+		assert(false);
+		break;
+	}
+
+	return QString("unknown error (code: %i)").arg(errorCode);
+}
+
 ccGBLSensor::ccGBLSensor(ROTATION_ORDER rotOrder/*=YAW_THEN_PITCH*/)
-	: ccSensor("Ground Based Laser Scanner")
+	: ccSensor("TLS/GBL")
 	, m_phiMin(0)
 	, m_phiMax(0)
 	, m_deltaPhi(0)
@@ -44,7 +74,7 @@ ccGBLSensor::ccGBLSensor(ROTATION_ORDER rotOrder/*=YAW_THEN_PITCH*/)
 	, m_yawAnglesAreShifted(false)
 	, m_rotationOrder(rotOrder)
 	, m_sensorRange(0)
-	, m_uncertainty(static_cast<PointCoordinateType>(ZERO_TOLERANCE))
+	, m_uncertainty(static_cast<PointCoordinateType>(0.005))
 {
 	//graphic representation
 	lockVisibility(false);
@@ -70,11 +100,7 @@ ccGBLSensor::ccGBLSensor(const ccGBLSensor &sensor)
 
 void ccGBLSensor::clearDepthBuffer()
 {
-	if (m_depthBuffer.zBuff)
-		delete[] m_depthBuffer.zBuff;
-	m_depthBuffer.zBuff = 0;
-	m_depthBuffer.width = 0;
-	m_depthBuffer.height = 0;
+	m_depthBuffer.clear();
 }
 
 void ccGBLSensor::setPitchRange(PointCoordinateType minPhi, PointCoordinateType maxPhi)
@@ -170,8 +196,10 @@ void ccGBLSensor::projectPoint(	const CCVector3& sourcePoint,
 
 bool ccGBLSensor::convertToDepthMapCoords(PointCoordinateType yaw, PointCoordinateType pitch, unsigned& i, unsigned& j) const
 {
-	if (!m_depthBuffer.zBuff)
+	if (m_depthBuffer.zBuff.empty())
+	{
 		return false;
+	}
 
 	assert(m_depthBuffer.deltaTheta != 0 && m_depthBuffer.deltaPhi != 0);
 
@@ -354,7 +382,7 @@ ccGBLSensor::ColorGrid* ccGBLSensor::projectColors(	CCLib::GenericCloud* cloud,
 					unsigned index = y*m_depthBuffer.width+x;
 				
 					//accumulate color
-					const colorType* srcC = theColors.getValue(i);
+					const ColorCompType* srcC = theColors.getValue(i);
 					float* destC = colorAccumGrid->getValue(index);
 
 					destC[0] += srcC[0];
@@ -378,10 +406,10 @@ ccGBLSensor::ColorGrid* ccGBLSensor::projectColors(	CCLib::GenericCloud* cloud,
 			if (pointPerDMCell[i] != 0)
 			{
 				const float* srcC = colorAccumGrid->getValue(i);
-				colorType* destC = colorGrid->getValue(i);
-				destC[0] = static_cast<colorType>( srcC[0] / pointPerDMCell[i] );
-				destC[1] = static_cast<colorType>( srcC[1] / pointPerDMCell[i] );
-				destC[2] = static_cast<colorType>( srcC[2] / pointPerDMCell[i] );
+				ColorCompType* destC = colorGrid->getValue(i);
+				destC[0] = static_cast<ColorCompType>( srcC[0] / pointPerDMCell[i] );
+				destC[1] = static_cast<ColorCompType>( srcC[1] / pointPerDMCell[i] );
+				destC[2] = static_cast<ColorCompType>( srcC[2] / pointPerDMCell[i] );
 			}
 		}
 	}
@@ -584,7 +612,7 @@ bool ccGBLSensor::computeDepthBuffer(CCLib::GenericCloud* theCloud, int& errorCo
 	if (!theCloud)
 	{
 		//invlalid input parameter
-		errorCode = -1;
+		errorCode = ERROR_BAD_INPUT;
 		return false;
 	}
 
@@ -611,22 +639,24 @@ bool ccGBLSensor::computeDepthBuffer(CCLib::GenericCloud* theCloud, int& errorCo
 			height = s_MaxDepthBufferSize;
 		}
 
-		if (width <= 0 || height <= 0/*|| std::max(width,height) > s_MaxDepthBufferSize*/)
+		if (width <= 0 || height <= 0)
 		{
-			//depth buffer dimensions are too big or... too small?!
-			errorCode = -2;
+			//depth buffer dimensions are too small?!
+			errorCode = ERROR_DB_TOO_SMALL;
 			return false;
 		}
 
 		unsigned zBuffSize = width*height;
-		m_depthBuffer.zBuff = new PointCoordinateType[zBuffSize];
-		if (!m_depthBuffer.zBuff)
+		try
+		{
+			m_depthBuffer.zBuff.resize(zBuffSize,0);
+		}
+		catch (const std::bad_alloc&)
 		{
 			//not enough memory
-			errorCode = -4;
+			errorCode = ERROR_MEMORY;
 			return false;
 		}
-		memset(m_depthBuffer.zBuff,0,zBuffSize*sizeof(PointCoordinateType));
 
 		m_depthBuffer.width = static_cast<unsigned>(width);
 		m_depthBuffer.height = static_cast<unsigned>(height);
@@ -644,14 +674,22 @@ bool ccGBLSensor::computeDepthBuffer(CCLib::GenericCloud* theCloud, int& errorCo
 			if (!projectedCloud->reserve(pointCount) || !projectedCloud->enableScalarField())
 			{
 				//not enough memory
-				errorCode = -4;
+				errorCode = ERROR_MEMORY;
 				clearDepthBuffer();
-				return 0;
+				return false;
 			}
 		}
 
 		theCloud->placeIteratorAtBegining();
 		{
+			//progress bar
+			ccProgressDialog pdlg(true);
+			CCLib::NormalizedProgress nprogress(&pdlg,pointCount);
+			pdlg.setMethodTitle("Depth buffer");
+			pdlg.setInfo(qPrintable(QString("Points: %1").arg(pointCount)));
+			pdlg.start();
+			QCoreApplication::processEvents();
+
 			for (unsigned i=0; i<pointCount; ++i)
 			{
 				const CCVector3 *P = theCloud->getNextPoint();
@@ -664,6 +702,7 @@ bool ccGBLSensor::computeDepthBuffer(CCLib::GenericCloud* theCloud, int& errorCo
 				{
 					PointCoordinateType& zBuf = m_depthBuffer.zBuff[y*m_depthBuffer.width + x];
 					zBuf = std::max(zBuf,depth);
+					m_sensorRange = std::max(m_sensorRange,depth);
 				}
 
 				if (projectedCloud)
@@ -671,18 +710,30 @@ bool ccGBLSensor::computeDepthBuffer(CCLib::GenericCloud* theCloud, int& errorCo
 					projectedCloud->addPoint(CCVector3(Q.x,Q.y,0));
 					projectedCloud->setPointScalarValue(i,depth);
 				}
+
+				if (!nprogress.oneStep())
+				{
+					//cancelled by user
+					errorCode = ERROR_PROC_CANCELLED;
+					clearDepthBuffer();
+					return false;
+				}
 			}
 		}
 	}
+
+	m_depthBuffer.fillHoles();
 
 	errorCode = 0;
 	return true;
 }
 
-uchar ccGBLSensor::checkVisibility(const CCVector3& P) const
+unsigned char ccGBLSensor::checkVisibility(const CCVector3& P) const
 {
-	if (!m_depthBuffer.zBuff) //no z-buffer?
+	if (m_depthBuffer.zBuff.empty()) //no z-buffer?
+	{
 		return POINT_VISIBLE;
+	}
 
 	//project point
 	CCVector2 Q;
@@ -691,21 +742,22 @@ uchar ccGBLSensor::checkVisibility(const CCVector3& P) const
 
 	//out of sight
 	if (depth > m_sensorRange)
-		return POINT_OUT_OF_RANGE;
-
-	int x = static_cast<int>(floor((Q.x-m_thetaMin)/m_depthBuffer.deltaTheta));
-	int y = static_cast<int>(floor((Q.y-m_phiMin)/m_depthBuffer.deltaPhi));
-
-	//out of field
-	if (	x < 0 || static_cast<unsigned>(x) >= m_depthBuffer.width
-		||	y < 0 || static_cast<unsigned>(y) >= m_depthBuffer.height )
 	{
+		return POINT_OUT_OF_RANGE;
+	}
+
+	unsigned x,y;
+	if (!convertToDepthMapCoords(Q.x,Q.y,x,y))
+	{
+		//out of field of view
 		return POINT_OUT_OF_FOV;
 	}
 
 	//hidden?
-	if (depth > m_depthBuffer.zBuff[x+y*m_depthBuffer.width]*(1.0f+m_uncertainty))
+	if (depth > m_depthBuffer.zBuff[y*m_depthBuffer.width + x] * (1.0f + m_uncertainty))
+	{
 		return POINT_HIDDEN;
+	}
 
 	return POINT_VISIBLE;
 }
@@ -1018,11 +1070,7 @@ ccGBLSensor::DepthBuffer::DepthBuffer()
 
 void ccGBLSensor::DepthBuffer::clear()
 {
-	if (zBuff)
-	{
-		delete[] zBuff;
-		zBuff = 0;
-	}
+	zBuff.clear();
 	width = height = 0;
 	deltaPhi = deltaTheta = 0;
 }
@@ -1034,8 +1082,11 @@ ccGBLSensor::DepthBuffer::~DepthBuffer()
 
 int ccGBLSensor::DepthBuffer::fillHoles()
 {
-	if (!zBuff)
-		return -1; //z-buffer not initialized!
+	if (zBuff.empty())
+	{
+		//z-buffer not initialized!
+		return ERROR_BAD_INPUT;
+	}
 
 	//new temp buffer
 	int dx = width+2;
@@ -1049,13 +1100,13 @@ int ccGBLSensor::DepthBuffer::fillHoles()
 	catch (const std::bad_alloc&)
 	{
 		//not enough memory
-		return -2;
+		return ERROR_MEMORY;
 	}
 
 	//copy old zBuffer in temp one (with 1 pixel border)
 	{
 		PointCoordinateType *_zBuffTemp = &(zBuffTemp[0]) + (dx+1); //2nd line, 2nd column
-		PointCoordinateType *_zBuff = zBuff; //first line, first column of the true buffer
+		const PointCoordinateType *_zBuff = &(zBuff.front()); //first line, first column of the true buffer
 		for (unsigned y=0; y<height; ++y)
 		{
 			memcpy(_zBuffTemp,_zBuff,width*sizeof(PointCoordinateType));
@@ -1075,7 +1126,7 @@ int ccGBLSensor::DepthBuffer::fillHoles()
 			{
 				if (z[1] == 0) //hole
 				{
-					uchar nsup = 0; //non empty holes
+					unsigned char nsup = 0; //non empty holes
 					//upper line
 					nsup += (zu[0] > 0);
 					nsup += (zu[1] > 0);

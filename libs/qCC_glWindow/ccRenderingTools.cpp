@@ -47,13 +47,13 @@ void ccRenderingTools::ShowDepthBuffer(ccGBLSensor* sensor, QWidget* parent/*=0*
 		return;
 
 	const ccGBLSensor::DepthBuffer& depthBuffer = sensor->getDepthBuffer();
-	if (!depthBuffer.zBuff)
+	if (depthBuffer.zBuff.empty())
 		return;
 
 	//determine min and max depths
 	ScalarType minDist = 0, maxDist = 0;
 	{
-		const ScalarType *_zBuff = depthBuffer.zBuff;
+		const ScalarType* _zBuff = &(depthBuffer.zBuff.front());
 		double sumDist = 0;
 		double sumDist2 = 0;
 		unsigned count = 0;
@@ -92,7 +92,7 @@ void ccRenderingTools::ShowDepthBuffer(ccGBLSensor* sensor, QWidget* parent/*=0*
 		assert(colorScale);
 		ScalarType coef = maxDist-minDist < ZERO_TOLERANCE ? 0 : static_cast<ScalarType>(ccColorScale::MAX_STEPS-1)/(maxDist-minDist);
 
-		const ScalarType* _zBuff = depthBuffer.zBuff;
+		const ScalarType* _zBuff = &(depthBuffer.zBuff.front());
 		for (unsigned y=0; y<depthBuffer.height; ++y)
 		{
 			for (unsigned x=0; x<depthBuffer.width; ++x,++_zBuff)
@@ -185,16 +185,16 @@ static vlabelPair GetVLabelsAround(int y, vlabelSet& set)
 	}
 }
 
-//! For log scale inversion
+//For log scale inversion
 const double c_log10 = log(10.0);
 
-//! Convert standard range to log scale
+//Convert standard range to log scale
 void ConvertToLogScale(ScalarType& dispMin, ScalarType& dispMax)
 {
 	ScalarType absDispMin = ( dispMax < 0 ? std::min(-dispMax,-dispMin) : std::max<ScalarType>(dispMin,0) );
 	ScalarType absDispMax = std::max(fabs(dispMin),fabs(dispMax));
-	dispMin = log10(std::max(absDispMin,(ScalarType)ZERO_TOLERANCE));
-	dispMax = log10(std::max(absDispMax,(ScalarType)ZERO_TOLERANCE));
+	dispMin = log10(std::max(absDispMin,static_cast<ScalarType>(ZERO_TOLERANCE)));
+	dispMax = log10(std::max(absDispMax,static_cast<ScalarType>(ZERO_TOLERANCE)));
 }
 
 void ccRenderingTools::DrawColorRamp(const CC_DRAW_CONTEXT& context)
@@ -219,42 +219,61 @@ void ccRenderingTools::DrawColorRamp(const ccScalarField* sf, ccGLWindow* win, i
 	
 	//set of particular values
 	//DGM: we work with doubles for maximum accuracy
-	std::set<double> keyValues;
-	if (!logScale)
+	ccColorScale::LabelSet keyValues;
+	bool customLabels = false;
+	try
 	{
-		keyValues.insert(sf->displayRange().min());
-		keyValues.insert(sf->displayRange().start());
-		keyValues.insert(sf->displayRange().stop());
-		keyValues.insert(sf->displayRange().max());
-		keyValues.insert(sf->saturationRange().min());
-		keyValues.insert(sf->saturationRange().start());
-		keyValues.insert(sf->saturationRange().stop());
-		keyValues.insert(sf->saturationRange().max());
+		ccColorScale::Shared colorScale = sf->getColorScale();
+		if (colorScale && colorScale->customLabels().size() >= 2)
+		{
+			keyValues = colorScale->customLabels();
 
-		if (symmetricalScale)
-			keyValues.insert(-sf->saturationRange().max());
+			if (alwaysShowZero)
+				keyValues.insert(0.0);
 
-		if (alwaysShowZero)
-			keyValues.insert(0.0);
+			customLabels = true;
+		}
+		else if (!logScale)
+		{
+			keyValues.insert(sf->displayRange().min());
+			keyValues.insert(sf->displayRange().start());
+			keyValues.insert(sf->displayRange().stop());
+			keyValues.insert(sf->displayRange().max());
+			keyValues.insert(sf->saturationRange().min());
+			keyValues.insert(sf->saturationRange().start());
+			keyValues.insert(sf->saturationRange().stop());
+			keyValues.insert(sf->saturationRange().max());
+
+			if (symmetricalScale)
+				keyValues.insert(-sf->saturationRange().max());
+
+			if (alwaysShowZero)
+				keyValues.insert(0.0);
+		}
+		else
+		{
+			ScalarType minDisp = sf->displayRange().min();
+			ScalarType maxDisp = sf->displayRange().max();
+			ConvertToLogScale(minDisp, maxDisp);
+			keyValues.insert(minDisp);
+			keyValues.insert(maxDisp);
+
+			ScalarType startDisp = sf->displayRange().start();
+			ScalarType stopDisp = sf->displayRange().stop();
+			ConvertToLogScale(startDisp, stopDisp);
+			keyValues.insert(startDisp);
+			keyValues.insert(stopDisp);
+
+			keyValues.insert(sf->saturationRange().min());
+			keyValues.insert(sf->saturationRange().start());
+			keyValues.insert(sf->saturationRange().stop());
+			keyValues.insert(sf->saturationRange().max());
+		}
 	}
-	else
+	catch (const std::bad_alloc&)
 	{
-		ScalarType minDisp = sf->displayRange().min();
-		ScalarType maxDisp = sf->displayRange().max();
-		ConvertToLogScale(minDisp,maxDisp);
-		keyValues.insert(minDisp);
-		keyValues.insert(maxDisp);
-
-		ScalarType startDisp = sf->displayRange().start();
-		ScalarType stopDisp = sf->displayRange().stop();
-		ConvertToLogScale(startDisp,stopDisp);
-		keyValues.insert(startDisp);
-		keyValues.insert(stopDisp);
-
-		keyValues.insert(sf->saturationRange().min());
-		keyValues.insert(sf->saturationRange().start());
-		keyValues.insert(sf->saturationRange().stop());
-		keyValues.insert(sf->saturationRange().max());
+		//not enough memory
+		return;
 	}
 
 	//magic fix (for infinite values!)
@@ -370,7 +389,7 @@ void ccRenderingTools::DrawColorRamp(const ccScalarField* sf, ccGLWindow* win, i
 				double value = sortedKeyValues.front() + (j * maxRange) / scaleMaxHeight;
 				if (logScale)
 					value = exp(value*c_log10);
-				const colorType* col = sf->getColor(static_cast<ScalarType>(value));
+				const ColorCompType* col = sf->getColor(static_cast<ScalarType>(value));
 				glColor3ubv(col ? col : ccColor::lightGrey.rgba);
 
 				glVertex2i(x,y+j);
@@ -406,7 +425,7 @@ void ccRenderingTools::DrawColorRamp(const ccScalarField* sf, ccGLWindow* win, i
 			double value = sortedKeyValues.front();
 			if (logScale)
 				value = exp(value*c_log10);
-			const colorType* col = sf->getColor(static_cast<ScalarType>(value));
+			const ColorCompType* col = sf->getColor(static_cast<ScalarType>(value));
 			glColor3ubv(col ? col : ccColor::lightGrey.rgba);
 			glBegin(GL_POLYGON);
 			glVertex2i(x,y);
@@ -466,7 +485,7 @@ void ccRenderingTools::DrawColorRamp(const ccScalarField* sf, ccGLWindow* win, i
 		}
 
 		//now we recursively display labels for which we have some room left
-		if (drawnLabels.size() > 1)
+		if (!customLabels && drawnLabels.size() > 1)
 		{
 			const int minGap = strHeight*2;
 
@@ -509,6 +528,8 @@ void ccRenderingTools::DrawColorRamp(const ccScalarField* sf, ccGLWindow* win, i
 		{
 			//QString sfTitle = QString("[%1]").arg(sfName);
 			QString sfTitle(sfName);
+			if (sf->getGlobalShift() != 0)
+				sfTitle += QString("[Shifted]");
 			if (logScale)
 				sfTitle += QString("[Log scale]");
 			//we leave some (vertical) space for the top-most label!

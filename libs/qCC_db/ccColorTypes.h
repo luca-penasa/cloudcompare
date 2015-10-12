@@ -20,15 +20,16 @@
 
 //system
 #include <stdlib.h>
+#include <math.h> //for modf
 
 //! Default color components type (R,G and B)
-typedef unsigned char colorType;
+typedef unsigned char ColorCompType;
 
 //! Colors namespace
 namespace ccColor
 {
 	//! Max value of a single color component (default type)
-	const colorType MAX = 255;
+	const ColorCompType MAX = 255;
 
 	//! RGB color structure
 	template <typename Type> class RgbTpl
@@ -68,7 +69,7 @@ namespace ccColor
 	//! 3 components, unsigned byte type
 	typedef RgbTpl<unsigned char> Rgbub;
 	//! 3 components, default type
-	typedef RgbTpl<colorType> Rgb;
+	typedef RgbTpl<ColorCompType> Rgb;
 
 	//! RGBA color structure
 	template <class Type> class RgbaTpl
@@ -117,11 +118,11 @@ namespace ccColor
 	//! 4 components, unsigned byte type
 	typedef RgbaTpl<unsigned char> Rgbaub;
 	//! 4 components, default type
-	typedef RgbaTpl<colorType> Rgba;
+	typedef RgbaTpl<ColorCompType> Rgba;
 
 	// Predefined colors (default type)
 	static const Rgba white						(MAX,MAX,MAX,MAX);
-	static const Rgba lightGrey					(static_cast<colorType>(MAX*0.8),static_cast<colorType>(MAX*0.8),static_cast<colorType>(MAX*0.8),MAX);
+	static const Rgba lightGrey					(static_cast<ColorCompType>(MAX*0.8),static_cast<ColorCompType>(MAX*0.8),static_cast<ColorCompType>(MAX*0.8),MAX);
 	static const Rgba darkGrey					(MAX/2,MAX/2,MAX/2,MAX);
 	static const Rgba red						(MAX,0,0,MAX);
 	static const Rgba green						(0,MAX,0,MAX);
@@ -142,8 +143,8 @@ namespace ccColor
 	static const Rgbaf darker					(0.17f, 0.17f, 0.17f, 1.00f);
 	static const Rgbaf darkest					(0.08f, 0.08f, 0.08f, 1.00f);
 	static const Rgbaf night					(0.00f, 0.00f, 0.00f, 1.00F);
-	static const Rgbaf defaultMeshFrontDiff		(0.00f, 1.00f, 0.32f, 1.00f);
-	static const Rgbaf defaultMeshBackDiff		(0.32f, 1.00f, 1.00f, 1.00f);
+	static const Rgbaf defaultMeshFrontDiff		(0.00f, 0.90f, 0.27f, 1.00f);
+	static const Rgbaf defaultMeshBackDiff		(0.27f, 0.90f, 0.90f, 1.00f);
 
 	// Default foreground color (unsigned byte)
 	static const Rgbub defaultColor				(255, 255, 255); //white
@@ -160,19 +161,113 @@ namespace ccColor
 		static Rgb Random(bool lightOnly = true)
 		{
 			Rgb col;
-			col.r = static_cast<colorType>(MAX * (static_cast<float>(rand()) / RAND_MAX));
-			col.g = static_cast<colorType>(MAX * (static_cast<float>(rand()) / RAND_MAX));
+			col.r = static_cast<ColorCompType>(MAX * (static_cast<float>(rand()) / RAND_MAX));
+			col.g = static_cast<ColorCompType>(MAX * (static_cast<float>(rand()) / RAND_MAX));
 			if (lightOnly)
 			{
-				col.b = MAX - static_cast<colorType>((static_cast<double>(col.r)+static_cast<double>(col.g))/2); //cast to double to avoid overflow (whatever the type of colorType!!!)
+				col.b = MAX - static_cast<ColorCompType>((static_cast<double>(col.r)+static_cast<double>(col.g))/2); //cast to double to avoid overflow (whatever the type of ColorCompType!!!)
 			}
 			else
 			{
-				col.b = static_cast<colorType>(MAX * (static_cast<float>(rand()) / RAND_MAX));
+				col.b = static_cast<ColorCompType>(MAX * (static_cast<float>(rand()) / RAND_MAX));
 			}
 
 			return col;
 		}
+	};
+
+	//! Color space conversion
+	class Convert
+	{
+	public:
+
+		//! Converts a HSL color to RGB color space
+		/** \param H [out] hue [0;360[
+			\param S [out] saturation [0;1]
+			\param L [out] light [0;1]
+			\return RGB color (unsigned byte)
+		**/
+		static Rgb hsl2rgb(float H, float S, float L)
+		{
+			H /= 360;
+			float q = L < 0.5f ? L * (1.0f + S) : L + S - L * S;
+			float p = 2 * L - q;
+			
+			float r = hue2rgb(p, q, H + 1.0f/3.0f);
+			float g = hue2rgb(p, q, H);
+			float b = hue2rgb(p, q, H - 1.0f/3.0f);
+
+			return Rgb (static_cast<ColorCompType>(r * ccColor::MAX),
+						static_cast<ColorCompType>(g * ccColor::MAX),
+						static_cast<ColorCompType>(b * ccColor::MAX));
+
+		}
+
+		//! Converts a HSV color to RGB color space
+		/** \param H [out] hue [0;360[
+			\param S [out] saturation [0;1]
+			\param V [out] value [0;1]
+			\return RGB color (unsigned byte)
+		**/
+		static Rgb hsv2rgb(float H, float S, float V)
+		{
+			int hi = ((static_cast<int>(H)/60) % 6);
+			double f = 0;
+			modf(H/60.0, &f);
+			float l = static_cast<float>(V*(1.0-S));
+			float m = static_cast<float>(V*(1.0-f*S));
+			float n = static_cast<float>(V*(1.0-(1.0-f)*S));
+
+			Rgbf rgb(0,0,0);
+
+			switch (hi)
+			{
+			case 0:
+				rgb.r=V; rgb.g=n; rgb.b=l;
+				break;
+			case 1:
+				rgb.r=m; rgb.g=V; rgb.b=l;
+				break;
+			case 2:
+				rgb.r=l; rgb.g=V; rgb.b=n;
+				break;
+			case 3:
+				rgb.r=l; rgb.g=m; rgb.b=V;
+				break;
+			case 4:
+				rgb.r=n; rgb.g=l; rgb.b=V;
+				break;
+			case 5:
+				rgb.r=V; rgb.g=l; rgb.b=m;
+				break;
+			}
+
+			return Rgb (static_cast<ColorCompType>(rgb.r * ccColor::MAX),
+						static_cast<ColorCompType>(rgb.g * ccColor::MAX),
+						static_cast<ColorCompType>(rgb.b * ccColor::MAX));
+		}
+
+	protected:
+		
+		//! Method used by hsl2rgb
+		static float hue2rgb(float m1, float m2, float hue)
+		{
+			if (hue < 0)
+				hue += 1.0f;
+            else if (hue > 1.0f)
+				hue -= 1.0f;
+
+			if (6*hue < 1.0f)
+				return m1 + (m2 - m1) * hue * 6;
+            else if (2 * hue < 1.0f)
+				return m2;
+            else if (3 * hue < 2.0f)
+				return m1 + (m2 - m1) * (4.0f - hue * 6);
+			else
+				return m1;
+        }
+
+
 	};
 };
 

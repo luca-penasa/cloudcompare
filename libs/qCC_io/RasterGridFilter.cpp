@@ -256,7 +256,7 @@ CC_FILE_ERROR RasterGridFilter::loadFile(QString filename, ccHObject& container,
 							}
 							else
 							{
-								assert(bandType <= GDT_Int32);
+								assert(poBand->GetRasterDataType() <= GDT_Int32);
 
 								int* colIndexes = (int*) CPLMalloc(sizeof(int)*nXSize);
 								//double* scanline = new double[nXSize];
@@ -276,7 +276,7 @@ CC_FILE_ERROR RasterGridFilter::loadFile(QString filename, ccHObject& container,
 										unsigned pointIndex = static_cast<unsigned>(k + j * rasterX);
 										if (pointIndex <= pc->size())
 										{
-											colorType* C = const_cast<colorType*>(pc->getPointColor(pointIndex));
+											ColorCompType* C = const_cast<ColorCompType*>(pc->getPointColor(pointIndex));
 
 											switch(colorInterp)
 											{
@@ -285,20 +285,20 @@ CC_FILE_ERROR RasterGridFilter::loadFile(QString filename, ccHObject& container,
 												{
 													GDALColorEntry col;
 													colTable->GetColorEntryAsRGB(colIndexes[k],&col);
-													C[0] = static_cast<colorType>(col.c1 & ccColor::MAX);
-													C[1] = static_cast<colorType>(col.c2 & ccColor::MAX);
-													C[2] = static_cast<colorType>(col.c3 & ccColor::MAX);
+													C[0] = static_cast<ColorCompType>(col.c1 & ccColor::MAX);
+													C[1] = static_cast<ColorCompType>(col.c2 & ccColor::MAX);
+													C[2] = static_cast<ColorCompType>(col.c3 & ccColor::MAX);
 												}
 												break;
 
 											case GCI_RedBand:
-												C[0] = static_cast<colorType>(colIndexes[k] & ccColor::MAX);
+												C[0] = static_cast<ColorCompType>(colIndexes[k] & ccColor::MAX);
 												break;
 											case GCI_GreenBand:
-												C[1] = static_cast<colorType>(colIndexes[k] & ccColor::MAX);
+												C[1] = static_cast<ColorCompType>(colIndexes[k] & ccColor::MAX);
 												break;
 											case GCI_BlueBand:
-												C[2] = static_cast<colorType>(colIndexes[k] & ccColor::MAX);
+												C[2] = static_cast<ColorCompType>(colIndexes[k] & ccColor::MAX);
 												break;
 
 											default:
