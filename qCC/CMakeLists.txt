@@ -79,7 +79,7 @@ target_link_libraries( ${PROJECT_NAME} ${EXTERNAL_LIBS_LIBRARIES} )
 
 if ( USE_QT5 )
 	if (WIN32)
-		target_link_libraries( ${PROJECT_NAME} Qt5::WinMain )
+		target_link_libraries( ${PROJECT_NAME} Qt5::WinMain Qt5::PrintSupport )
 	endif()
 	qt5_use_modules(${PROJECT_NAME} Core Gui Widgets OpenGL PrintSupport)
 endif()
@@ -126,7 +126,7 @@ if( WIN32 )
 
 	# Additional auxiliary file(s)
 	list( APPEND auxFiles bin_other/start.bat )
-endif()
+endif(WIN32)
 
 # Install auxiliary files
 foreach( filename ${auxFiles} )

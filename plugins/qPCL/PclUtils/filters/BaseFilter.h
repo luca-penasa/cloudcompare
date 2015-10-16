@@ -122,7 +122,7 @@ public:
 	ccHObject * getSelectedEntityAsCCHObject() const;
 
 	//! Get selected object that also have the provided metadata key
-	ccHObject::Container getSelectedThatHaveMetaData(const QString key) const;
+    ccHObject::Container getSelectedThatHaveMetaData(const QString key, const QString val = QString()) const;
 
 	//! Returns all the objects in db tree of type "type"
 	void getAllEntitiesOfType(CC_CLASS_ENUM type, ccHObject::Container& entities);
@@ -196,6 +196,9 @@ signals:
 
 	//! Signal emitted when a new error message is produced
 	void newErrorMessage(QString);
+
+    //! signal emitted when the selection in the main tree is changed
+    void selectionChanged(const ccHObject::Container &);
 
 protected:
 

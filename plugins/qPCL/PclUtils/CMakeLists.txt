@@ -1,5 +1,7 @@
 cmake_minimum_required (VERSION 2.8)
 
+project( QPCL_PLUGIN_UTILS_LIB )
+
 #requires PCL
 find_package(PCL REQUIRED)
 

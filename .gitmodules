@@ -1,3 +1,7 @@
 [submodule "plugins/qPoissonRecon/PoissonReconLib"]
 	path = plugins/qPoissonRecon/PoissonReconLib
 	url = https://github.com/cloudcompare/PoissonRecon
+
+[submodule "plugins/vombat"]
+	path = plugins/vombat
+	url = git@github.com:luca-penasa/vombat.git
