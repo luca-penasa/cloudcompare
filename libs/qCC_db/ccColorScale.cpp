@@ -23,6 +23,10 @@
 //Local
 #include "ccLog.h"
 
+#ifndef _MSC_VER
+const unsigned ccColorScale::MAX_STEPS;
+#endif
+
 ccColorScale::Shared ccColorScale::Create(QString name)
 {
 	return ccColorScale::Shared(new ccColorScale(name));
