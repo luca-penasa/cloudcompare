@@ -27,6 +27,8 @@
 class QMainWindow;
 class ccGLWindow;
 class ccColorScalesManager;
+class ccOverlayDialog;
+class ccDBRoot;
 
 //! Main application interface (for plugins)
 class ccMainAppInterface
@@ -35,6 +37,15 @@ public:
 
 	//! Returns main window
 	virtual QMainWindow* getMainWindow() = 0;
+
+    //! mplugins should be able to access the db root
+    virtual ccDBRoot* db() = 0;
+
+
+    //! let the plugin user do something with mdis also
+    virtual void registerMDIDialog(ccOverlayDialog* dlg, Qt::Corner pos) = 0;
+    virtual void updateMDIDialogsPlacement() = 0;
+
 
 	//! Returns active GL sub-window (if any)
 	virtual ccGLWindow* getActiveGLWindow() = 0;
