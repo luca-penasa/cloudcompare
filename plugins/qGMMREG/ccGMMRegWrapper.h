@@ -1,6 +1,6 @@
 //##########################################################################
 //#                                                                        #
-//#                            CLOUDCOMPARE                                #
+//#                       CLOUDCOMPARE PLUGIN: qGMMReg                     #
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU General Public License as published by  #
@@ -11,51 +11,52 @@
 //#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
-//#          COPYRIGHT: EDF R&D / TELECOM ParisTech (ENST-TSI)             #
+//#                             COPYRIGHT: XXX                             #
 //#                                                                        #
 //##########################################################################
 
-#include "ccPickOneElementDlg.h"
+#ifndef CC_GMMREG_WRAPPER_HEADER
+#define CC_GMMREG_WRAPPER_HEADER
 
-//UI file
-#include <ui_pickOneElementDlg.h>
+//CCLib
+#include <CCGeom.h>
+#include <GenericCloud.h>
 
-ccPickOneElementDlg::ccPickOneElementDlg(	QString label,
-											QString windowTitle/*=QString()*/,
-											QWidget* parent/*=0*/)
-	: QDialog(parent)
-	, m_ui(new Ui_PickOneElementDialog)
+//System
+#include <vector>
+#include <stdlib.h>
+
+class ccMainAppInterface;
+class QWidget;
+
+//! CloudCompare wrapper for the GMMReg library
+class ccGMMRegWrapper
 {
-	m_ui->setupUi(this);
-
-	setWindowFlags(Qt::Tool/*Qt::Dialog | Qt::WindowStaysOnTopHint*/);
-
-	if (!windowTitle.isNull())
-		setWindowTitle(windowTitle);
-
-	m_ui->comboLabel->setText(label);
-}
-
-ccPickOneElementDlg::~ccPickOneElementDlg()
-{
-	if (m_ui)
+public:
+	struct StepValues
 	{
-		delete m_ui;
-		m_ui = 0;
-	}
-}
+		StepValues()
+			: enabled(false)
+			, scale(0)
+			, lambda(0)
+			, maxIter(0)
+		{}
 
-void ccPickOneElementDlg::addElement(QString elementName)
-{
-	m_ui->comboBox->addItem(elementName);
-}
+		bool enabled;
+		double scale;
+		double lambda;
+		int maxIter;
+	};
 
-void ccPickOneElementDlg::setDefaultIndex(int index)
-{
-	m_ui->comboBox->setCurrentIndex(index);
-}
+	//! Performs the non-rigid registration between d (deformed) and m (model)
+	static bool PerformRegistration(CCLib::GenericCloud* d,
+									CCLib::GenericCloud* m,
+									const std::vector<StepValues>& steps,
+									std::vector<CCVector3>& displacedPoints,
+									bool useTPS = true,
+									size_t controlPointsCount = 0,
+									ccMainAppInterface* app = 0,
+									QWidget* parentWidget = 0);
+};
 
-int ccPickOneElementDlg::getSelectedIndex()
-{
-	return m_ui->comboBox->currentIndex();
-}
+#endif

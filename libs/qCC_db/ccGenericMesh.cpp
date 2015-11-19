@@ -721,30 +721,34 @@ ccPointCloud* ccGenericMesh::samplePoints(	bool densityBased,
 
 	//convert to real point cloud
 	ccPointCloud* cloud = 0;
-	
+
 	if (sampledCloud)
 	{
-		cloud = ccPointCloud::From(sampledCloud);
-
-		//import parameters from both the source vertices and the source mesh
-		ccGenericPointCloud* vertices = getAssociatedCloud();
-		if (vertices)
+		if (sampledCloud->size() == 0)
 		{
-			cloud->setGlobalShift(vertices->getGlobalShift());
-			cloud->setGlobalScale(vertices->getGlobalScale());
+			ccLog::Warning("[ccGenericMesh::samplePoints] No point was generated (sampling density is too low?)");
 		}
-		cloud->setGLTransformationHistory(getGLTransformationHistory());
+		else
+		{
+			cloud = ccPointCloud::From(sampledCloud);
+			if (!cloud)
+			{
+				ccLog::Warning("[ccGenericMesh::samplePoints] Not enough memory!");
+			}
+		}
 		
 		delete sampledCloud;
 		sampledCloud = 0;
+	}
+	else
+	{
+		ccLog::Warning("[ccGenericMesh::samplePoints] Not enough memory!");
 	}
 
 	if (!cloud)
 	{
 		if (triIndices)
 			triIndices->release();
-
-		ccLog::Warning("[ccGenericMesh::samplePoints] Not enough memory!");
 		return 0;
 	}
 
@@ -818,23 +822,27 @@ ccPointCloud* ccGenericMesh::samplePoints(	bool densityBased,
 		}
 	}
 
+	//release memory
+	if (triIndices)
+	{
+		triIndices->release();
+		triIndices = 0;
+	}
+
 	//we rename the resulting cloud
 	cloud->setName(getName()+QString(".sampled"));
 	cloud->setDisplay(getDisplay());
 	cloud->prepareDisplayForRefresh();
-	
-	//copy 'shift on load' information
-	if (getAssociatedCloud())
+
+	//import parameters from both the source vertices and the source mesh
+	ccGenericPointCloud* vertices = getAssociatedCloud();
+	if (vertices)
 	{
-		const CCVector3d& shift = getAssociatedCloud()->getGlobalShift();
-		cloud->setGlobalShift(shift);
-		double scale = getAssociatedCloud()->getGlobalScale();
-		cloud->setGlobalScale(scale);
+		cloud->setGlobalShift(vertices->getGlobalShift());
+		cloud->setGlobalScale(vertices->getGlobalScale());
 	}
-
-	if (triIndices)
-		triIndices->release();
-
+	cloud->setGLTransformationHistory(getGLTransformationHistory());
+		
 	return cloud;
 }
 
@@ -869,9 +877,9 @@ void ccGenericMesh::computeInterpolationWeights(unsigned triIndex, const CCVecto
 	const CCVector3 *C = tri->_getC();
 
 	//barcyentric intepolation weights
-	weights.x = sqrt(((P-*B).cross(*C-*B)).norm2d())/*/2*/;
-	weights.y = sqrt(((P-*C).cross(*A-*C)).norm2d())/*/2*/;
-	weights.z = sqrt(((P-*A).cross(*B-*A)).norm2d())/*/2*/;
+	weights.x = ((P-*B).cross(*C-*B)).normd()/*/2*/;
+	weights.y = ((P-*C).cross(*A-*C)).normd()/*/2*/;
+	weights.z = ((P-*A).cross(*B-*A)).normd()/*/2*/;
 
 	//normalize weights
 	double sum = weights.x + weights.y + weights.z;

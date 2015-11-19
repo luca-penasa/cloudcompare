@@ -42,7 +42,7 @@ endif()
 file( GLOB ui_list ui_templates/*.ui )
 file( GLOB qrc_list *.qrc )
 #file( GLOB rc_list *.rc )
-file( GLOB txt_list TODO.txt bin_other/history.txt )
+file( GLOB txt_list TODO.txt bin_other/history.txt tr/*.qm )
 
 if ( USE_QT5 )
 	qt5_wrap_ui( generated_ui_list ${ui_list} )
@@ -79,7 +79,7 @@ target_link_libraries( ${PROJECT_NAME} ${EXTERNAL_LIBS_LIBRARIES} )
 
 if ( USE_QT5 )
 	if (WIN32)
-		target_link_libraries( ${PROJECT_NAME} Qt5::WinMain Qt5::PrintSupport )
+		target_link_libraries( ${PROJECT_NAME} Qt5::WinMain )
 	endif()
 	qt5_use_modules(${PROJECT_NAME} Core Gui Widgets OpenGL PrintSupport)
 endif()
@@ -126,7 +126,7 @@ if( WIN32 )
 
 	# Additional auxiliary file(s)
 	list( APPEND auxFiles bin_other/start.bat )
-endif(WIN32)
+endif()
 
 # Install auxiliary files
 foreach( filename ${auxFiles} )

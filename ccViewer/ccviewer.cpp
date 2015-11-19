@@ -73,14 +73,18 @@ ccViewer::ccViewer(QWidget *parent, Qt::WindowFlags flags)
 	setWindowTitle(QString("ccViewer V%1").arg(CC_VIEWER_VERSION_STR));
 
 	//insert GL window in a vertical layout
-	QVBoxLayout* verticalLayout_2 = new QVBoxLayout(ui.GLframe);
-	verticalLayout_2->setSpacing(0);
-	const int margin = 10;
-	verticalLayout_2->setContentsMargins(margin,margin,margin,margin);
-	QGLFormat format = QGLFormat::defaultFormat();
-	format.setSwapInterval(0);
-	m_glWindow = new ccGLWindow(ui.GLframe,format);
-	verticalLayout_2->addWidget(m_glWindow);
+	{
+		QVBoxLayout* verticalLayout = new QVBoxLayout(ui.GLframe);
+		verticalLayout->setSpacing(0);
+		const int margin = 10;
+		verticalLayout->setContentsMargins(margin,margin,margin,margin);
+		QGLFormat format = QGLFormat::defaultFormat();
+		format.setStereo(true);
+		format.setDoubleBuffer(true);
+		//format.setSwapInterval(1);
+		m_glWindow = new ccGLWindow(ui.GLframe,format);
+		verticalLayout->addWidget(m_glWindow);
+	}
 
 	updateGLFrameGradient();
 
@@ -102,6 +106,7 @@ ccViewer::ccViewer(QWidget *parent, Qt::WindowFlags flags)
 	//Signals & slots connection
 	connect(m_glWindow,								SIGNAL(filesDropped(QStringList)),			this,		SLOT(addToDB(QStringList)));
 	connect(m_glWindow,								SIGNAL(entitySelectionChanged(int)),		this,		SLOT(selectEntity(int)));
+	connect(m_glWindow,								SIGNAL(exclusiveFullScreenToggled(bool)),	this,		SLOT(onExclusiveFullScreenToggled(bool)));
 	//connect(m_glWindow,							SIGNAL(entitiesSelectionChanged(std::set<int>)),	this,		SLOT(selectEntities(std::set<int>))); //not supported!
 	//connect(m_glWindow,							SIGNAL(newLabel(ccHObject*),						this,		SLOT(handleNewEntity(ccHObject*))); //nothing to do in ccViewer!
 
@@ -470,8 +475,9 @@ void ccViewer::updateGLFrameGradient()
 	//display parameters
 	static const ccColor::Rgbub s_black(0,0,0);
 	static const ccColor::Rgbub s_white(255,255,255);
-	const ccColor::Rgbub& bkgCol = m_glWindow->isStereoModeEnabled() ? s_black : m_glWindow->getDisplayParameters().backgroundCol;
-	const ccColor::Rgbub& forCol = m_glWindow->isStereoModeEnabled() ? s_white : m_glWindow->getDisplayParameters().pointsDefaultCol;
+	bool stereoModeEnabled = m_glWindow->stereoModeIsEnabled();
+	const ccColor::Rgbub& bkgCol = stereoModeEnabled ? s_black : m_glWindow->getDisplayParameters().backgroundCol;
+	const ccColor::Rgbub& forCol = stereoModeEnabled ? s_white : m_glWindow->getDisplayParameters().pointsDefaultCol;
 
 	glColor3ubv(bkgCol.rgb);
 	glColor3ub(255-forCol.r,255-forCol.g,255-forCol.b);
@@ -610,7 +616,9 @@ void ccViewer::reflectPerspectiveState()
 
 bool ccViewer::checkStereoMode()
 {
-	if (m_glWindow && m_glWindow->getViewportParameters().perspectiveView && m_glWindow->isStereoModeEnabled())
+	if (	m_glWindow
+		&&	m_glWindow->getViewportParameters().perspectiveView
+		&&	m_glWindow->stereoModeIsEnabled())
 	{
 		if (QMessageBox::question(this,"Stereo mode", "Stereo-mode only works in perspective mode. Do you want to disable it?", QMessageBox::Yes, QMessageBox::No) == QMessageBox::No)
 		{
@@ -728,14 +736,16 @@ void ccViewer::toggleStereoMode(bool state)
 	if (!m_glWindow)
 		return;
 
-	bool isActive = m_glWindow->isStereoModeEnabled();
+	bool isActive = m_glWindow->stereoModeIsEnabled();
 	if (isActive == state)
+	{
+		//nothing to do
 		return;
+	}
 
 	if (isActive)
 	{
-		m_glWindow->enableStereoMode(false);
-		ui.menuPlugins->setEnabled(true);
+		m_glWindow->disableStereoMode();
 	}
 	else
 	{
@@ -757,15 +767,22 @@ void ccViewer::toggleStereoMode(bool state)
 			m_glWindow->setPerspectiveState(true,true);
 			reflectPerspectiveState();
 		}
-		//and disable GL filters :(
+
+		ccGLWindow::StereoParams params = smDlg.getParameters();
+
+		if (params.glassType == ccGLWindow::StereoParams::NVIDIA_VISION)
 		{
-			//FIXME
-			m_glWindow->setGlFilter(0);
-			ui.menuPlugins->setEnabled(false);
+			//force full screen
+			ui.actionFullScreen->setChecked(true);
 		}
 
-		m_glWindow->setStereoParams(smDlg.getParameters());
-		m_glWindow->enableStereoMode(true);
+		if (!m_glWindow->enableStereoMode(params))
+		{
+			//activation of the stereo mode failed: cancel selection
+			ui.actionEnableStereo->blockSignals(true);
+			ui.actionEnableStereo->setChecked(false);
+			ui.actionEnableStereo->blockSignals(false);
+		}
 	}
 
 	updateDisplay();
@@ -773,13 +790,29 @@ void ccViewer::toggleStereoMode(bool state)
 
 void ccViewer::toggleFullScreen(bool state)
 {
-	if (state)
-		showFullScreen();
-	else
-		showNormal();
-
 	if (m_glWindow)
-		m_glWindow->redraw();
+	{
+		if (m_glWindow->stereoModeIsEnabled() && m_glWindow->getStereoParams().glassType == ccGLWindow::StereoParams::NVIDIA_VISION)
+		{
+			//auto disable stereo mode as NVidia Vision only works in full screen mode!
+			ui.actionEnableStereo->setChecked(false);
+		}
+
+		m_glWindow->toggleExclusiveFullScreen(state);
+	}
+}
+
+void ccViewer::onExclusiveFullScreenToggled(bool state)
+{
+	ui.actionFullScreen->blockSignals(true);
+	ui.actionFullScreen->setChecked(m_glWindow ? m_glWindow->exclusiveFullScreen() : false);
+	ui.actionFullScreen->blockSignals(false);
+
+	if (!state && m_glWindow && m_glWindow->stereoModeIsEnabled() && m_glWindow->getStereoParams().glassType == ccGLWindow::StereoParams::NVIDIA_VISION)
+	{
+		//auto disable stereo mode as NVidia Vision only works in full screen mode!
+		ui.actionEnableStereo->setChecked(false);
+	}
 }
 
 void ccViewer::toggleRotationAboutVertAxis()
@@ -918,7 +951,7 @@ void ccViewer::toggleColorbarShown(bool state)
 	if (!cloud)
 		return;
 	cloud->showSFColorsScale(state);
-	m_glWindow->redraw(true);
+	m_glWindow->redraw(true, false);
 }
 
 void ccViewer::changeCurrentScalarField(bool state)

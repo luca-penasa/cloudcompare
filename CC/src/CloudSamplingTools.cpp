@@ -28,6 +28,7 @@
 #include "DgmOctreeReferenceCloud.h"
 #include "DistanceComputationTools.h"
 #include "ScalarFieldTools.h"
+#include <random>
 
 //system
 #include <assert.h>
@@ -50,7 +51,7 @@ GenericIndexedCloud* CloudSamplingTools::resampleCloudWithOctree(	GenericIndexed
 			return 0;
 	}
 
-	//on cherche le niveau qui donne le nombre de points le plus proche de la consigne
+	//look for the Octree level that gives the number of cells (= points) closest to the desired value
 	unsigned char bestLevel=octree->findBestLevelForAGivenCellNumber(newNumberOfPoints);
 
 	GenericIndexedCloud* sampledCloud = resampleCloudWithOctreeAtLevel(inputCloud,bestLevel,resamplingMethod,progressCb,octree);
@@ -214,8 +215,10 @@ ReferenceCloud* CloudSamplingTools::subsampleCloudRandomly(GenericIndexedCloudPe
 	}
 
 	unsigned pointsToRemove = theCloudSize-newNumberOfPoints;
+	std::random_device rd;   // non-deterministic generator
+	std::mt19937 gen(rd());  // to seed mersenne twister.
 
-	NormalizedProgress* normProgress=0;
+	NormalizedProgress* normProgress = 0;
 	if (progressCb)
 	{
 		progressCb->setInfo("Random subsampling");
@@ -228,7 +231,9 @@ ReferenceCloud* CloudSamplingTools::subsampleCloudRandomly(GenericIndexedCloudPe
 	unsigned lastPointIndex = theCloudSize-1;
 	for (unsigned i=0; i<pointsToRemove; ++i)
 	{
-		unsigned index = (unsigned)floor((float)rand()/(float)RAND_MAX * (float)lastPointIndex);
+		//unsigned index = (unsigned)floor((float)rand()/(float)RAND_MAX * (float)lastPointIndex);
+		std::uniform_int_distribution<int> dist(0, lastPointIndex);
+		unsigned index = dist(gen);
 		newCloud->swap(index,lastPointIndex);
 		--lastPointIndex;
 

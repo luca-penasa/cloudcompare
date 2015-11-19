@@ -37,6 +37,7 @@
 #include <QMap>
 #include <QElapsedTimer>
 #include <QTimer>
+#include <QByteArray>
 //#define THREADED_GL_WIDGET
 #ifdef THREADED_GL_WIDGET
 #include <QThread>
@@ -101,6 +102,7 @@ public:
 						MANUAL_TRANSFORMATION_MESSAGE,
 						MANUAL_SEGMENTATION_MESSAGE,
 						ROTAION_LOCK_MESSAGE,
+						FULL_SCREEN_MESSAGE,
 	};
 
 	//! Pivot symbol visibility
@@ -488,28 +490,39 @@ public:
 	inline bool isLODEnabled() const { return m_LODEnabled; }
 
 	//! Enables or disables LOD on this display
-	inline void setLODEnabled(bool state, bool autoDisable = false) { m_LODEnabled = state; m_LODAutoDisable = autoDisable; }
+	/** \return success
+	**/
+	bool setLODEnabled(bool state, bool autoDisable = false);
 
-	//! Whether the middle-screen cross should be displayed or not
-	bool crossShouldBeDrawn() const;
+	//! Toggles (exclusive) full-screen mode
+	void toggleExclusiveFullScreen(bool state);
 
-	//! Main OpenGL display sequence
-	void draw3D(CC_DRAW_CONTEXT& context, bool doDrawCross);
+	//! Returns whether the window is in exclusive full screen mode or not
+	bool exclusiveFullScreen() const;
+
+public: //debug traces on screen
+
+	//! Shows debug info on screen
+	inline void enableDebugTrace(bool state) { m_showDebugTraces = state; }
+
+	//! Toggles debug info on screen
+	inline void toggleDebugTrace() { m_showDebugTraces = !m_showDebugTraces; }
 
 public: //stereo mode
 
-	//! Enables the stereo display mode
-	inline void enableStereoMode(bool state) { m_stereoIsEnabled = state; }
-
-	//! Returns whether the stereo display mode is enabled or not
-	inline bool isStereoModeEnabled() const { return m_stereoIsEnabled; }
-	
 	//! Seterovision parameters
 	struct StereoParams
 	{
 		StereoParams();
 
-		enum GlassType { RED_BLUE = 1, RED_CYAN = 2 };
+		//! Glass/HMD type
+		enum GlassType {	RED_BLUE = 1,
+							RED_CYAN = 2,
+							NVIDIA_VISION = 3
+		};
+
+		//! Whether stereo-mode is 'analgyph' or real stereo mode
+		inline bool isAnaglyph() const { return glassType == RED_BLUE || glassType == RED_CYAN; }
 		
 		bool autoFocal;
 		double focalDist;
@@ -517,11 +530,17 @@ public: //stereo mode
 		GlassType glassType;
 	};
 
+	//! Enables stereo display mode
+	bool enableStereoMode(const StereoParams& params);
+
+	//! Disables stereo display mode
+	void disableStereoMode();
+
+	//! Returns whether the stereo display mode is enabled or not
+	inline bool stereoModeIsEnabled() const { return m_stereoModeEnabled; }
+	
 	//! Returns the current stereo mode parameters
 	inline const StereoParams& getStereoParams() const { return m_stereoParams; }
-
-	//! Sets the current stereo mode parameters
-	void setStereoParams(const StereoParams& params);
 
 public slots:
 
@@ -529,7 +548,7 @@ public slots:
 	void zoomGlobal();
 
 	//inherited from ccGenericGLDisplay
-	virtual void redraw(bool only2D = false);
+	virtual void redraw(bool only2D = false, bool resetLOD = true);
 
 	//called when recieving mouse wheel is rotated
 	void onWheelEvent(float wheelDelta_deg);
@@ -648,7 +667,82 @@ signals:
 	//! Signal emitted when a new label is created
 	void newLabel(ccHObject* obj);
 
-protected: //methods
+	//! Signal emitted when the exclusive fullscreen is toggled
+	void exclusiveFullScreenToggled(bool);
+
+protected: //rendering
+
+	//! LOD state
+	struct LODState
+	{
+		LODState()
+			: inProgress(false)
+			, level(0)
+			, startIndex(0)
+			, progressIndicator(0)
+		{}
+
+		//! LOD display in progress
+		bool inProgress;
+		//! Currently rendered LOD level
+		unsigned char level;
+		//! Currently rendered LOD start index
+		unsigned startIndex;
+		//! Currently LOD progress indicator
+		unsigned progressIndicator;
+	};
+
+	//! Rendering params
+	struct RenderingParams
+	{
+		RenderingParams()
+			: passIndex(0)
+			, passCount(1)
+			, drawBackground(true)
+			, clearDepthLayer(true)
+			, clearColorLayer(true)
+			, useFBO(false)
+			, draw3DPass(true)
+			, draw3DCross(false)
+			, drawForeground(true)
+		{}
+
+		unsigned char passIndex;
+		unsigned char passCount;
+
+		//2D background
+		bool drawBackground;
+		bool clearDepthLayer;
+		bool clearColorLayer;
+
+		//3D central layer
+		bool draw3DPass;
+		bool useFBO;
+		bool draw3DCross;
+		//! Next LOD state
+		LODState nextLODState;
+
+		//2D foreground
+		bool drawForeground;
+	};
+
+	//! Full rendering pass (drawBackground + draw3D + drawForeground)
+	void fullRenderingPass(CC_DRAW_CONTEXT& context, RenderingParams& params);
+
+	//! Draws the background layer
+	/** Background + 2D background objects
+	**/
+	void drawBackground(CC_DRAW_CONTEXT& context, RenderingParams& params);
+
+	//! Draws the main 3D layer
+	void draw3D(CC_DRAW_CONTEXT& context, RenderingParams& params);
+
+	//! Draws the foreground layer
+	/** 2D foreground objects / text
+	**/
+	void drawForeground(CC_DRAW_CONTEXT& context, RenderingParams& params);
+
+protected: //other methods
 
 	//! Processes the clickable items
 	/** \return true if an item has been clicked
@@ -715,12 +809,11 @@ protected: //methods
 	//Graphical features controls
 	void drawCross();
 	void drawTrihedron();
-	void drawGradientBackground();
 	void drawScale(const ccColor::Rgbub& color);
 
 	//Projections controls
 	ccGLMatrixd computeModelViewMatrix(const CCVector3d& cameraCenter) const;
-	ccGLMatrixd computeProjectionMatrix(const CCVector3d& cameraCenter, double& zNear, double& zFar, bool withGLfeatures) const;
+	ccGLMatrixd computeProjectionMatrix(const CCVector3d& cameraCenter, double& zNear, double& zFar, bool withGLfeatures, double* eyeOffset = 0) const;
 	void updateModelViewMatrix();
 	void updateProjectionMatrix();
 	void setStandardOrthoCenter();
@@ -965,6 +1058,7 @@ protected: //members
 					INCREASE_POINT_SIZE,
 					DECREASE_POINT_SIZE,
 					LEAVE_BUBBLE_VIEW_MODE,
+					LEAVE_FULLSCREEN_MODE,
 		};
 
 		Role role;
@@ -983,6 +1077,8 @@ protected: //members
 
 	//! Currently active FBO (frame buffer object)
 	ccFrameBufferObject* m_fbo;
+	//! Second currently active FBO (frame buffer object) - used for stereo rendering
+	ccFrameBufferObject* m_fbo2;
 	//! Whether to always use FBO or only for GL filters
 	bool m_alwaysUseFBO;
 	//! Whether FBO should be updated (or simply displayed as a texture = faster!)
@@ -1044,15 +1140,9 @@ protected: //members
 	//! Map of materials (unique id.) and texture identifier
 	QMap< QString, unsigned > m_materialTextures;
 
-	//! Currently rendered LOD level
-	unsigned char m_currentLODLevel;
-	//! Currently rendered LOD start index
-	unsigned m_currentLODStartIndex;
-	//! Currently LOD progress indicator
-	unsigned m_LODProgressIndicator;
+	//! Current LOD state
+	LODState m_currentLODState;
 
-	//! LOD display in progress
-	bool m_LODInProgress;
 	//! LOD refresh signal sent
 	bool m_LODPendingRefresh;
 	//! LOD refresh signal should be ignored
@@ -1074,8 +1164,16 @@ protected: //members
 	//! Seterovision mode parameters
 	StereoParams m_stereoParams;
 
-	//! Seterovision mode parameters
-	bool m_stereoIsEnabled;
+	//! Whether seterovision mode is enabled or not
+	bool m_stereoModeEnabled;
+
+	//! Former parent object (for exclusive full-screen display)
+	QWidget* m_formerParent;
+	//! Former geometry (for exclusive full-screen display)
+	QByteArray m_formerGeometry;
+
+	//! Debug traces visibility
+	bool m_showDebugTraces;
 
 private:
 

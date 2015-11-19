@@ -114,6 +114,7 @@
      <addaction name="actionShowActiveSFNext"/>
     </widget>
     <addaction name="actionFullScreen"/>
+    <addaction name="actionExclusiveFullScreen"/>
     <addaction name="actionRefresh"/>
     <addaction name="actionToggleCenteredPerspective"/>
     <addaction name="actionToggleViewerBasedPerspective"/>
@@ -428,6 +429,8 @@
      <addaction name="actionCreateCloudFromEntCenters"/>
      <addaction name="separator"/>
      <addaction name="actionComputeBestICPRmsMatrix"/>
+     <addaction name="separator"/>
+     <addaction name="actionEnableVisualDebugTraces"/>
     </widget>
     <widget class="QMenu" name="menuFit">
      <property name="title">
@@ -881,7 +884,7 @@
     <string/>
    </property>
    <property name="shortcut">
-    <string>F11</string>
+    <string>F9</string>
    </property>
    <property name="shortcutContext">
     <enum>Qt::ApplicationShortcut</enum>
@@ -2822,6 +2825,9 @@
    <property name="shortcut">
     <string>F10</string>
    </property>
+   <property name="shortcutContext">
+    <enum>Qt::ApplicationShortcut</enum>
+   </property>
   </action>
   <action name="actionComputePointsVisibility">
    <property name="text">
@@ -2831,6 +2837,38 @@
   <action name="actionCompute2HalfDimVolume">
    <property name="text">
     <string>Compute 2.5D volume</string>
+   </property>
+  </action>
+  <action name="actionExclusiveFullScreen">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="icon">
+    <iconset resource="../icones.qrc">
+     <normaloff>:/CC/images/ccFullScreen.png</normaloff>:/CC/images/ccFullScreen.png</iconset>
+   </property>
+   <property name="text">
+    <string>Full screen (3D view)</string>
+   </property>
+   <property name="toolTip">
+    <string>Exclusive full screen (3D view)</string>
+   </property>
+   <property name="shortcut">
+    <string>F11</string>
+   </property>
+   <property name="shortcutContext">
+    <enum>Qt::ApplicationShortcut</enum>
+   </property>
+  </action>
+  <action name="actionEnableVisualDebugTraces">
+   <property name="text">
+    <string>Enable Visual Debug Traces</string>
+   </property>
+   <property name="toolTip">
+    <string>Enables visual debug traces (active 3D view)</string>
+   </property>
+   <property name="shortcut">
+    <string>Ctrl+D</string>
    </property>
   </action>
  </widget>

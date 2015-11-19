@@ -855,19 +855,16 @@ void ccNormalVectors::ConvertNormalToDipAndDipDir(const CCVector3& N, PointCoord
 		return;
 	}
 
-    //"p direction is measured in 360 degrees, generally clockwise from North"
-    double dipDir_rad;
-    if (N.z <= 0)
-         dipDir_rad= atan2(-N.x,-N.y); //result in [-pi,+pi]
-    else
-         dipDir_rad = atan2(N.x,N.y); //result in [-pi,+pi]
+	//"Dip direction is measured in 360 degrees, generally clockwise from North"
+	double Nsign = N.z < 0 ? -1.0 : 1.0; //DGM: copysign is not available on VS2012
 
+	//"Dip direction is measured in 360 degrees, generally clockwise from North"
+	double dipDir_rad = atan2(Nsign * N.x, Nsign * N.y); //result in [-pi,+pi]
 	if (dipDir_rad < 0)
 		dipDir_rad += 2.0*M_PI;
 
 	//Dip
-	double dip_rad = atan(fabs(N.z)/sqrt(r2)); //atan's result in [-pi/2,+pi/2] but |N.z|/r >= 0
-	dip_rad = (M_PI/2) - dip_rad; //DGM: we always measure the dip downward from horizontal
+	double dip_rad = acos(fabs(N.z));
 
 	dipDir_deg = static_cast<PointCoordinateType>(dipDir_rad * CC_RAD_TO_DEG);
 	dip_deg = static_cast<PointCoordinateType>(dip_rad * CC_RAD_TO_DEG);

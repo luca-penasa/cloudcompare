@@ -150,7 +150,7 @@ void ccVolumeCalcTool::setDisplayedNumberPrecision(int precision)
 		ccGui::ParamStruct params = m_window->getDisplayParameters();
 		params.displayedNumPrecision = precision;
 		m_window->setDisplayParameters(params);
-		m_window->redraw(true);
+		m_window->redraw(true, false);
 	}
 
 	//update report
@@ -688,7 +688,7 @@ bool ccVolumeCalcTool::updateGrid()
 		repotInfo.matchingPrecent = static_cast<float>(m_grid.validCellCount * 100) / cellCount;
 		repotInfo.groundNonMatchingPercent = static_cast<float>(groundNonMatchingCount * 100) / cellCount;
 		repotInfo.ceilNonMatchingPercent = static_cast<float>(ceilNonMatchingCount * 100) / cellCount;
-		float cellArea = (m_grid.gridStep * m_grid.gridStep);
+		float cellArea = static_cast<float>(m_grid.gridStep * m_grid.gridStep);
 		repotInfo.volume *= cellArea;
 		repotInfo.surface *= cellArea;
 
