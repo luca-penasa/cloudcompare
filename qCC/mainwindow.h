@@ -56,6 +56,7 @@ class ccComparisonDlg;
 class ccGraphicalSegmentationTool;
 class ccSectionExtractionTool;
 class ccGraphicalTransformationTool;
+class ccTracePolyLineTool;
 class ccClippingBoxTool;
 class ccPluginInterface;
 class ccStdPluginInterface;
@@ -432,6 +433,10 @@ protected slots:
 	void activateSegmentationMode();
 	void deactivateSegmentationMode(bool);
 
+    //Polyline tracing
+    void activateTracePolyLineMode();
+    void deactivateTracePolyLineMode(bool);
+
 	//Section extraction
 	void activateSectionExtractionMode();
 	void deactivateSectionExtractionMode(bool);
@@ -653,6 +658,8 @@ protected:
 	ccCameraParamEditDlg* m_cpeDlg;
 	//! Graphical segmentation dialog
 	ccGraphicalSegmentationTool* m_gsTool;
+    //! Polyline tracing tool
+    ccTracePolyLineTool * m_tplTool;
 	//! Section extraction dialog
 	ccSectionExtractionTool* m_seTool;
 	//! Graphical transformation dialog

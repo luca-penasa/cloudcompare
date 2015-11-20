@@ -15,8 +15,8 @@
 //#                                                                        #
 //##########################################################################
 
-#ifndef CC_GRAPHICAL_SEGMENTATION_TOOLS_HEADER
-#define CC_GRAPHICAL_SEGMENTATION_TOOLS_HEADER
+#ifndef CC_TRACE_POLY_LINE_TOOLS_HEADER
+#define CC_TRACE_POLY_LINE_TOOLS_HEADER
 
 //Local
 #include <ccOverlayDialog.h>
@@ -24,91 +24,60 @@
 //qCC_db
 #include <ccHObject.h>
 
-//Qt
-#include <QSet>
+//system
+#include <set>
 
 //GUI
-#include <ui_graphicalSegmentationDlg.h>
+#include <ui_tracePolyLineDlg.h>
 
 class ccPolyline;
 class ccPointCloud;
 class ccGLWindow;
 
 //! Graphical segmentation mechanism (with polyline)
-class ccGraphicalSegmentationTool : public ccOverlayDialog, public Ui::GraphicalSegmentationDlg
+class ccTracePolyLineTool : public ccOverlayDialog, public Ui::TracePolyLineDlg
 {
 	Q_OBJECT
 
 public:
 
 	//! Default constructor
-	explicit ccGraphicalSegmentationTool(QWidget* parent);
+    explicit ccTracePolyLineTool(QWidget* parent);
 	//! Destructor
-	virtual ~ccGraphicalSegmentationTool();
+    virtual ~ccTracePolyLineTool();
 
-	//! Adds an entity (and/or its children) to the 'to be segmented' pool
-	/** Warning: some entities may be rejected if they are
-		locked, or can't be segmented this way.
-		\return whether entity has been added to the pool or not
-	**/
-	bool addEntity(ccHObject* anObject);
-	
-	//! Returns the number of entites currently in the the 'to be segmented' pool
-	unsigned getNumberOfValidEntities() const;
+
 
 	//! Get a pointer to the polyline that has been segmented
 	ccPolyline *getPolyLine() {return m_segmentationPoly;}
 
-	//! Returns the active 'to be segmented' set
-	QSet<ccHObject*>& entities() { return m_toSegment; }
-	//! Returns the active 'to be segmented' set (const version)
-	const QSet<ccHObject*>& entities() const { return m_toSegment; }
+
 
 	//inherited from ccOverlayDialog
-	virtual bool linkWith(ccGLWindow* win);
-	virtual bool start();
-	virtual void stop(bool accepted);
+    virtual bool linkWith(ccGLWindow* win) override;
+    virtual bool start() override;
+    virtual void stop(bool accepted) override;
 
-	//! Returns whether hidden parts should be delete after segmentation
-	bool deleteHiddenParts() const { return m_deleteHiddenParts; }
-
-	//! Remove entities from the 'to be segmented' pool
-	/** \warning 'unallocateVisibilityArray' will be called on all point clouds
-		prior to be removed from the pool.
-	**/
-	void removeAllEntities(bool unallocateVisibilityArrays);
 
 protected slots:
+    void reset();
 
-	void segmentIn();
-	void segmentOut();
-	void segment(bool);
 
-    void projectPolyline();
-	void reset();
-	void apply();
-	void applyAndDelete();
+    void projectPolyline(bool cpu = true);
+	void apply();	
 	void cancel();
+
 	void addPointToPolyline(int x, int y);
 	void closePolyLine(int x=0, int y=0); //arguments for compatibility with ccGlWindow::rightButtonClicked signal
-	void closeRectangle();
 	void updatePolyLine(int x, int y, Qt::MouseButtons buttons);
-	void pauseSegmentationMode(bool);
-	void doSetPolylineSelection();
-	void doSetRectangularSelection();
-	void doActionUseExistingPolyline();
-	void doExportSegmentationPolyline();
+
 
 	//! To capture overridden shortcuts (pause button, etc.)
 	void onShortcutTriggered(int);
 
 protected:
 
-	//! Whether to allow or not to exort the current segmentation polyline
-	void allowPolylineExport(bool state);
 
-	//! Set of entities to be segmented
-	QSet<ccHObject*> m_toSegment;
 
 	//! Whether something has changed or not (for proper 'cancel')
 	bool m_somethingHasChanged;

@@ -3849,7 +3849,6 @@ void ccGLWindow::wheelEvent(QWheelEvent* event)
 	onWheelEvent(wheelDelta_deg);
 
 	emit mouseWheelRotated(wheelDelta_deg);
-
 	event->accept();
 }
 

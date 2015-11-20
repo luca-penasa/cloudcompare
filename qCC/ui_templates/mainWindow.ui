@@ -45,7 +45,7 @@
      <x>0</x>
      <y>0</y>
      <width>1024</width>
-     <height>21</height>
+     <height>20</height>
     </rect>
    </property>
    <widget class="QMenu" name="menuFile">
@@ -699,6 +699,7 @@
    <addaction name="actionRasterize"/>
    <addaction name="actionSORFilter"/>
    <addaction name="separator"/>
+   <addaction name="actionTracePolyLine"/>
    <addaction name="actionSegment"/>
    <addaction name="actionTranslateRotate"/>
    <addaction name="actionCrossSection"/>
@@ -2869,6 +2870,19 @@
    </property>
    <property name="shortcut">
     <string>Ctrl+D</string>
+   </property>
+  </action>
+  <action name="actionTracePolyLine">
+   <property name="icon">
+    <iconset>
+     <normalon>:/CC/images/dbPolylineSymbol.png</normalon>
+    </iconset>
+   </property>
+   <property name="text">
+    <string>Trace Poly Line</string>
+   </property>
+   <property name="toolTip">
+    <string>Trace Polyline tool</string>
    </property>
   </action>
  </widget>
