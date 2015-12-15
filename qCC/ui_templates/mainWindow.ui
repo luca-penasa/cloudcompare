@@ -45,7 +45,7 @@
      <x>0</x>
      <y>0</y>
      <width>1024</width>
-     <height>20</height>
+     <height>27</height>
     </rect>
    </property>
    <widget class="QMenu" name="menuFile">
@@ -482,8 +482,8 @@
   <widget class="QDockWidget" name="DockableDBTree">
    <property name="minimumSize">
     <size>
-     <width>135</width>
-     <height>172</height>
+     <width>146</width>
+     <height>175</height>
     </size>
    </property>
    <property name="floating">
@@ -574,8 +574,7 @@
    </property>
    <property name="windowIcon">
     <iconset>
-     <normaloff/>
-    </iconset>
+     <normaloff>.</normaloff>.</iconset>
    </property>
    <property name="toolTip">
     <string>Viewing tools</string>
@@ -2874,9 +2873,8 @@
   </action>
   <action name="actionTracePolyLine">
    <property name="icon">
-    <iconset>
-     <normalon>:/CC/images/dbPolylineSymbol.png</normalon>
-    </iconset>
+    <iconset resource="../icones.qrc">
+     <normaloff>:/CC/images/ccTracePolyline.png</normaloff>:/CC/images/ccTracePolyline.png</iconset>
    </property>
    <property name="text">
     <string>Trace Poly Line</string>

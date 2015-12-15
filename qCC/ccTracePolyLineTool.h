@@ -48,7 +48,7 @@ public:
 
 
 
-	//! Get a pointer to the polyline that has been segmented
+    //! Get a pointer to the polyline that has been traced
 	ccPolyline *getPolyLine() {return m_segmentationPoly;}
 
 
@@ -62,7 +62,7 @@ public:
 protected slots:
     void reset();
 
-
+    //! do the actual polyline projection from 2d to 3d
     void projectPolyline(bool cpu = true);
 	void apply();	
 	void cancel();
@@ -72,12 +72,17 @@ protected slots:
 	void updatePolyLine(int x, int y, Qt::MouseButtons buttons);
 
 
+    void linkSnapDimensions(const int status);
+
+
+
+
 	//! To capture overridden shortcuts (pause button, etc.)
 	void onShortcutTriggered(int);
 
 protected:
 
-
+    void doPolylineOverSampling(const int multiplicity);
 
 	//! Whether something has changed or not (for proper 'cancel')
 	bool m_somethingHasChanged;

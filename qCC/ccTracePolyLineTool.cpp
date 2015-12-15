@@ -61,7 +61,7 @@ ccTracePolyLineTool::ccTracePolyLineTool(QWidget* parent)
     //setAttribute(Qt::WA_NoSystemBackground);
 
 
-    ccLog::PrintDebug("Constructing the Dlg");
+    //    ccLog::PrintDebug("Constructing the Dlg");
 
     setupUi(this);
     setWindowFlags(Qt::FramelessWindowHint | Qt::Tool);
@@ -70,6 +70,8 @@ ccTracePolyLineTool::ccTracePolyLineTool(QWidget* parent)
     connect(validButton,						SIGNAL(clicked()),		this,	SLOT(apply()));
     connect(cancelButton,						SIGNAL(clicked()),		this,	SLOT(cancel()));
 
+
+    connect(linkSnapCheckBox, SIGNAL(stateChanged(int)), this, SLOT(linkSnapDimensions(int)));
 
     // project the current poliline on the clouds
     connect(actionProjectPolyline,              SIGNAL(triggered()),    this,   SLOT(projectPolyline()));
@@ -165,9 +167,112 @@ void ccTracePolyLineTool::onShortcutTriggered(int key)
     }
 }
 
+void ccTracePolyLineTool::doPolylineOverSampling(const int multiplicity)
+{
+    if (multiplicity <= 1)
+        return;
+
+    //do a copy
+    ccPointCloud oldverts;
+   *m_polyVertices->cloneThis(&oldverts);
+
+
+    std::cout << "in old clouds points: " << oldverts.size()<< std::endl;
+
+
+
+    size_t n_segments = m_polyVertices->size() - 1;
+    size_t n_verts = m_polyVertices->size();
+
+    // clear current polylines
+    m_segmentationPoly->clear();
+    m_polyVertices->clear();
+
+//    std::cout<< "size " << m_segmentationPoly->size()<< std::endl;
+//    std::cout<< "size " << m_polyVertices->size()<< std::endl;
+
+
+
+    size_t end_size = n_verts  + n_segments * (multiplicity-1);
+
+    m_polyVertices->reserve(end_size);
+
+    std::cout<< "reserved " << end_size<< std::endl;
+
+
+//    size_t  point_index = 0;
+    for (size_t i = 0; i < n_verts -2; ++i)
+    {
+
+
+
+        std::cout << "i: " << i << std::endl;
+        CCVector3 p1;
+        CCVector3 p2;
+        oldverts.getPoint(i, p1);
+        oldverts.getPoint(i + 1, p2); // the next point in polyline
+
+        CCVector3 v = p2 - p1;
+
+
+
+        ScalarType d = v.norm();
+
+        std::cout << "d"<<  d << std::endl;
+
+
+        v.normalize();
+
+
+//        std::cout << v << std::endl;
+
+        ScalarType each = d / ScalarType(multiplicity);
+
+
+        m_polyVertices->addPoint(p1);
+
+        if (i == 0)
+            m_polyVertices->addPoint(p1); // add it two times for consistency
+
+
+//        m_segmentationPoly->addPointIndex(point_index++);
+
+        for (size_t j = 1; j < multiplicity ; j++)
+        {
+
+            std::cout <<"J: " << j << std::endl;
+            CCVector3 newpoint = p1 + j * each * v;
+
+            m_polyVertices->addPoint(newpoint);
+
+        }
+
+
+//        m_polyVertices->addPoint(p2);
+//        m_segmentationPoly->addPointIndex(point_index++);
+
+//        std::cout << "current point id " << point_index << std::endl;
+
+
+    }
+//    m_polyVertices->addPoint(newpoint);
+//    m_segmentationPoly->addPointIndex(point_index++);
+
+    m_segmentationPoly->addPointIndex(1, m_polyVertices->size());
+
+    std::cout << "Done!!" << std::endl;
+
+
+
+//        m_segmentationPoly->addPointIndex(0, m_polyVertices->size());
+
+
+
+}
+
 bool ccTracePolyLineTool::linkWith(ccGLWindow* win)
 {
-    std::cout << "init linking"<< std::endl;
+    //    std::cout << "init linking"<< std::endl;
     assert(m_segmentationPoly);
 
     ccGLWindow* oldWin = m_associatedWin;
@@ -201,7 +306,6 @@ bool ccTracePolyLineTool::linkWith(ccGLWindow* win)
     if (m_associatedWin)
         m_associatedWin->setInteractionMode(ccGLWindow::SEGMENT_ENTITY);
 
-    std::cout << "linking ok"<< std::endl;
     return true;
 }
 
@@ -215,6 +319,18 @@ bool ccTracePolyLineTool::start()
         return false;
     }
 
+//    delete m_segmentationPoly;
+//    delete m_polyVertices;
+
+//    m_polyVertices = new ccPointCloud("vertices");
+//    m_segmentationPoly = new ccPolyline(m_polyVertices);
+
+
+    m_segmentationPoly->setForeground(true);
+    m_segmentationPoly->setColor(ccColor::green);
+    m_segmentationPoly->showColors(true);
+    m_segmentationPoly->set2DMode(true);
+
     m_segmentationPoly->clear();
     m_polyVertices->clear();
     //    allowPolylineExport(false);
@@ -223,6 +339,9 @@ bool ccTracePolyLineTool::start()
     m_associatedWin->setUnclosable(true);
     m_associatedWin->addToOwnDB(m_segmentationPoly);
     m_associatedWin->setPickingMode(ccGLWindow::NO_PICKING);
+
+    m_associatedWin->setCursor(Qt::CrossCursor);
+
     //    pauseSegmentationMode(false);
 
     m_somethingHasChanged = false;
@@ -286,48 +405,38 @@ void ccTracePolyLineTool::updatePolyLine(int x, int y, Qt::MouseButtons buttons)
 
     unsigned vertCount = m_polyVertices->size();
 
+    std::cout << "vert count " << vertCount << std::endl;
+
     //new point
     CCVector3 P(static_cast<PointCoordinateType>(x),
                 static_cast<PointCoordinateType>(y),
                 0);
 
-    if (m_state & RECTANGLE)
-    {
-        //we need 4 points for the rectangle!
-        if (vertCount != 4)
-            m_polyVertices->resize(4);
 
-        const CCVector3* A = m_polyVertices->getPointPersistentPtr(0);
-        CCVector3* B = const_cast<CCVector3*>(m_polyVertices->getPointPersistentPtr(1));
-        CCVector3* C = const_cast<CCVector3*>(m_polyVertices->getPointPersistentPtr(2));
-        CCVector3* D = const_cast<CCVector3*>(m_polyVertices->getPointPersistentPtr(3));
-        *B = CCVector3(A->x,P.y,0);
-        *C = P;
-        *D = CCVector3(P.x,A->y,0);
-
-        if (vertCount != 4)
-        {
-            m_segmentationPoly->clear();
-            if (!m_segmentationPoly->addPointIndex(0,4))
-            {
-                ccLog::Error("Out of memory!");
-                //                allowPolylineExport(false);
-                return;
-            }
-            //            m_segmentationPoly->setClosed(false);
-        }
-    }
-    else if (m_state & POLYLINE)
-    {
         if (vertCount < 2)
             return;
         //we replace last point by the current one
         CCVector3* lastP = const_cast<CCVector3*>(m_polyVertices->getPointPersistentPtr(vertCount-1));
         *lastP = P;
-    }
+
 
     if (m_associatedWin)
         m_associatedWin->redraw(true, false);
+}
+
+void ccTracePolyLineTool::linkSnapDimensions(const int status)
+{
+    if (status) // link the two
+    {
+        ysnap->setDisabled(true); // disble it
+        connect(xsnap, SIGNAL(valueChanged(int)), ysnap, SLOT(setValue(int)));
+
+    }
+    else
+    {
+        ysnap->setEnabled(true);
+        disconnect(xsnap, SIGNAL(valueChanged(int)), ysnap, SLOT(setValue(int)));
+    }
 }
 
 void ccTracePolyLineTool::addPointToPolyline(int x, int y)
@@ -335,7 +444,7 @@ void ccTracePolyLineTool::addPointToPolyline(int x, int y)
     //    if ((m_state & STARTED) == 0)
     //        return;
 
-    ccLog::Print(QString("clicked: %1 %2").arg(x).arg(y));
+    //    ccLog::Print(QString("clicked: %1 %2").arg(x).arg(y));
 
     assert(m_polyVertices);
     assert(m_segmentationPoly);
@@ -489,41 +598,47 @@ void ccTracePolyLineTool::projectPolyline(bool cpu /*= false*/)
     //    cloud->computeOctree();
     //    ccOctree * octree=   cloud->getOctree();
 
-    size_t count  = m_polyVertices->size();
+
+
+
+    size_t count  = m_segmentationPoly->size();
 
     ccPointCloud* vertices = new ccPointCloud("vertices");
-    ccPolyline* polyline = new ccPolyline(vertices);
 
-    if (!vertices->reserve(count) || !polyline->reserve(count))
+    if (!vertices->reserve(count))
     {
         ccLog::Error("Not enough memory!");
         delete vertices;
-        delete polyline;
+//        delete polyline;
         return;
     }
 
     //we project each point and we check if it falls inside the segmentation polyline
-    for (unsigned i=0; i<m_polyVertices->size(); ++i)
+    for (size_t i = 0; i< count; ++i)
     {
 
         //        if (visibilityArray->getValue(i) == POINT_VISIBLE)
         //        {
         CCVector3 P;
-        m_polyVertices->getPoint(i,P);
+        m_segmentationPoly->getPoint(i,P);
 
 
         PointCoordinateType x_pick, y_pick;
 
         x_pick = P.x + half_w;
         y_pick = -P.y + half_h;
+        size_t xsnap =  this->xsnap->value();
+        size_t ysnap =  this->ysnap->value();
 
-        ccGLWindow::PickingParameters pars(ccGLWindow::POINT_OR_TRIANGLE_PICKING, x_pick, y_pick, 2, 2);
+
+
+        ccGLWindow::PickingParameters pars(ccGLWindow::POINT_OR_TRIANGLE_PICKING, x_pick, y_pick, xsnap, ysnap);
 
 
         pars.flags |= CC_DRAW_POINT_NAMES;
         pars.flags |= CC_DRAW_TRI_NAMES;		//automatically push entity names as well!
 
-        ccLog::Print(QString("x: %1, y: %2").arg(x_pick).arg( y_pick));
+        ccLog::PrintDebug(QString("x: %1, y: %2").arg(x_pick).arg( y_pick));
 
 
         int selID = -1;
@@ -538,7 +653,7 @@ void ccTracePolyLineTool::projectPolyline(bool cpu /*= false*/)
         if (selID != -1)
         {
 
-            ccLog::Print(QString("object ID: %1, point ID: %2").arg(selID).arg( pointID));
+            //            ccLog::Print(QString("object ID: %1, point ID: %2").arg(selID).arg( pointID));
 
 
 
@@ -565,8 +680,10 @@ void ccTracePolyLineTool::projectPolyline(bool cpu /*= false*/)
     if (vertices->size() >= 2)
     {
 
+        ccPolyline* polyline = new ccPolyline(vertices);
 
-        polyline->addPointIndex(0,count);
+        polyline->addPointIndex(0, vertices->size());
+//        polyline->addPointIndex(0,count);
         polyline->setVisible(true);
         vertices->setEnabled(false);
         //            polyline->setGlobalShift(m_associatedCloud->getGlobalShift());
@@ -603,8 +720,7 @@ void ccTracePolyLineTool::apply()
     // doing extraction!!!
     ccLog::PrintDebug("starting extraction..." );
 
-
-
+    doPolylineOverSampling(this->oversampleSpinBox->value());
     projectPolyline(cpuButton->isChecked());
     stop(true);
 }
