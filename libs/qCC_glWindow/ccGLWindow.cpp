@@ -4028,165 +4028,162 @@ void ccGLWindow::processPickingResult(const PickingParameters& params, const int
 	}
 }
 
-
 void ccGLWindow::pickPointOpenGL(const PickingParameters& params,  int &selectedID, int &subSelectedID, std::unordered_set<int> &selectedIDs/*=0*/)
 {
-    //OpenGL picking
-    makeCurrent();
+	//OpenGL picking
+	makeCurrent();
 
-    //no need to clear display, we don't draw anything new!
-    //glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+	//no need to clear display, we don't draw anything new!
+	//glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-    //setup selection buffers
-    memset(m_pickingBuffer,0,sizeof(GLuint)*CC_PICKING_BUFFER_SIZE);
-    glSelectBuffer(CC_PICKING_BUFFER_SIZE,m_pickingBuffer);
-    glRenderMode(GL_SELECT);
-    glInitNames();
+	//setup selection buffers
+	memset(m_pickingBuffer,0,sizeof(GLuint)*CC_PICKING_BUFFER_SIZE);
+	glSelectBuffer(CC_PICKING_BUFFER_SIZE,m_pickingBuffer);
+	glRenderMode(GL_SELECT);
+	glInitNames();
 
-    //get viewport
-    GLint viewport[4];
-    glGetIntegerv(GL_VIEWPORT,viewport);
+	//get viewport
+	GLint viewport[4];
+	glGetIntegerv(GL_VIEWPORT,viewport);
 
-    //get context
-    CC_DRAW_CONTEXT CONTEXT;
-    getContext(CONTEXT);
+	//get context
+	CC_DRAW_CONTEXT CONTEXT;
+	getContext(CONTEXT);
 
-    //3D objects picking
-    {
-        CONTEXT.flags = CC_DRAW_3D | params.flags;
+	//3D objects picking
+	{
+		CONTEXT.flags = CC_DRAW_3D | params.flags;
 
-        //projection matrix
-        glMatrixMode(GL_PROJECTION);
-        //restrict drawing to the picking area
-        glLoadIdentity();
-        gluPickMatrix(	static_cast<GLdouble>(params.centerX),
-                        static_cast<GLdouble>(viewport[3]-params.centerY),
-                        static_cast<GLdouble>(params.pickWidth),
-                        static_cast<GLdouble>(params.pickHeight),
-                        viewport);
-        glMultMatrixd(getProjectionMatd());
+		//projection matrix
+		glMatrixMode(GL_PROJECTION);
+		//restrict drawing to the picking area
+		glLoadIdentity();
+		gluPickMatrix(	static_cast<GLdouble>(params.centerX),
+						static_cast<GLdouble>(viewport[3]-params.centerY),
+						static_cast<GLdouble>(params.pickWidth),
+						static_cast<GLdouble>(params.pickHeight),
+						viewport);
+		glMultMatrixd(getProjectionMatd());
 
-        //model view matrix
-        glMatrixMode(GL_MODELVIEW);
-        glLoadMatrixd(getModelViewMatd());
+		//model view matrix
+		glMatrixMode(GL_MODELVIEW);
+		glLoadMatrixd(getModelViewMatd());
 
-        glPushAttrib(GL_DEPTH_BUFFER_BIT);
-        glEnable(GL_DEPTH_TEST);
+		glPushAttrib(GL_DEPTH_BUFFER_BIT);
+		glEnable(GL_DEPTH_TEST);
 
-        //display 3D objects
-        if (m_globalDBRoot)
-            m_globalDBRoot->draw(CONTEXT);
-        if (m_winDBRoot)
-            m_winDBRoot->draw(CONTEXT);
+		//display 3D objects
+		if (m_globalDBRoot)
+			m_globalDBRoot->draw(CONTEXT);
+		if (m_winDBRoot)
+			m_winDBRoot->draw(CONTEXT);
 
-        glPopAttrib(); //GL_DEPTH_BUFFER_BIT
+		glPopAttrib(); //GL_DEPTH_BUFFER_BIT
 
-        ccGLUtils::CatchGLError("ccGLWindow::startPicking.draw(3D)");
-    }
+		ccGLUtils::CatchGLError("ccGLWindow::startPicking.draw(3D)");
+	}
 
-    //2D objects picking
-    if (params.mode == ENTITY_PICKING || params.mode == ENTITY_RECT_PICKING || params.mode == FAST_PICKING)
-    {
-        CONTEXT.flags = CC_DRAW_2D | params.flags;
+	//2D objects picking
+	if (params.mode == ENTITY_PICKING || params.mode == ENTITY_RECT_PICKING || params.mode == FAST_PICKING)
+	{
+		CONTEXT.flags = CC_DRAW_2D | params.flags;
 
-        //we must first grab the 2D ortho view projection matrix
-        setStandardOrthoCenter();
-        glMatrixMode(GL_PROJECTION);
-        double orthoProjMatd[OPENGL_MATRIX_SIZE];
-        glGetDoublev(GL_PROJECTION_MATRIX, orthoProjMatd);
-        //restrict drawing to the picking area
-        glLoadIdentity();
-        gluPickMatrix(	static_cast<GLdouble>(params.centerX),
-                        static_cast<GLdouble>(viewport[3]-params.centerY),
-                        static_cast<GLdouble>(params.pickWidth),
-                        static_cast<GLdouble>(params.pickHeight),
-                        viewport);
-        glMultMatrixd(orthoProjMatd);
-        glMatrixMode(GL_MODELVIEW);
+		//we must first grab the 2D ortho view projection matrix
+		setStandardOrthoCenter();
+		glMatrixMode(GL_PROJECTION);
+		double orthoProjMatd[OPENGL_MATRIX_SIZE];
+		glGetDoublev(GL_PROJECTION_MATRIX, orthoProjMatd);
+		//restrict drawing to the picking area
+		glLoadIdentity();
+		gluPickMatrix(	static_cast<GLdouble>(params.centerX),
+						static_cast<GLdouble>(viewport[3]-params.centerY),
+						static_cast<GLdouble>(params.pickWidth),
+						static_cast<GLdouble>(params.pickHeight),
+						viewport);
+		glMultMatrixd(orthoProjMatd);
+		glMatrixMode(GL_MODELVIEW);
 
-        glPushAttrib(GL_DEPTH_BUFFER_BIT);
-        glDisable(GL_DEPTH_TEST);
+		glPushAttrib(GL_DEPTH_BUFFER_BIT);
+		glDisable(GL_DEPTH_TEST);
 
-        //we display 2D objects
-        if (m_globalDBRoot)
-            m_globalDBRoot->draw(CONTEXT);
-        if (m_winDBRoot)
-            m_winDBRoot->draw(CONTEXT);
+		//we display 2D objects
+		if (m_globalDBRoot)
+			m_globalDBRoot->draw(CONTEXT);
+		if (m_winDBRoot)
+			m_winDBRoot->draw(CONTEXT);
 
-        glPopAttrib(); //GL_DEPTH_BUFFER_BIT
+		glPopAttrib(); //GL_DEPTH_BUFFER_BIT
 
-        ccGLUtils::CatchGLError("ccGLWindow::startPicking.draw(2D)");
-    }
+		ccGLUtils::CatchGLError("ccGLWindow::startPicking.draw(2D)");
+	}
 
-    glFlush();
+	glFlush();
 
-    // returning to normal rendering mode
-    int hits = glRenderMode(GL_RENDER);
+	// returning to normal rendering mode
+	int hits = glRenderMode(GL_RENDER);
 
-    ccGLUtils::CatchGLError("ccGLWindow::startPicking.render");
+	ccGLUtils::CatchGLError("ccGLWindow::startPicking.render");
 
-    ccLog::PrintDebug("[Picking] hits: %i",hits);
-    if (hits < 0)
-    {
-        ccLog::Warning("[Picking] Too many items inside picking zone! Try to zoom in...");
+	ccLog::PrintDebug("[Picking] hits: %i",hits);
+	if (hits < 0)
+	{
+		ccLog::Warning("[Picking] Too many items inside picking zone! Try to zoom in...");
         return; // process will be called by the caller
+		//we must always emit a signal!
+//		processPickingResult(params,-1,-1);
+	}
 
-        //we must always emit a signal!
-//        processPickingResult(params,-1,-1);
-    }
-
-    //process hits
+	//process hits
     subSelectedID = -1;
     selectedID = -1;
-    try
-    {
-        GLuint minMinDepth = (~0);
-        const GLuint* _selectBuf = m_pickingBuffer;
+	try
+	{
+		GLuint minMinDepth = (~0);
+		const GLuint* _selectBuf = m_pickingBuffer;
 
-        for (int i=0; i<hits; ++i)
-        {
-            const GLuint& n = _selectBuf[0]; //number of names on stack
+		for (int i=0; i<hits; ++i)
+		{
+			const GLuint& n = _selectBuf[0]; //number of names on stack
+			if (n) //if we draw anything outside of 'glPushName()... glPopName()' then it will appear here with as an empty set!
+			{
+				//n should be equal to 1 (CC_DRAW_ENTITY_NAMES mode) or 2 (CC_DRAW_POINT_NAMES/CC_DRAW_TRIANGLES_NAMES modes)!
+				assert(n == 1 || n == 2);
+				const GLuint& minDepth = _selectBuf[1];
+				//const GLuint& maxDepth = _selectBuf[2];
+				const GLuint& currentID = _selectBuf[3];
 
-            if (n) //if we draw anything outside of 'glPushName()... glPopName()' then it will appear here with as an empty set!
-            {
-                //n should be equal to 1 (CC_DRAW_ENTITY_NAMES mode) or 2 (CC_DRAW_POINT_NAMES/CC_DRAW_TRIANGLES_NAMES modes)!
-                assert(n == 1 || n == 2);
-                const GLuint& minDepth = _selectBuf[1];
-                //const GLuint& maxDepth = _selectBuf[2];
-                const GLuint& currentID = _selectBuf[3];
+				if (params.mode == ENTITY_RECT_PICKING)
+				{
+					//pick them all!
+					selectedIDs.insert(currentID);
+				}
+				else
+				{
+					//if there are multiple hits, we keep only the nearest
+					if (selectedID < 0 || minDepth < minMinDepth)
+					{
+						selectedID = currentID;
+						subSelectedID = (n>1 ? _selectBuf[4] : -1);
+						minMinDepth = minDepth;
+					}
+				}
+			}
 
-                if (params.mode == ENTITY_RECT_PICKING)
-                {
-                    //pick them all!
-                    selectedIDs.insert(currentID);
-                }
-                else
-                {
-                    //if there are multiple hits, we keep only the nearest
-                    if (selectedID < 0 || minDepth < minMinDepth)
-                    {
-                        selectedID = currentID;
-                        subSelectedID = (n>1 ? _selectBuf[4] : -1);
-                        minMinDepth = minDepth;
-                    }
-                }
-            }
+			_selectBuf += (3+n);
+		}
 
-            _selectBuf += (3+n);
-        }
-
-        //standard output is made through the 'selectedIDs' set
-        if (	params.mode != ENTITY_RECT_PICKING
-            &&	selectedID != -1)
-        {
-            selectedIDs.insert(selectedID);
-        }
-    }
-    catch (const std::bad_alloc&)
-    {
-        //not enough memory
-        ccLog::Warning("[Picking] Not enough memory!");
-    }
+		//standard output is made through the 'selectedIDs' set
+		if (	params.mode != ENTITY_RECT_PICKING
+			&&	selectedID != -1)
+		{
+			selectedIDs.insert(selectedID);
+		}
+	}
+	catch (const std::bad_alloc&)
+	{
+		//not enough memory
+		ccLog::Warning("[Picking] Not enough memory!");
+	}
 }
 
 void ccGLWindow::startOpenGLPicking(const PickingParameters& params)
@@ -4199,175 +4196,175 @@ void ccGLWindow::startOpenGLPicking(const PickingParameters& params)
 
     pickPointOpenGL(params, selectedID, subSelectedID, selectedIDs);
 
-    //ask to do the processing
-    processPickingResult(params, selectedID, subSelectedID, &selectedIDs);
+	//we must always emit a signal!
+	processPickingResult(params, selectedID, subSelectedID, &selectedIDs);
 }
 
 void ccGLWindow::pickPointCPU(const PickingParameters& params, int & nearestEntityID, int & nearestPointIndex)
 {
-    int centerX = params.centerX;
-    int centerY = height()-1 - params.centerY;
-
-    //back project the clicked point in 3D
-    CCVector3d X(0,0,0);
-    int VP[4];
-    getViewportArray(VP);
-    const double* MM = getModelViewMatd();
-    const double* MP = getProjectionMatd();
-    {
-        gluUnProject(centerX,centerY,0,MM,MP,VP,X.u,X.u+1,X.u+2);
-    }
+	int centerX = params.centerX;
+	int centerY = height()-1 - params.centerY;
+	
+	//back project the clicked point in 3D
+	CCVector3d X(0,0,0);
+	int VP[4];
+	getViewportArray(VP);
+	const double* MM = getModelViewMatd();
+	const double* MP = getProjectionMatd();
+	{
+		gluUnProject(centerX,centerY,0,MM,MP,VP,X.u,X.u+1,X.u+2);
+	}
 
     nearestEntityID = -1;
     nearestPointIndex = -1;
-    try
-    {
-        ccHObject::Container toProcess;
-        if (m_globalDBRoot)
-            toProcess.push_back(m_globalDBRoot);
-        if (m_winDBRoot)
-            toProcess.push_back(m_winDBRoot);
+	try
+	{
+		ccHObject::Container toProcess;
+		if (m_globalDBRoot)
+			toProcess.push_back(m_globalDBRoot);
+		if (m_winDBRoot)
+			toProcess.push_back(m_winDBRoot);
 
-        double nearestPointSquareDist = -1.0;
+		double nearestPointSquareDist = -1.0;
 
-        while (!toProcess.empty())
-        {
-            //get next item
-            ccHObject* ent = toProcess.back();
-            toProcess.pop_back();
+		while (!toProcess.empty())
+		{
+			//get next item
+			ccHObject* ent = toProcess.back();
+			toProcess.pop_back();
 
-            if (!ent->isEnabled())
-                continue;
+			if (!ent->isEnabled())
+				continue;
 
-            bool ignoreSubmeshes = false;
+			bool ignoreSubmeshes = false;
 
-            //we look for point cloud displayed in this window
-            if (ent->isVisible() && ent->getDisplay() == this)
-            {
-                if (ent->isKindOf(CC_TYPES::POINT_CLOUD))
-                {
-                    ccGenericPointCloud* cloud = static_cast<ccGenericPointCloud*>(ent);
-                    ccGLMatrix trans;
-                    bool noGLTrans = !cloud->getAbsoluteGLTransformation(trans);
+			//we look for point cloud displayed in this window
+			if (ent->isVisible() && ent->getDisplay() == this)
+			{
+				if (ent->isKindOf(CC_TYPES::POINT_CLOUD))
+				{
+					ccGenericPointCloud* cloud = static_cast<ccGenericPointCloud*>(ent);
+					ccGLMatrix trans;
+					bool noGLTrans = !cloud->getAbsoluteGLTransformation(trans);
 
-                    //brute force works quite well in fact?!
-                    for (unsigned i=0; i<cloud->size(); ++i)
-                    {
-                        const CCVector3* P = cloud->getPoint(i);
-                        double xs,ys,zs;
-                        if (noGLTrans)
-                        {
-                            gluProject(P->x,P->y,P->z,MM,MP,VP,&xs,&ys,&zs);
-                        }
-                        else
-                        {
-                            CCVector3 Q = *P;
-                            trans.apply(Q);
-                            gluProject(Q.x,Q.y,Q.z,MM,MP,VP,&xs,&ys,&zs);
-                        }
-                        if (fabs(xs-centerX) <= params.pickWidth && fabs(ys-centerY) <= params.pickHeight)
-                        {
-                            double squareDist = CCVector3d(X.x-P->x,X.y-P->y,X.z-P->z).norm2d();
-                            if (nearestPointIndex < 0 || squareDist < nearestPointSquareDist)
-                            {
-                                nearestPointSquareDist = squareDist;
-                                nearestPointIndex = static_cast<int>(i);
-                                nearestEntityID = static_cast<int>(cloud->getUniqueID());
-                            }
-                        }
-                    }
-                }
-                else if (ent->isKindOf(CC_TYPES::MESH))
-                {
-                    ccGenericMesh* mesh = static_cast<ccGenericMesh*>(ent);
-                    ccGLMatrix trans;
-                    bool noGLTrans = !mesh->getAbsoluteGLTransformation(trans);
-                    ignoreSubmeshes = true;
+					//brute force works quite well in fact?!
+					for (unsigned i=0; i<cloud->size(); ++i)
+					{
+						const CCVector3* P = cloud->getPoint(i);
+						double xs,ys,zs;
+						if (noGLTrans)
+						{
+							gluProject(P->x,P->y,P->z,MM,MP,VP,&xs,&ys,&zs);
+						}
+						else
+						{
+							CCVector3 Q = *P;
+							trans.apply(Q);
+							gluProject(Q.x,Q.y,Q.z,MM,MP,VP,&xs,&ys,&zs);
+						}
+						if (fabs(xs-centerX) <= params.pickWidth && fabs(ys-centerY) <= params.pickHeight)
+						{
+							double squareDist = CCVector3d(X.x-P->x,X.y-P->y,X.z-P->z).norm2d();
+							if (nearestPointIndex < 0 || squareDist < nearestPointSquareDist)
+							{
+								nearestPointSquareDist = squareDist;
+								nearestPointIndex = static_cast<int>(i);
+								nearestEntityID = static_cast<int>(cloud->getUniqueID());
+							}
+						}
+					}
+				}
+				else if (ent->isKindOf(CC_TYPES::MESH))
+				{
+					ccGenericMesh* mesh = static_cast<ccGenericMesh*>(ent);
+					ccGLMatrix trans;
+					bool noGLTrans = !mesh->getAbsoluteGLTransformation(trans);
+					ignoreSubmeshes = true;
 
-                    ccGenericPointCloud* vertices = mesh->getAssociatedCloud();
-                    assert(vertices);
-                    for (unsigned i=0; i<mesh->size(); ++i)
-                    {
-                        CCLib::VerticesIndexes* tsi = mesh->getTriangleVertIndexes(i);
-                        const CCVector3* A3D = vertices->getPoint(tsi->i1);
-                        const CCVector3* B3D = vertices->getPoint(tsi->i2);
-                        const CCVector3* C3D = vertices->getPoint(tsi->i3);
+					ccGenericPointCloud* vertices = mesh->getAssociatedCloud();
+					assert(vertices);
+					for (unsigned i=0; i<mesh->size(); ++i)
+					{
+						CCLib::VerticesIndexes* tsi = mesh->getTriangleVertIndexes(i);
+						const CCVector3* A3D = vertices->getPoint(tsi->i1);
+						const CCVector3* B3D = vertices->getPoint(tsi->i2);
+						const CCVector3* C3D = vertices->getPoint(tsi->i3);
 
-                        CCVector3d A2D,B2D,C2D;
-                        if (noGLTrans)
-                        {
-                            gluProject(A3D->x,A3D->y,A3D->z,MM,MP,VP,&A2D.x,&A2D.y,&A2D.z);
-                            gluProject(B3D->x,B3D->y,B3D->z,MM,MP,VP,&B2D.x,&B2D.y,&B2D.z);
-                            gluProject(C3D->x,C3D->y,C3D->z,MM,MP,VP,&C2D.x,&C2D.y,&C2D.z);
-                        }
-                        else
-                        {
-                            CCVector3 A3Dp = *A3D;
-                            CCVector3 B3Dp = *B3D;
-                            CCVector3 C3Dp = *C3D;
-                            trans.apply(A3Dp);
-                            trans.apply(B3Dp);
-                            trans.apply(C3Dp);
-                            gluProject(A3Dp.x,A3Dp.y,A3Dp.z,MM,MP,VP,&A2D.x,&A2D.y,&A2D.z);
-                            gluProject(B3Dp.x,B3Dp.y,B3Dp.z,MM,MP,VP,&B2D.x,&B2D.y,&B2D.z);
-                            gluProject(C3Dp.x,C3Dp.y,C3Dp.z,MM,MP,VP,&C2D.x,&C2D.y,&C2D.z);
-                        }
+						CCVector3d A2D,B2D,C2D; 
+						if (noGLTrans)
+						{
+							gluProject(A3D->x,A3D->y,A3D->z,MM,MP,VP,&A2D.x,&A2D.y,&A2D.z);
+							gluProject(B3D->x,B3D->y,B3D->z,MM,MP,VP,&B2D.x,&B2D.y,&B2D.z);
+							gluProject(C3D->x,C3D->y,C3D->z,MM,MP,VP,&C2D.x,&C2D.y,&C2D.z);
+						}
+						else
+						{
+							CCVector3 A3Dp = *A3D;
+							CCVector3 B3Dp = *B3D;
+							CCVector3 C3Dp = *C3D;
+							trans.apply(A3Dp);
+							trans.apply(B3Dp);
+							trans.apply(C3Dp);
+							gluProject(A3Dp.x,A3Dp.y,A3Dp.z,MM,MP,VP,&A2D.x,&A2D.y,&A2D.z);
+							gluProject(B3Dp.x,B3Dp.y,B3Dp.z,MM,MP,VP,&B2D.x,&B2D.y,&B2D.z);
+							gluProject(C3Dp.x,C3Dp.y,C3Dp.z,MM,MP,VP,&C2D.x,&C2D.y,&C2D.z);
+						}
 
-                        //barycentric coordinates
-                        GLdouble detT =  (B2D.y-C2D.y) *   (A2D.x-C2D.x) + (C2D.x-B2D.x) *   (A2D.y-C2D.y);
-                        GLdouble l1   = ((B2D.y-C2D.y) * (centerX-C2D.x) + (C2D.x-B2D.x) * (centerY-C2D.y)) / detT;
-                        GLdouble l2   = ((C2D.y-A2D.y) * (centerX-C2D.x) + (A2D.x-C2D.x) * (centerY-C2D.y)) / detT;
+						//barycentric coordinates
+						GLdouble detT =  (B2D.y-C2D.y) *   (A2D.x-C2D.x) + (C2D.x-B2D.x) *   (A2D.y-C2D.y);
+						GLdouble l1   = ((B2D.y-C2D.y) * (centerX-C2D.x) + (C2D.x-B2D.x) * (centerY-C2D.y)) / detT;
+						GLdouble l2   = ((C2D.y-A2D.y) * (centerX-C2D.x) + (A2D.x-C2D.x) * (centerY-C2D.y)) / detT;
 
-                        //does the point falls inside the triangle?
-                        if (l1 >= 0 && l1 <= 1.0 && l2 >= 0.0 && l2 <= 1.0)
-                        {
-                            double l1l2 = l1+l2;
-                            assert(l1l2 >= 0);
-                            if (l1l2 > 1.0)
-                            {
-                                l1 /= l1l2;
-                                l2 /= l1l2;
-                            }
-                            GLdouble l3 = 1.0-l1-l2;
-                            assert(l3 >= -1.0e-12);
+						//does the point falls inside the triangle?
+						if (l1 >= 0 && l1 <= 1.0 && l2 >= 0.0 && l2 <= 1.0)
+						{
+							double l1l2 = l1+l2;
+							assert(l1l2 >= 0);
+							if (l1l2 > 1.0)
+							{
+								l1 /= l1l2;
+								l2 /= l1l2;
+							}
+							GLdouble l3 = 1.0-l1-l2;
+							assert(l3 >= -1.0e-12);
 
-                            //now deduce the 3D position
-                            CCVector3d P(	l1 * A3D->x + l2 * B3D->x + l3 * C3D->x,
-                                            l1 * A3D->y + l2 * B3D->y + l3 * C3D->y,
-                                            l1 * A3D->z + l2 * B3D->z + l3 * C3D->z);
-                            double squareDist = (X-P).norm2d();
-                            if (nearestPointIndex < 0 || squareDist < nearestPointSquareDist)
-                            {
-                                nearestPointSquareDist = squareDist;
-                                nearestPointIndex = static_cast<int>(i);
-                                nearestEntityID = static_cast<int>(mesh->getUniqueID());
-                            }
-                        }
-                    }
-                }
-            }
+							//now deduce the 3D position
+							CCVector3d P(	l1 * A3D->x + l2 * B3D->x + l3 * C3D->x,
+											l1 * A3D->y + l2 * B3D->y + l3 * C3D->y,
+											l1 * A3D->z + l2 * B3D->z + l3 * C3D->z);
+							double squareDist = (X-P).norm2d();
+							if (nearestPointIndex < 0 || squareDist < nearestPointSquareDist)
+							{
+								nearestPointSquareDist = squareDist;
+								nearestPointIndex = static_cast<int>(i);
+								nearestEntityID = static_cast<int>(mesh->getUniqueID());
+							}
+						}
+					}
+				}
+			}
 
-            //add children
-            for (unsigned i=0; i<ent->getChildrenNumber(); ++i)
-            {
-                //we ignore the sub-meshes of the current (mesh) entity
-                //as their content is the same!
-                if (	ignoreSubmeshes
-                    &&	ent->getChild(i)->isKindOf(CC_TYPES::SUB_MESH)
-                    &&	static_cast<ccSubMesh*>(ent)->getAssociatedMesh() == ent)
-                {
-                    continue;
-                }
-
-                toProcess.push_back(ent->getChild(i));
-            }
-        }
-    }
-    catch (const std::bad_alloc&)
-    {
-        //not enough memory
-        ccLog::Warning("[Picking][CPU] Not enough memory!");
-    }
+			//add children
+			for (unsigned i=0; i<ent->getChildrenNumber(); ++i)
+			{
+				//we ignore the sub-meshes of the current (mesh) entity
+				//as their content is the same!
+				if (	ignoreSubmeshes
+					&&	ent->getChild(i)->isKindOf(CC_TYPES::SUB_MESH)
+					&&	static_cast<ccSubMesh*>(ent)->getAssociatedMesh() == ent)
+				{
+					continue;
+				}
+				
+				toProcess.push_back(ent->getChild(i));
+			}
+		}
+	}
+	catch (const std::bad_alloc&)
+	{
+		//not enough memory
+		ccLog::Warning("[Picking][CPU] Not enough memory!");
+	}
 }
 
 
