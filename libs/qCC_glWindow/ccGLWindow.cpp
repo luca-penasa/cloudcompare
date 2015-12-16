@@ -4247,6 +4247,9 @@ void ccGLWindow::pickPointCPU(const PickingParameters& params, int & nearestEnti
 					ccGLMatrix trans;
 					bool noGLTrans = !cloud->getAbsoluteGLTransformation(trans);
 
+#if defined(_OPENMP)
+#pragma omp parallel for
+#endif
 					//brute force works quite well in fact?!
 					for (unsigned i=0; i<cloud->size(); ++i)
 					{

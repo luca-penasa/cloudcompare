@@ -35,84 +35,50 @@ class ccPointCloud;
 class ccGLWindow;
 
 //! Graphical segmentation mechanism (with polyline)
-class ccTracePolyLineTool : public ccOverlayDialog, public Ui::TracePolyLineDlg
-{
-	Q_OBJECT
+class ccTracePolyLineTool : public ccOverlayDialog, public Ui::TracePolyLineDlg {
+    Q_OBJECT
 
 public:
-
-	//! Default constructor
+    //! Default constructor
     explicit ccTracePolyLineTool(QWidget* parent);
-	//! Destructor
+    //! Destructor
     virtual ~ccTracePolyLineTool();
 
-
-
     //! Get a pointer to the polyline that has been traced
-	ccPolyline *getPolyLine() {return m_segmentationPoly;}
+    ccPolyline* getPolyLine() { return m_segmentationPoly; }
 
-
-
-	//inherited from ccOverlayDialog
+    //inherited from ccOverlayDialog
     virtual bool linkWith(ccGLWindow* win) override;
     virtual bool start() override;
     virtual void stop(bool accepted) override;
-
 
 protected slots:
     void reset();
 
     //! do the actual polyline projection from 2d to 3d
     void projectPolyline(bool cpu = true);
-	void apply();	
-	void cancel();
+    void apply();
+    void cancel();
 
-	void addPointToPolyline(int x, int y);
-	void closePolyLine(int x=0, int y=0); //arguments for compatibility with ccGlWindow::rightButtonClicked signal
-	void updatePolyLine(int x, int y, Qt::MouseButtons buttons);
-
+    void addPointToPolyline(int x, int y);
+    void closePolyLine(int x = 0, int y = 0); //arguments for compatibility with ccGlWindow::rightButtonClicked signal
+    void updatePolyLine(int x, int y, Qt::MouseButtons buttons);
 
     void linkSnapDimensions(const int status);
 
-
-
-
-	//! To capture overridden shortcuts (pause button, etc.)
-	void onShortcutTriggered(int);
+    //! To capture overridden shortcuts (pause button, etc.)
+    void onShortcutTriggered(int);
 
 protected:
-
     void doPolylineOverSampling(const int multiplicity);
 
-	//! Whether something has changed or not (for proper 'cancel')
-	bool m_somethingHasChanged;
+    //! Whether something has changed or not (for proper 'cancel')
+    bool m_somethingHasChanged;
 
-	//! Process states
-	enum ProcessStates
-	{
-		POLYLINE		= 1,
-		RECTANGLE		= 2,
-		//...			= 4,
-		//...			= 8,
-		//...			= 16,
-		PAUSED			= 32,
-		STARTED			= 64,
-		RUNNING			= 128,
-	};
-
-	//! Current process state
-	unsigned m_state;
-
-	//! Segmentation polyline
-	ccPolyline* m_segmentationPoly;
-	//! Segmentation polyline vertices
-	ccPointCloud* m_polyVertices;
-
-	//! Selection mode
-	bool m_rectangularSelection;
-
-	//! Whether to delete hidden parts after segmentation
-	bool m_deleteHiddenParts;
+    //! Segmentation polyline
+    ccPolyline* m_segmentationPoly;
+    //! Segmentation polyline vertices
+    ccPointCloud* m_polyVertices;
 };
 
 #endif //CC_GRAPHICAL_SEGMENTATION_TOOLS_HEADER

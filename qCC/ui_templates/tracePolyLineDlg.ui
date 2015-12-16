@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>251</width>
-    <height>26</height>
+    <width>476</width>
+    <height>38</height>
    </rect>
   </property>
   <property name="sizePolicy">
@@ -20,8 +20,29 @@
    <string>Segmentation</string>
   </property>
   <layout class="QHBoxLayout" name="horizontalLayout">
+   <property name="spacing">
+    <number>2</number>
+   </property>
+   <property name="leftMargin">
+    <number>2</number>
+   </property>
+   <property name="topMargin">
+    <number>2</number>
+   </property>
+   <property name="rightMargin">
+    <number>2</number>
+   </property>
+   <property name="bottomMargin">
+    <number>2</number>
+   </property>
    <item>
     <widget class="QLabel" name="label">
+     <property name="sizePolicy">
+      <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+       <horstretch>0</horstretch>
+       <verstretch>0</verstretch>
+      </sizepolicy>
+     </property>
      <property name="text">
       <string>Snap</string>
      </property>
@@ -29,6 +50,12 @@
    </item>
    <item>
     <widget class="QSpinBox" name="xsnap">
+     <property name="sizePolicy">
+      <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+       <horstretch>0</horstretch>
+       <verstretch>0</verstretch>
+      </sizepolicy>
+     </property>
      <property name="maximumSize">
       <size>
        <width>50</width>
@@ -36,6 +63,9 @@
       </size>
      </property>
      <property name="wrapping">
+      <bool>false</bool>
+     </property>
+     <property name="frame">
       <bool>false</bool>
      </property>
      <property name="specialValueText">
@@ -58,7 +88,7 @@
       <bool>true</bool>
      </property>
      <property name="sizePolicy">
-      <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
+      <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
        <horstretch>0</horstretch>
        <verstretch>0</verstretch>
       </sizepolicy>
@@ -68,6 +98,9 @@
        <width>50</width>
        <height>16777215</height>
       </size>
+     </property>
+     <property name="frame">
+      <bool>false</bool>
      </property>
      <property name="prefix">
       <string>y:</string>
@@ -79,6 +112,12 @@
    </item>
    <item>
     <widget class="QCheckBox" name="linkSnapCheckBox">
+     <property name="sizePolicy">
+      <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+       <horstretch>0</horstretch>
+       <verstretch>0</verstretch>
+      </sizepolicy>
+     </property>
      <property name="text">
       <string>Link</string>
      </property>
@@ -89,6 +128,12 @@
    </item>
    <item>
     <widget class="QLabel" name="label_2">
+     <property name="sizePolicy">
+      <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+       <horstretch>0</horstretch>
+       <verstretch>0</verstretch>
+      </sizepolicy>
+     </property>
      <property name="text">
       <string>Oversample</string>
      </property>
@@ -96,6 +141,15 @@
    </item>
    <item>
     <widget class="QSpinBox" name="oversampleSpinBox">
+     <property name="sizePolicy">
+      <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+       <horstretch>0</horstretch>
+       <verstretch>0</verstretch>
+      </sizepolicy>
+     </property>
+     <property name="frame">
+      <bool>false</bool>
+     </property>
      <property name="minimum">
       <number>1</number>
      </property>
@@ -103,6 +157,12 @@
    </item>
    <item>
     <widget class="QCheckBox" name="cpuButton">
+     <property name="sizePolicy">
+      <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+       <horstretch>0</horstretch>
+       <verstretch>0</verstretch>
+      </sizepolicy>
+     </property>
      <property name="text">
       <string>Use CPU</string>
      </property>
@@ -113,6 +173,12 @@
    </item>
    <item>
     <widget class="QToolButton" name="validButton">
+     <property name="sizePolicy">
+      <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+       <horstretch>0</horstretch>
+       <verstretch>0</verstretch>
+      </sizepolicy>
+     </property>
      <property name="toolTip">
       <string>Confirm segmentation</string>
      </property>
@@ -130,6 +196,12 @@
    </item>
    <item>
     <widget class="QToolButton" name="cancelButton">
+     <property name="sizePolicy">
+      <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+       <horstretch>0</horstretch>
+       <verstretch>0</verstretch>
+      </sizepolicy>
+     </property>
      <property name="toolTip">
       <string>Cancel</string>
      </property>
