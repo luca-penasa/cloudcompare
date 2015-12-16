@@ -15,8 +15,6 @@
 //#                                                                        #
 //##########################################################################
 
-#include <iostream>
-
 #include "mainwindow.h"
 
 //CCLib Includes

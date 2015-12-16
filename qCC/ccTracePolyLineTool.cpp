@@ -643,7 +643,7 @@ void ccTracePolyLineTool::projectPolyline(bool cpu /*= false*/)
 
         int selID = -1;
         int pointID = -1;
-        std::set<int> multiIDS;
+        std::unordered_set<int> multiIDS;
 
         if (cpu)
             m_associatedWin->pickPointCPU(pars, selID, pointID);
@@ -653,26 +653,11 @@ void ccTracePolyLineTool::projectPolyline(bool cpu /*= false*/)
         if (selID != -1)
         {
 
-            //            ccLog::Print(QString("object ID: %1, point ID: %2").arg(selID).arg( pointID));
-
-
-
             ccHObject * thisone = MainWindow::TheInstance()->db()->find(selID);
-
-
             ccPointCloud * c = ccHObjectCaster::ToPointCloud(thisone);
 
             vertices->addPoint(*c->getPoint(pointID));
-
-            //                vertices->addPoint(c->getPoint(pointID));
-
-
-
         }
-
-
-
-
     }
 
 
@@ -683,11 +668,8 @@ void ccTracePolyLineTool::projectPolyline(bool cpu /*= false*/)
         ccPolyline* polyline = new ccPolyline(vertices);
 
         polyline->addPointIndex(0, vertices->size());
-//        polyline->addPointIndex(0,count);
         polyline->setVisible(true);
         vertices->setEnabled(false);
-        //            polyline->setGlobalShift(m_associatedCloud->getGlobalShift());
-        //            polyline->setGlobalScale(m_associatedCloud->getGlobalScale());
         polyline->addChild(vertices);
         polyline->setDisplay_recursive(m_associatedWin);
 
@@ -695,20 +677,9 @@ void ccTracePolyLineTool::projectPolyline(bool cpu /*= false*/)
 
     }
 
-
-
-
-
-
-
-    //        }
-
-
     m_somethingHasChanged = true;
     validButton->setEnabled(true);
-    //    validAndDeleteButton->setEnabled(true);
-    //    razButton->setEnabled(true);
-    //    pauseSegmentationMode(true);
+
 }
 
 

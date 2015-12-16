@@ -83,8 +83,6 @@ protected slots:
 	void segmentIn();
 	void segmentOut();
 	void segment(bool);
-
-    void projectPolyline();
 	void reset();
 	void apply();
 	void applyAndDelete();

@@ -22,8 +22,6 @@ target_link_libraries( ${PROJECT_NAME} QCC_DB_LIB )
 target_link_libraries( ${PROJECT_NAME} GLEW_LIB )
 target_link_libraries( ${PROJECT_NAME} CC_FBO_LIB )
 
-#target_link_libraries( ${PROJECT_NAME} ${OPENMP_LIBRARIES} )
-
 if ( USE_QT5 )
 	qt5_use_modules(${PROJECT_NAME} Core Gui Widgets OpenGL)
         target_link_libraries( ${PROJECT_NAME} ${OPENGL_LIBRARIES})
@@ -32,7 +30,7 @@ else()
 endif()
 
 # Add custom prepocessor definitions
-set_property( TARGET ${PROJECT_NAME} APPEND PROPERTY COMPILE_DEFINITIONS USE_GLEW GLEW_STATIC)
+set_property( TARGET ${PROJECT_NAME} APPEND PROPERTY COMPILE_DEFINITIONS USE_GLEW GLEW_STATIC )
 if (WIN32)
 	set_property( TARGET ${PROJECT_NAME} APPEND PROPERTY COMPILE_DEFINITIONS CC_USE_AS_DLL QCC_DB_USE_AS_DLL )
 endif()

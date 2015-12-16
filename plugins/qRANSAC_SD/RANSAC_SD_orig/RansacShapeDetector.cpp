@@ -710,10 +710,8 @@ RansacShapeDetector::Detect(PointCloud &pc, size_t beginIdx, size_t endIdx,
 
 				// reindex global octree
 				size_t minInvalidIndex = currentSize - numInvalid + beginIdx;
-//#ifndef __linux__
-//                #pragma omp parallel for schedule(static)
-//#endif
-                for(size_t i = 0, j = 0; i < globalOctreeIndices.size(); ++i)
+				#pragma omp parallel for schedule(static)
+				for(size_t i = 0, j = 0; i < globalOctreeIndices.size(); ++i)
 					if(shapeIndex[globalOctreeIndices[i]] < minInvalidIndex)
 						globalOctreeIndices[j++] = shapeIndex[globalOctreeIndices[i]];
 				globalOctreeIndices.resize(currentSize - numInvalid);

@@ -45,7 +45,7 @@
      <x>0</x>
      <y>0</y>
      <width>1024</width>
-     <height>27</height>
+     <height>21</height>
     </rect>
    </property>
    <widget class="QMenu" name="menuFile">
@@ -482,8 +482,8 @@
   <widget class="QDockWidget" name="DockableDBTree">
    <property name="minimumSize">
     <size>
-     <width>146</width>
-     <height>175</height>
+     <width>135</width>
+     <height>172</height>
     </size>
    </property>
    <property name="floating">
@@ -574,7 +574,8 @@
    </property>
    <property name="windowIcon">
     <iconset>
-     <normaloff>.</normaloff>.</iconset>
+     <normaloff/>
+    </iconset>
    </property>
    <property name="toolTip">
     <string>Viewing tools</string>

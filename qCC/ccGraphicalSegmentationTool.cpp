@@ -76,9 +76,6 @@ ccGraphicalSegmentationTool::ccGraphicalSegmentationTool(QWidget* parent)
     connect(actionUseExistingPolyline,			SIGNAL(triggered()),	this,	SLOT(doActionUseExistingPolyline()));
     connect(actionExportSegmentationPolyline,	SIGNAL(triggered()),	this,	SLOT(doExportSegmentationPolyline()));
 
-    // project the current poliline on the clouds
-    connect(actionProjectPolyline,              SIGNAL(triggered()),    this,   SLOT(projectPolyline()));
-
     //add shortcuts
     addOverridenShortcut(Qt::Key_Space);  //space bar for the "pause" button
     addOverridenShortcut(Qt::Key_Escape); //escape key for the "cancel" button
@@ -98,7 +95,6 @@ ccGraphicalSegmentationTool::ccGraphicalSegmentationTool(QWidget* parent)
     QMenu* importExportMenu = new QMenu(this);
     importExportMenu->addAction(actionUseExistingPolyline);
     importExportMenu->addAction(actionExportSegmentationPolyline);
-    importExportMenu->addAction(actionProjectPolyline);
     loadSaveToolButton->setMenu(importExportMenu);
 
     m_polyVertices = new ccPointCloud("vertices");
@@ -651,92 +647,7 @@ void ccGraphicalSegmentationTool::segment(bool keepPointsInside)
 
                 visibilityArray->setValue(i, keepPointsInside != pointInside ? POINT_HIDDEN : POINT_VISIBLE );
             }
-        }
-    }
-
-    m_somethingHasChanged = true;
-    validButton->setEnabled(true);
-    validAndDeleteButton->setEnabled(true);
-    razButton->setEnabled(true);
-    pauseSegmentationMode(true);
-}
-
-void ccGraphicalSegmentationTool::projectPolyline()
-{
-
-    ccLog::PrintDebug("Projecting points!");
-
-    if (!m_associatedWin)
-        return;
-
-    if (!m_segmentationPoly)
-    {
-        ccLog::Error("No polyline defined!");
-        return;
-    }
-
-    if (!m_segmentationPoly->isClosed())
-    {
-        ccLog::Error("Define and/or close the segmentation polygon first! (right click to close)");
-        return;
-    }
-
-    //viewing parameters
-    const double* MM = m_associatedWin->getModelViewMatd(); //viewMat
-    const double* MP = m_associatedWin->getProjectionMatd(); //projMat
-    const GLdouble half_w = static_cast<GLdouble>(m_associatedWin->width())/2;
-    const GLdouble half_h = static_cast<GLdouble>(m_associatedWin->height())/2;
-
-    int VP[4];
-    m_associatedWin->getViewportArray(VP);
-
-//    ccGLWindow::PickingParameters pars
-//    m_associatedWin->startPicking();
-
-    ccGenericPointCloud* cloud = ccHObjectCaster::ToGenericPointCloud(*m_toSegment.begin());
-    assert(cloud);
-
-    ccGenericPointCloud::VisibilityTableType* visibilityArray = cloud->getTheVisibilityArray();
-    assert(visibilityArray);
-
-//    unsigned cloudSize = cloud->size();
-
-//    cloud->computeOctree();
-//    ccOctree * octree=   cloud->getOctree();
-
-    //we project each point and we check if it falls inside the segmentation polyline
-    for (unsigned i=0; i<m_polyVertices->size(); ++i)
-    {
-
-        if (visibilityArray->getValue(i) == POINT_VISIBLE)
-        {
-            CCVector3 P;
-            m_polyVertices->getPoint(i,P);
-
-
-            PointCoordinateType x_pick, y_pick;
-
-            x_pick = P.x + half_w;
-            y_pick = P.y + half_h;
-
-            ccGLWindow::PickingParameters pars(ccGLWindow::POINT_OR_TRIANGLE_PICKING, x_pick, y_pick);
-
-
-            pars.flags |= CC_DRAW_POINT_NAMES;
-            pars.flags |= CC_DRAW_TRI_NAMES;		//automatically push entity names as well!
-
-            ccLog::Print(QString("x: %1, y: %2").arg(x_pick).arg( y_pick));
-
-
-            int selID = -1;
-            int pointID = -1;
-            std::set<int> multiIDS;
-            m_associatedWin->pickPointOpenGL(pars, selID, pointID, multiIDS);
-//            std::cout<< pointID << std::endl;
-            ccLog::Print(QString("object ID: %1, point ID: %2").arg(selID).arg( pointID));
-
-
-        }
+         }
     }
 
     m_somethingHasChanged = true;

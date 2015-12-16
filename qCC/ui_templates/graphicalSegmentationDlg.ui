@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>260</width>
-    <height>27</height>
+    <width>251</width>
+    <height>26</height>
    </rect>
   </property>
   <property name="sizePolicy">
@@ -241,14 +241,6 @@
    </property>
    <property name="toolTip">
     <string>Export segmentation polyline as new entity</string>
-   </property>
-  </action>
-  <action name="actionProjectPolyline">
-   <property name="text">
-    <string>Project Polyline Vertexes on Selected</string>
-   </property>
-   <property name="toolTip">
-    <string>project polyline on selected items</string>
    </property>
   </action>
  </widget>
