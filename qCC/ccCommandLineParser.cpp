@@ -43,7 +43,7 @@
 #include <QTextStream>
 
 //system
-#include <set>
+#include <unordered_set>
 
 static const char COMMAND_SILENT_MODE[]						= "SILENT";
 static const char COMMAND_OPEN[]							= "O";				//+file name
@@ -121,6 +121,7 @@ static const char COMMAND_CROSS_SECTION[]					= "CROSS_SECTION";
 static const char COMMAND_LOG_FILE[]						= "LOG_FILE";
 static const char COMMAND_SF_ARITHMETIC[]					= "SF_ARITHMETIC";
 static const char COMMAND_SOR_FILTER[]						= "SOR";
+static const char COMMAND_ORIENT_NORMALS[]					= "ORIENT_NORMS_MST";
 
 static const char OPTION_ALL_AT_ONCE[]						= "ALL_AT_ONCE";
 static const char OPTION_ON[]								= "ON";
@@ -589,7 +590,7 @@ bool ccCommandLineParser::commandLoad(QStringList& arguments)
 	if (!db)
 		return false/*Error(QString("Failed to open file '%1'").arg(filename))*/;
 
-	std::set<unsigned> verticesIDs;
+	std::unordered_set<unsigned> verticesIDs;
 	//first look for meshes inside loaded DB (so that we don't consider mesh vertices as clouds!)
 	{
 		ccHObject::Container meshes;
@@ -1562,6 +1563,47 @@ bool ccCommandLineParser::commandBestFitPlane(QStringList& arguments)
 		else
 		{
 			ccConsole::Warning(QString("Failed to compute best fit plane for cloud '%1'").arg(m_clouds[i].pc->getName()));
+		}
+	}
+
+	return true;
+}
+
+bool ccCommandLineParser::commandOrientNormalsMST(QStringList& arguments, ccProgressDialog* pDlg/*=0*/)
+{
+	Print("[ORIENT NORMALS (MST)]");
+
+	if (arguments.empty())
+		return Error(QString("Missing parameter: number of neighbors after \"-%1\"").arg(COMMAND_ORIENT_NORMALS));
+
+	QString knnStr = arguments.takeFirst();
+	bool ok;
+	int knn = knnStr.toInt(&ok);
+	if (!ok || knn <= 0)
+		return Error(QString("Invalid parameter: number of neighbors (%1)").arg(knnStr));
+
+	if (m_clouds.empty())
+		return Error(QString("No cloud available. Be sure to open one first!"));
+
+	for (size_t i=0; i<m_clouds.size(); ++i)
+	{
+		ccPointCloud* cloud = m_clouds[i].pc;
+		assert(cloud);
+
+		//computation
+		if (cloud->orientNormalsWithMST(knn, pDlg))
+		{
+			m_clouds[i].basename += QString("_NORMS_REORIENTED");
+			if (s_autoSaveMode)
+			{
+				QString errorStr = Export(m_clouds[i]);
+				if (!errorStr.isEmpty())
+					ccConsole::Warning(errorStr);
+			}
+		}
+		else
+		{
+			return Error(QString("Failed to orient the normals of cloud '%1'!").arg(cloud->getName()));
 		}
 	}
 
@@ -2972,8 +3014,10 @@ bool ccCommandLineParser::commandSfArithmetic(QStringList& arguments)
 		ccPointCloud* cloud = m_clouds[i].pc;
 		if (cloud && cloud->getNumberOfScalarFields() != 0 && sfIndex < static_cast<int>(cloud->getNumberOfScalarFields()))
 		{
-			if (!ccScalarFieldArithmeticsDlg::Apply(cloud, operation, sfIndex < 0 ? static_cast<int>(cloud->getNumberOfScalarFields())-1 : sfIndex))
+			if (!ccScalarFieldArithmeticsDlg::Apply(cloud, operation, sfIndex < 0 ? static_cast<int>(cloud->getNumberOfScalarFields())-1 : sfIndex, false))
+			{
 				return Error(QString("Failed top apply operation on cloud '%1'").arg(cloud->getName()));
+			}
 			else if (s_autoSaveMode)
 			{
 				QString errorStr = Export(m_clouds[i],"SF_ARITHMETIC");
@@ -2991,7 +3035,7 @@ bool ccCommandLineParser::commandSfArithmetic(QStringList& arguments)
 		ccPointCloud* cloud = ccHObjectCaster::ToPointCloud(mesh,&isLocked);
 		if (cloud && !isLocked && cloud->getNumberOfScalarFields() != 0 && sfIndex < static_cast<int>(cloud->getNumberOfScalarFields()))
 		{
-			if (!ccScalarFieldArithmeticsDlg::Apply(cloud, operation, sfIndex < 0 ? static_cast<int>(cloud->getNumberOfScalarFields())-1 : sfIndex))
+			if (!ccScalarFieldArithmeticsDlg::Apply(cloud, operation, sfIndex < 0 ? static_cast<int>(cloud->getNumberOfScalarFields())-1 : sfIndex, false))
 				return Error(QString("Failed top apply operation on mesh '%1'").arg(mesh->getName()));
 			else if (s_autoSaveMode)
 			{
@@ -3734,6 +3778,10 @@ int ccCommandLineParser::parse(QStringList& arguments, QDialog* parent/*=0*/)
 		else if (IsCommand(argument,COMMAND_SOR_FILTER))
 		{
 			success = commandSORFilter(arguments,&progressDlg);
+		}
+		else if (IsCommand(argument,COMMAND_ORIENT_NORMALS))
+		{
+			success = commandOrientNormalsMST(arguments,&progressDlg);
 		}
 		//Change default cloud output format
 		else if (IsCommand(argument,COMMAND_CLOUD_EXPORT_FORMAT))

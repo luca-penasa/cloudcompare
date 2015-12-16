@@ -3420,8 +3420,11 @@ void ccGLWindow::mouseMoveEvent(QMouseEvent *event)
 {
 	if (m_interactionMode == SEGMENT_ENTITY)
 	{
+		event->accept();
 		if (event->buttons() != Qt::NoButton || m_alwaysUseFBO) //fast!
+		{
 			emit mouseMoved(event->x()-width()/2,height()/2-event->y(),event->buttons());
+		}
 		return;
 	}
 
@@ -3690,6 +3693,7 @@ void ccGLWindow::mouseReleaseEvent(QMouseEvent *event)
 
 	if (m_interactionMode == SEGMENT_ENTITY)
 	{
+		event->accept();
 		emit buttonReleased();
 		return;
 	}
@@ -3845,6 +3849,8 @@ void ccGLWindow::wheelEvent(QWheelEvent* event)
 	onWheelEvent(wheelDelta_deg);
 
 	emit mouseWheelRotated(wheelDelta_deg);
+
+	event->accept();
 }
 
 void ccGLWindow::onWheelEvent(float wheelDelta_deg)
@@ -3941,7 +3947,7 @@ void ccGLWindow::startPicking(PickingParameters& params)
 	}
 }
 
-void ccGLWindow::processPickingResult(const PickingParameters& params, int selectedID, int subSelectedID, const std::set<int>* selectedIDs/*=0*/)
+void ccGLWindow::processPickingResult(const PickingParameters& params, const int &selectedID, const int &subSelectedID, const std::unordered_set<int>* selectedIDs /*= 0*/)
 {
 	//standard "entity" picking
 	if (params.mode == ENTITY_PICKING)
@@ -4022,7 +4028,7 @@ void ccGLWindow::processPickingResult(const PickingParameters& params, int selec
 	}
 }
 
-void ccGLWindow::startOpenGLPicking(const PickingParameters& params)
+void ccGLWindow::pickPointOpenGL(const PickingParameters& params,  int &selectedID, int &subSelectedID, std::unordered_set<int> &selectedIDs/*=0*/)
 {
 	//OpenGL picking
 	makeCurrent();
@@ -4122,14 +4128,14 @@ void ccGLWindow::startOpenGLPicking(const PickingParameters& params)
 	if (hits < 0)
 	{
 		ccLog::Warning("[Picking] Too many items inside picking zone! Try to zoom in...");
+        return; // process will be called by the caller
 		//we must always emit a signal!
-		processPickingResult(params,-1,-1);
+//		processPickingResult(params,-1,-1);
 	}
 
 	//process hits
-	std::set<int> selectedIDs;
-	int subSelectedID = -1;
-	int selectedID = -1;
+    subSelectedID = -1;
+    selectedID = -1;
 	try
 	{
 		GLuint minMinDepth = (~0);
@@ -4178,12 +4184,23 @@ void ccGLWindow::startOpenGLPicking(const PickingParameters& params)
 		//not enough memory
 		ccLog::Warning("[Picking] Not enough memory!");
 	}
+}
+
+void ccGLWindow::startOpenGLPicking(const PickingParameters& params)
+{
+
+    ccLog::PrintDebug("openGL picking");
+    std::unordered_set<int> selectedIDs;
+    int selectedID = -1;
+    int subSelectedID = -1;
+
+    pickPointOpenGL(params, selectedID, subSelectedID, selectedIDs);
 
 	//we must always emit a signal!
 	processPickingResult(params, selectedID, subSelectedID, &selectedIDs);
 }
 
-void ccGLWindow::startCPUBasedPointPicking(const PickingParameters& params)
+void ccGLWindow::pickPointCPU(const PickingParameters& params, int & nearestEntityID, int & nearestPointIndex)
 {
 	int centerX = params.centerX;
 	int centerY = height()-1 - params.centerY;
@@ -4198,8 +4215,8 @@ void ccGLWindow::startCPUBasedPointPicking(const PickingParameters& params)
 		gluUnProject(centerX,centerY,0,MM,MP,VP,X.u,X.u+1,X.u+2);
 	}
 
-	int nearestEntityID = -1;
-	int nearestPointIndex = -1;
+    nearestEntityID = -1;
+    nearestPointIndex = -1;
 	try
 	{
 		ccHObject::Container toProcess;
@@ -4230,6 +4247,9 @@ void ccGLWindow::startCPUBasedPointPicking(const PickingParameters& params)
 					ccGLMatrix trans;
 					bool noGLTrans = !cloud->getAbsoluteGLTransformation(trans);
 
+#if defined(_OPENMP)
+#pragma omp parallel for
+#endif
 					//brute force works quite well in fact?!
 					for (unsigned i=0; i<cloud->size(); ++i)
 					{
@@ -4348,6 +4368,19 @@ void ccGLWindow::startCPUBasedPointPicking(const PickingParameters& params)
 		//not enough memory
 		ccLog::Warning("[Picking][CPU] Not enough memory!");
 	}
+}
+
+
+void ccGLWindow::startCPUBasedPointPicking(const PickingParameters& params)
+{
+
+    ccLog::PrintDebug("CPU picking");
+
+    int nearestEntityID;
+    int nearestPointIndex;
+
+    // do the actual picking
+    pickPointCPU(params, nearestEntityID, nearestPointIndex);
 
 	//we must always emit a signal!
 	processPickingResult(params, nearestEntityID, nearestPointIndex);

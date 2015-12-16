@@ -97,11 +97,11 @@ ccPointPairRegistrationDlg::ccPointPairRegistrationDlg(QWidget* parent/*=0*/)
 	connect(validToolButton,		SIGNAL(clicked()),					this,	SLOT(apply()));
 	connect(cancelToolButton,		SIGNAL(clicked()),					this,	SLOT(cancel()));
 
-	connect(adjustScaleCheckBox,	SIGNAL(toggled(bool)),				this,	SLOT(invalidate()));
-	connect(TxCheckBox,				SIGNAL(toggled(bool)),				this,	SLOT(invalidate()));
-	connect(TyCheckBox,				SIGNAL(toggled(bool)),				this,	SLOT(invalidate()));
-	connect(TzCheckBox,				SIGNAL(toggled(bool)),				this,	SLOT(invalidate()));
-	connect(rotComboBox,			SIGNAL(currentIndexChanged(int)),	this,	SLOT(invalidate()));
+	connect(adjustScaleCheckBox,	SIGNAL(toggled(bool)),				this,	SLOT(updateAlignInfo()));
+	connect(TxCheckBox,				SIGNAL(toggled(bool)),				this,	SLOT(updateAlignInfo()));
+	connect(TyCheckBox,				SIGNAL(toggled(bool)),				this,	SLOT(updateAlignInfo()));
+	connect(TzCheckBox,				SIGNAL(toggled(bool)),				this,	SLOT(updateAlignInfo()));
+	connect(rotComboBox,			SIGNAL(currentIndexChanged(int)),	this,	SLOT(updateAlignInfo()));
 
 	m_alignedPoints.setEnabled(true);
 	m_alignedPoints.setVisible(false);
@@ -125,11 +125,11 @@ void ccPointPairRegistrationDlg::EntityContext::restore()
 		return;
 
 	entity->setDisplay(originalDisplay);
-	if (originalDisplay)
-		originalDisplay->redraw();
 	entity->setVisible(wasVisible);
 	entity->setEnabled(wasEnabled);
 	entity->setSelected(wasSelected);
+	if (originalDisplay)
+		originalDisplay->redraw();
 }
 
 void ccPointPairRegistrationDlg::clear()
@@ -550,7 +550,7 @@ void ccPointPairRegistrationDlg::onPointCountChanged()
 	unstackAlignToolButton->setEnabled(m_alignedPoints.size() != 0);
 	unstackRefToolButton->setEnabled(m_refPoints.size() != 0);
 
-	autoUpdateAlignInfo();
+	updateAlignInfo();
 }
 
 static QToolButton* CreateDeleteButton()
@@ -792,11 +792,12 @@ void ccPointPairRegistrationDlg::removeAlignedPoint(int index, bool autoRemoveDu
 		//reset global shift (if any)
 		m_alignedPoints.setGlobalShift(0,0,0);
 		m_alignedPoints.setGlobalScale(1.0);
-		return;
 	}
 
 	if (m_associatedWin)
+	{
 		m_associatedWin->redraw();
+	}
 
 	onPointCountChanged();
 
@@ -911,7 +912,9 @@ bool ccPointPairRegistrationDlg::addReferencePoint(CCVector3d& Pin, ccHObject* e
 	}
 
 	if (m_associatedWin)
+	{
 		m_associatedWin->redraw();
+	}
 
 	onPointCountChanged();
 
@@ -993,11 +996,12 @@ void ccPointPairRegistrationDlg::removeRefPoint(int index, bool autoRemoveDualPo
 		//reset global shift (if any)
 		m_refPoints.setGlobalShift(0,0,0);
 		m_refPoints.setGlobalScale(1.0);
-		return;
 	}
 
 	if (m_associatedWin)
+	{
 		m_associatedWin->redraw();
+	}
 
 	onPointCountChanged();
 
@@ -1145,24 +1149,30 @@ void ccPointPairRegistrationDlg::resetTitle()
 	m_associatedWin->displayNewMessage("[Point-pair registration]",ccGLWindow::UPPER_CENTER_MESSAGE,true,3600);
 }
 
-void ccPointPairRegistrationDlg::autoUpdateAlignInfo()
+void ccPointPairRegistrationDlg::updateAlignInfo()
 {
-	if (m_alignedPoints.size() != m_refPoints.size() || m_refPoints.size() < MIN_PAIRS_COUNT)
-		return;
-	
-	CCLib::PointProjectionTools::Transformation trans;
-	double rms;
-
 	//reset title
 	resetTitle();
 
-	if (callHornRegistration(trans,rms,true))
+	CCLib::PointProjectionTools::Transformation trans;
+	double rms;
+
+	if (	m_alignedPoints.size() == m_refPoints.size()
+		&&	m_refPoints.size() >= MIN_PAIRS_COUNT
+		&&	callHornRegistration(trans,rms,true) )
 	{
 		QString rmsString = QString("Achievable RMS: %1").arg(rms);
 		m_associatedWin->displayNewMessage(rmsString,ccGLWindow::UPPER_CENTER_MESSAGE,true,60*60);
+		resetToolButton->setEnabled(true);
+		validToolButton->setEnabled(true);
+	}
+	else
+	{
+		resetToolButton->setEnabled(false);
+		validToolButton->setEnabled(false);
 	}
 
-	m_associatedWin->redraw(true, false);
+	m_associatedWin->redraw();
 }
 
 void ccPointPairRegistrationDlg::align()
@@ -1242,14 +1252,6 @@ void ccPointPairRegistrationDlg::align()
 	}
 }
 
-void ccPointPairRegistrationDlg::invalidate()
-{
-	autoUpdateAlignInfo();
-
-	resetToolButton->setEnabled(false);
-	validToolButton->setEnabled(false);
-}
-
 void ccPointPairRegistrationDlg::reset()
 {
 	if (!m_aligned.entity)
@@ -1273,7 +1275,7 @@ void ccPointPairRegistrationDlg::reset()
 			m_associatedWin->zoomGlobal();
 	}
 
-	invalidate();
+	updateAlignInfo();
 }
 
 void ccPointPairRegistrationDlg::apply()

@@ -180,11 +180,7 @@ bool ccGraphicalSegmentationTool::linkWith(ccGLWindow* win)
 
 	if (oldWin)
 	{
-		disconnect(m_associatedWin, SIGNAL(leftButtonClicked(int,int)), this, SLOT(addPointToPolyline(int,int)));
-		disconnect(m_associatedWin, SIGNAL(rightButtonClicked(int,int)), this, SLOT(closePolyLine(int,int)));
-		disconnect(m_associatedWin, SIGNAL(mouseMoved(int,int,Qt::MouseButtons)), this, SLOT(updatePolyLine(int,int,Qt::MouseButtons)));
-		disconnect(m_associatedWin, SIGNAL(buttonReleased()), this, SLOT(closeRectangle()));
-
+		m_associatedWin->disconnect(this);
 		if (m_segmentationPoly)
 			m_segmentationPoly->setDisplay(0);
 	}
@@ -234,7 +230,7 @@ void ccGraphicalSegmentationTool::removeAllEntities(bool unallocateVisibilityArr
 {
 	if (unallocateVisibilityArrays)
 	{
-		for (std::set<ccHObject*>::iterator p = m_toSegment.begin(); p != m_toSegment.end(); ++p)
+		for (QSet<ccHObject*>::const_iterator p = m_toSegment.begin(); p != m_toSegment.end(); ++p)
 		{
 			ccHObjectCaster::ToGenericPointCloud(*p)->unallocateVisibilityArray();
 		}
@@ -268,7 +264,7 @@ void ccGraphicalSegmentationTool::reset()
 {
 	if (m_somethingHasChanged)
 	{
-		for (std::set<ccHObject*>::iterator p = m_toSegment.begin(); p != m_toSegment.end(); ++p)
+		for (QSet<ccHObject*>::const_iterator p = m_toSegment.begin(); p != m_toSegment.end(); ++p)
 		{
 			ccHObjectCaster::ToGenericPointCloud(*p)->resetVisibilityArray();
 		}
@@ -349,7 +345,7 @@ bool ccGraphicalSegmentationTool::addEntity(ccHObject* entity)
 			ccGenericMesh* mesh = ccHObjectCaster::ToGenericMesh(entity);
 
 			//first, we must check that there's no mesh and at least one of its sub-mesh mixed in the current selection!
-			for (std::set<ccHObject*>::iterator p = m_toSegment.begin(); p != m_toSegment.end(); ++p)
+			for (QSet<ccHObject*>::const_iterator p = m_toSegment.begin(); p != m_toSegment.end(); ++p)
 			{
 				if ((*p)->isKindOf(CC_TYPES::MESH))
 				{
@@ -621,7 +617,7 @@ void ccGraphicalSegmentationTool::segment(bool keepPointsInside)
 	m_associatedWin->getViewportArray(VP);
 
 	//for each selected entity
-	for (std::set<ccHObject*>::iterator p = m_toSegment.begin(); p != m_toSegment.end(); ++p)
+	for (QSet<ccHObject*>::const_iterator p = m_toSegment.begin(); p != m_toSegment.end(); ++p)
 	{
 		ccGenericPointCloud* cloud = ccHObjectCaster::ToGenericPointCloud(*p);
 		assert(cloud);
@@ -631,6 +627,9 @@ void ccGraphicalSegmentationTool::segment(bool keepPointsInside)
 
 		unsigned cloudSize = cloud->size();
 
+#if defined(_OPENMP)
+#pragma omp parallel for
+#endif
 		//we project each point and we check if it falls inside the segmentation polyline
 		for (unsigned i=0; i<cloudSize; ++i)
 		{

@@ -30,9 +30,26 @@ v2.7.beta ??/??/201?
 
 	* Point sampling (on a mesh): maximum density is now 100 M. per square units
 
+	* Sensors (camera, TLS) are now properly updated when their associated cloud is scaled
+
+	* Command line mode:
+		- new option '-ORIENT_NORMS_MST' (+ number of neighbors): to (re)orient the normals of the loaded clouds with a Minimum Spanning Tree
+
+	* SF Arithmetic tool:
+		- a constant value can now be used instead of a second scalar field
+		- the first scalar field (SF1) can now be updated directly (instead of creating a new SF)
+		- division by zero is now properly handled
+
 - Bug fixes:
 	* The 'Edit > Colors > Convert to Scalar Field' method was returning invalid scalar fields
 	* The 'ADD_HEADER' and 'ADD_PTS_COUNT' options of the command line mode were causing an infinite loop
+	* The point-pair based alignment tool could sometimes fail (especially when there were at least 4 picked
+		points almost all in a plane)
+	* CC 2.6.2 would crash when loading older BIN files containing primitive cylinders
+	* FARO files: the sensor position associated to each grid/scan structure was wrong. This could lead to
+		a wrong orientation when computing normals.
+	* The rasterize tool was placing the points at the lower-left corners of the cells when exporting the grid
+		as a cloud (instead of the centers of the cells)
 
 v2.6.2 10/08/2015
 - New features:
