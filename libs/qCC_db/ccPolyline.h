@@ -28,14 +28,38 @@
 //system
 #include <vector>
 
+#include <QColor>
 class ccPointCloud;
+
+// generic class that will be used as prop
+class FilePathPropertyType
+{
+};
+
+Q_DECLARE_METATYPE(FilePathPropertyType)
+
+
 
 //! Colored polyline
 /** Extends the CCLib::Polyline class
 **/
-class QCC_DB_LIB_API ccPolyline : public CCLib::Polyline, public ccShiftedObject
+class QCC_DB_LIB_API ccPolyline : public QObject, public CCLib::Polyline, public ccShiftedObject
 {
+    Q_OBJECT
+
 public:
+
+    Q_PROPERTY(double Width  READ getWidth WRITE setWidth)
+    Q_PROPERTY(bool ShowVertices READ verticesShown WRITE showVertices)
+    Q_PROPERTY(bool ShowColors READ colorsShown WRITE showColors)
+    Q_PROPERTY(bool Mode2D READ is2DMode WRITE set2DMode)
+    Q_PROPERTY(bool Closed READ isClosed WRITE setClosed)
+    Q_PROPERTY(QColor Color READ getColorQt WRITE setColorQt)
+    Q_PROPERTY(FilePathPropertyType Path READ getPath WRITE setPath)
+
+    Q_PROPERTY(bool Foreground READ isForeground WRITE setForeground)
+
+
 
 	//! Default constructor
 	/** \param associatedCloud the associated point cloud (i.e. the vertices)
@@ -72,10 +96,23 @@ public:
 	**/
 	void setForeground(bool state);
 
+    bool isForeground() const
+    {
+        return m_foreground;
+    }
+
 	//! Sets the polyline color
 	/** \param col RGB color
 	**/
 	inline void setColor(const ccColor::Rgb& col) { m_rgbColor = col; }
+
+    inline void setColorQt(const QColor & col)
+    {
+        m_rgbColor.r = col.red();
+        m_rgbColor.g = col.green();
+        m_rgbColor.b = col.blue();
+//        m_rgbColor. = 255;
+    }
 
 	//! Sets the width of the line
 	/**  \param width the desired width
@@ -91,6 +128,11 @@ public:
 	/** \return a pointer to the polyline RGB color
 	**/
 	inline const ccColor::Rgb& getColor() const { return m_rgbColor; }
+
+    inline const QColor getColorQt() const
+    {
+        return QColor(m_rgbColor.r, m_rgbColor.g, m_rgbColor.b);
+    }
 
 	//inherited methods (ccHObject)
 	virtual ccBBox getOwnBB(bool withGLFeatures = false);
@@ -189,6 +231,20 @@ protected:
 	PointCoordinateType m_arrowLength;
 	//! Arrow index
 	unsigned m_arrowIndex;
+
+    void setPath (const FilePathPropertyType p)
+    {
+        m_path = p;
+    }
+
+    FilePathPropertyType getPath()
+    {
+        return m_path;
+    }
+
+    FilePathPropertyType m_path;
+
+
 };
 
 #endif //CC_GL_POLYLINE_HEADER

@@ -412,6 +412,7 @@
      <property name="title">
       <string>Sand box (research)</string>
      </property>
+     <addaction name="actionOpenAdvancedPropertyDlg"/>
      <addaction name="actionComputeKdTree"/>
      <addaction name="separator"/>
      <addaction name="separator"/>
@@ -2897,6 +2898,15 @@
    </property>
    <property name="shortcut">
     <string>Ctrl+P</string>
+   </property>
+  </action>
+  <action name="actionOpenAdvancedPropertyDlg">
+   <property name="icon">
+    <iconset resource="../icones.qrc">
+     <normaloff>:/CC/images/properties_qt.png</normaloff>:/CC/images/properties_qt.png</iconset>
+   </property>
+   <property name="text">
+    <string>Advanced Property</string>
    </property>
   </action>
  </widget>

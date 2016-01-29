@@ -70,6 +70,9 @@ class ccOverlayDialog;
 class QMdiSubWindow;
 class Mouse3DInput;
 
+
+class PropertyBrowser;
+
 //! Main window
 class MainWindow : public QMainWindow, public ccMainAppInterface, public Ui::MainWindow
 {
@@ -485,6 +488,8 @@ protected slots:
 	//! Creates a cloud with the (bounding-box) centers of all selected entities
 	void doActionCreateCloudFromEntCenters();
 
+    void doActionOpenAdvancedPropertyEditor();
+
 protected:
 
 	//! Apply transformation to the selected entities
@@ -677,6 +682,9 @@ protected:
 	ccPointPairRegistrationDlg* m_pprDlg;
 	//! Primitive factory dialog
 	ccPrimitiveFactoryDlg* m_pfDlg;
+
+    //! advanced property dialog
+    QDialog * m_advPropDlg = nullptr;
 
 	/*** plugins ***/
 	QString m_pluginsPath;

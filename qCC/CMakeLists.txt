@@ -23,6 +23,8 @@ include_directories( ${CMAKE_CURRENT_SOURCE_DIR}/../libs/qxt )
 include_directories( ${CMAKE_CURRENT_SOURCE_DIR}/../libs/qcustomplot )
 include_directories( ${CMAKE_CURRENT_BINARY_DIR} )
 
+include_directories(${QTPROPERTYBROWSER_INCLUDES})
+
 file( GLOB header_list *.h db_tree/*.h ${QXT_HEADERS} )
 file( GLOB source_list *.cpp db_tree/*.cpp ${QXT_SOURCES} )
 
@@ -63,6 +65,8 @@ target_link_libraries( ${PROJECT_NAME} QCC_DB_LIB )
 target_link_libraries( ${PROJECT_NAME} QCC_IO_LIB )
 target_link_libraries( ${PROJECT_NAME} QCC_GL_LIB )
 target_link_libraries( ${PROJECT_NAME} qcustomplot )
+target_link_libraries( ${PROJECT_NAME} ${QTPROPERTYBROWSER_LIBRARIES} )
+
 
 
 if ( USE_QT5 )
