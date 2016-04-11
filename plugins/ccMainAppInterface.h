@@ -28,6 +28,7 @@ class QMainWindow;
 class ccGLWindow;
 class ccColorScalesManager;
 
+
 //! Main application interface (for plugins)
 class ccMainAppInterface
 {
@@ -55,6 +56,8 @@ public:
                                                     bool autoExpandDBTree = true,
                                                     bool checkDimensions = false,
                                                     bool autoRedraw = true ) = 0;
+
+
 
     //! Removes an entity from main db tree
     /** Object is automatically detached from its parent.

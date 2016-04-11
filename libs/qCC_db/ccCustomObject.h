@@ -25,7 +25,7 @@
 /** Used internally for deserialization of plugin-defined hierarchy objects
 	(see CC_TYPES::CUSTOM_H_OBJECT).
 **/
-class QCC_DB_LIB_API ccCustomHObject : public ccHObject
+class QCC_DB_LIB_API ccCustomHObject : public ccHObject, public QObject
 {
 public:
 

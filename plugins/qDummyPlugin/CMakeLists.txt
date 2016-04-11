@@ -8,7 +8,12 @@ option( INSTALL_QDUMMY_PLUGIN "Check to install qDUMMY plugin" OFF )
 # CloudCompare 'DUMMY' plugin
 if (INSTALL_QDUMMY_PLUGIN)
     project( QDUMMY_PLUGIN )
-    
+
+    find_package(SPC 0.1.0 REQUIRED)
+    include_directories(${SPC_INCLUDE_DIRS})
+    link_directories(${SPC_LIBRARY_DIRS})
+    add_definitions(${SPC_DEFINITIONS})
+
     #load necessary libraries (see qPCV for an example)
     #add_subdirectory (LIB1)
     
