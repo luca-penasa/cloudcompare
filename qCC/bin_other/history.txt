@@ -1,5 +1,30 @@
 *** CloudCompare versions history ***
 
+v2.7.0 - 04/XX/2016
+
+- Enhancements:
+	
+	* Rasterize tool improved
+		- Now handles RGB colors
+		- Raster export dialog updated
+		- The 'Cancel' button of the grid update progress bar is now handled properly
+
+	* The 'Global Shift & Scale' mechanism now allows for shifting values above 1.0e9
+		(for georeferenced clouds expressed in millimeters!)
+
+	* New 'File > Global Shift settings' dialog to set the limits that trigger the 'Global Shift & Scale' mechanism
+
+	* New 'Tools > Sand-box > Distance Map' tool
+		* allows to compute distance maps for clouds (= distances from regularly sampled positions around the points)
+		* the output points can be filtered inside a specified distance range
+
+	* The 'Edit > Multiply / Scale', 'Tools > Registration > Match bounding-box centers'
+		and 'Tools > Registration > Match scales' methods now update the 'transformation history matrix' of the entities
+
+	* Bubble View mode
+		- nows allows for horizontal AND vertical rotation
+		- the 3D mouse is now properly handled
+
 v2.6.3.1 - 03/XX/2016
 
 - Enhancements:

@@ -121,12 +121,12 @@ ccVolumeCalcTool::ccVolumeCalcTool(ccGenericPointCloud* cloud1, ccGenericPointCl
 
 	//add window
 	create2DView(mapFrame);
-	if (m_window)
+	if (m_glWindow)
 	{
-		ccGui::ParamStruct params = m_window->getDisplayParameters();
+		ccGui::ParamStruct params = m_glWindow->getDisplayParameters();
 		params.colorScaleShowHistogram = false;
 		params.displayedNumPrecision = precisionSpinBox->value();
-		m_window->setDisplayParameters(params, true);
+		m_glWindow->setDisplayParameters(params, true);
 	}
 
 	loadSettings();
@@ -143,12 +143,12 @@ ccVolumeCalcTool::~ccVolumeCalcTool()
 void ccVolumeCalcTool::setDisplayedNumberPrecision(int precision)
 {
 	//update window
-	if (m_window)
+	if (m_glWindow)
 	{
-		ccGui::ParamStruct params = m_window->getDisplayParameters();
+		ccGui::ParamStruct params = m_glWindow->getDisplayParameters();
 		params.displayedNumPrecision = precision;
-		m_window->setDisplayParameters(params, true);
-		m_window->redraw(true, false);
+		m_glWindow->setDisplayParameters(params, true);
+		m_glWindow->redraw(true, false);
 	}
 
 	//update report
@@ -337,12 +337,12 @@ void ccVolumeCalcTool::gridIsUpToDate(bool state)
 void ccVolumeCalcTool::updateGridAndDisplay()
 {
 	bool success = updateGrid();
-	if (success && m_window)
+	if (success && m_glWindow)
 	{
 		//convert grid to point cloud
 		if (m_rasterCloud)
 		{
-			m_window->removeFromOwnDB(m_rasterCloud);
+			m_glWindow->removeFromOwnDB(m_rasterCloud);
 			delete m_rasterCloud;
 			m_rasterCloud = 0;
 		}
@@ -353,6 +353,7 @@ void ccVolumeCalcTool::updateGridAndDisplay()
 			//we only compute the default 'height' layer
 			exportedFields.push_back(PER_CELL_HEIGHT);
 			m_rasterCloud = cc2Point5DimEditor::convertGridToCloud(	exportedFields,
+																	false,
 																	false,
 																	false,
 																	false,
@@ -375,14 +376,14 @@ void ccVolumeCalcTool::updateGridAndDisplay()
 
 		if (m_rasterCloud)
 		{
-			m_window->addToOwnDB(m_rasterCloud);
-			ccBBox box = m_rasterCloud->getDisplayBB_recursive(false,m_window);
+			m_glWindow->addToOwnDB(m_rasterCloud);
+			ccBBox box = m_rasterCloud->getDisplayBB_recursive(false,m_glWindow);
 			update2DDisplayZoom(box);
 		}
 		else
 		{
 			ccLog::Error("Not enough memory!");
-			m_window->redraw();
+			m_glWindow->redraw();
 		}
 	}
 
@@ -468,15 +469,15 @@ bool ccVolumeCalcTool::updateGrid()
 			return false;
 	}
 
+	CCVector3d minCorner = CCVector3d::fromArray(box.minCorner().u);
+
 	//memory allocation
-	if (!m_grid.init(gridWidth,gridHeight))
+	if (!m_grid.init(gridWidth, gridHeight, gridStep, minCorner))
 	{
 		//not enough memory
 		ccLog::Error("Not enough memory");
 		return false;
 	}
-	m_grid.gridStep = gridStep;
-	m_grid.minCorner = CCVector3d::fromArray(box.minCorner().u);
 
 	//ground
 	ccGenericPointCloud* groundCloud = 0;
@@ -497,19 +498,17 @@ bool ccVolumeCalcTool::updateGrid()
 		return false;
 	}
 
-	ccProgressDialog pDlg(true,this);
+	ccProgressDialog pDlg(true, this);
 
 	RasterGrid groundRaster;
 	if (groundCloud)
 	{
-		if (!groundRaster.init(gridWidth,gridHeight))
+		if (!groundRaster.init(gridWidth, gridHeight, gridStep, minCorner))
 		{
 			//not enough memory
 			ccLog::Error("Not enough memory");
 			return false;
 		}
-		groundRaster.gridStep = m_grid.gridStep;
-		groundRaster.minCorner = m_grid.minCorner;
 
 		if (groundRaster.fillWith(	groundCloud,
 									Z,
@@ -549,14 +548,12 @@ bool ccVolumeCalcTool::updateGrid()
 	RasterGrid ceilRaster;
 	if (ceilCloud)
 	{
-		if (!ceilRaster.init(gridWidth,gridHeight))
+		if (!ceilRaster.init(gridWidth, gridHeight, gridStep, minCorner))
 		{
 			//not enough memory
 			ccLog::Error("Not enough memory");
 			return false;
 		}
-		ceilRaster.gridStep = m_grid.gridStep;
-		ceilRaster.minCorner = m_grid.minCorner;
 
 		if (ceilRaster.fillWith(ceilCloud,
 								Z,
@@ -576,8 +573,8 @@ bool ccVolumeCalcTool::updateGrid()
 
 	//update grid and compute volume
 	{
-		pDlg.setMethodTitle("Volume computation");
-		pDlg.setInfo(qPrintable(QString("Cells: %1 x %2").arg(m_grid.width).arg(m_grid.height)));
+		pDlg.setMethodTitle(tr("Volume computation"));
+		pDlg.setInfo(tr("Cells: %1 x %2").arg(m_grid.width).arg(m_grid.height));
 		pDlg.start();
 		pDlg.show();
 		QApplication::processEvents();
@@ -594,22 +591,22 @@ bool ccVolumeCalcTool::updateGrid()
 		{
 			for (unsigned j=0; j<m_grid.width; ++j)
 			{
-				RasterCell& cell = m_grid.data[i][j];
+				RasterCell& cell = m_grid.rows[i][j];
 
 				bool validGround = true;
 				cell.minHeight = groundHeight;
 				if (groundCloud)
 				{
-					cell.minHeight = groundRaster.data[i][j].h;
-					validGround = (cell.minHeight == cell.minHeight);
+					cell.minHeight = groundRaster.rows[i][j].h;
+					validGround = std::isfinite(cell.minHeight);
 				}
 
 				bool validCeil = true;
 				cell.maxHeight = ceilHeight;
 				if (ceilCloud)
 				{
-					cell.maxHeight = ceilRaster.data[i][j].h;
-					validCeil = (cell.maxHeight == cell.maxHeight);
+					cell.maxHeight = ceilRaster.rows[i][j].h;
+					validCeil = std::isfinite(cell.maxHeight);
 				}
 
 				if (validGround && validCeil)
@@ -666,7 +663,7 @@ bool ccVolumeCalcTool::updateGrid()
 			{
 				for (unsigned j=1; j<m_grid.width-1; ++j)
 				{
-					RasterCell& cell = m_grid.data[i][j];
+					RasterCell& cell = m_grid.rows[i][j];
 					if (cell.h == cell.h)
 					{
 						for (unsigned k=i-1; k<=i+1; ++k)
@@ -675,8 +672,8 @@ bool ccVolumeCalcTool::updateGrid()
 							{
 								if (k != i || l != j)
 								{
-									RasterCell& otherCell = m_grid.data[k][l];
-									if (otherCell.h == otherCell.h)
+									RasterCell& otherCell = m_grid.rows[k][l];
+									if (std::isfinite(otherCell.h))
 									{
 										++validNeighborsCount;
 									}

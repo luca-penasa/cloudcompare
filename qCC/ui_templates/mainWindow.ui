@@ -64,6 +64,8 @@
     </widget>
     <addaction name="actionOpen"/>
     <addaction name="actionSave"/>
+    <addaction name="actionGlobalShiftSettings"/>
+    <addaction name="separator"/>
     <addaction name="actionPrimitiveFactory"/>
     <addaction name="separator"/>
     <addaction name="menu3DMouse"/>
@@ -281,7 +283,7 @@
       <addaction name="actionCreateCameraSensor"/>
       <addaction name="separator"/>
       <addaction name="actionProjectUncertainty"/>
-      <addaction name="actionCheckPointsInsideFrustrum"/>
+      <addaction name="actionCheckPointsInsideFrustum"/>
      </widget>
      <addaction name="actionModifySensor"/>
      <addaction name="separator"/>
@@ -2537,7 +2539,7 @@
     <string>Create</string>
    </property>
   </action>
-  <action name="actionCheckPointsInsideFrustrum">
+  <action name="actionCheckPointsInsideFrustum">
    <property name="text">
     <string>Compute points visibility (with octree)</string>
    </property>
@@ -2907,6 +2909,14 @@
    </property>
    <property name="text">
     <string>Enable Qt warnings in Console</string>
+   </property>
+  </action>
+  <action name="actionGlobalShiftSettings">
+   <property name="text">
+    <string>Global Shift settings</string>
+   </property>
+   <property name="toolTip">
+    <string>Set Global Shift &amp; Scale mechanism parameters</string>
    </property>
   </action>
  </widget>

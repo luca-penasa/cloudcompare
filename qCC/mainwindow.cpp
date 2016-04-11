@@ -55,6 +55,7 @@
 
 //QCC_glWindow
 #include <ccRenderingTools.h>
+#include <ccGLWidget.h>
 
 //local includes
 #include "ccConsole.h"
@@ -122,6 +123,10 @@
 #ifdef CC_3DXWARE_SUPPORT
 #include "devices/3dConnexion/Mouse3DInput.h"
 #endif
+
+//Qt UI files
+#include <ui_distanceMapDlg.h>
+#include <ui_globalShiftSettingsDlg.h>
 
 //System
 #include <iostream>
@@ -237,7 +242,7 @@ MainWindow::MainWindow()
 	loadPlugins();
 
 #ifdef CC_3DXWARE_SUPPORT
-	enable3DMouse(true,true);
+	enable3DMouse(true, true);
 #else
 	actionEnable3DMouse->setEnabled(false);
 #endif
@@ -265,11 +270,9 @@ MainWindow::~MainWindow()
 	//we don't want any other dialog/function to use the following structures
 	ccDBRoot* ccRoot = m_ccRoot;
 	m_ccRoot = 0;
-	if (m_mdiArea)
+	for (int i = 0; i < getGLWindowCount(); ++i)
 	{
-		QList<QMdiSubWindow*> subWindowList = m_mdiArea->subWindowList();
-		for (int i=0; i<subWindowList.size(); ++i)
-			static_cast<ccGLWindow*>(subWindowList[i]->widget())->setSceneDB(0);
+		getGLWindow(i)->setSceneDB(0);
 	}
 	m_cpeDlg = 0;
 	m_gsTool = 0;
@@ -417,13 +420,12 @@ const tPluginInfoList MainWindow::findPlugins()
 	{
 		binDir.cdUp();
 		
-		m_pluginPaths += (binDir.absolutePath() + "/lib/cloudcompare/plugins/CloudCompare");
+		m_pluginPaths += (binDir.absolutePath() + "/lib/cloudcompare/plugins");
 	}
 	else
 	{
 		// Choose a reasonable default to look in
-//		m_pluginPaths += "/usr/lib/cloudcompare/plugins/CloudCompare";
-        m_pluginPaths += binDir.absolutePath() + "/plugins";
+		m_pluginPaths += "/usr/lib/cloudcompare/plugins";
 	}
 #else
 #warning Need to specify the plugin path for this OS.
@@ -813,7 +815,9 @@ void MainWindow::on3DMouseMove(std::vector<float>& vec)
 
 	//active window?
 	if (win)
-		Mouse3DInput::Apply(vec,win);
+	{
+		Mouse3DInput::Apply(vec, win);
+	}
 
 #endif
 }
@@ -846,6 +850,7 @@ void MainWindow::connectActions()
 	//"File" menu
 	connect(actionOpen,							SIGNAL(triggered()),	this,		SLOT(doActionLoadFile()));
 	connect(actionSave,							SIGNAL(triggered()),	this,		SLOT(doActionSaveFile()));
+	connect(actionGlobalShiftSettings,			SIGNAL(triggered()),	this,		SLOT(doActionGlobalShiftSeetings()));
 	connect(actionPrimitiveFactory,				SIGNAL(triggered()),	this,		SLOT(doShowPrimitiveFactory()));
 	connect(actionEnable3DMouse,				SIGNAL(toggled(bool)),	this,		SLOT(setup3DMouse(bool)));
 	connect(actionCloseAll,						SIGNAL(triggered()),	this,		SLOT(closeAll()));
@@ -894,7 +899,7 @@ void MainWindow::connectActions()
 	connect(actionCreateCameraSensor,			SIGNAL(triggered()),	this,		SLOT(doActionCreateCameraSensor()));
 	connect(actionModifySensor,					SIGNAL(triggered()),	this,		SLOT(doActionModifySensor()));
 	connect(actionProjectUncertainty,			SIGNAL(triggered()),	this,		SLOT(doActionProjectUncertainty()));
-	connect(actionCheckPointsInsideFrustrum,	SIGNAL(triggered()),	this,		SLOT(doActionCheckPointsInsideFrustrum()));
+	connect(actionCheckPointsInsideFrustum,		SIGNAL(triggered()),	this,		SLOT(doActionCheckPointsInsideFrustum()));
 	connect(actionComputeDistancesFromSensor,	SIGNAL(triggered()),	this,		SLOT(doActionComputeDistancesFromSensor()));
 	connect(actionComputeScatteringAngles,		SIGNAL(triggered()),	this,		SLOT(doActionComputeScatteringAngles()));
 	connect(actionViewFromSensor,				SIGNAL(triggered()),	this,		SLOT(doActionSetViewFromSensor()));
@@ -1472,13 +1477,13 @@ void MainWindow::applyTransformation(const ccGLMatrixd& mat)
 	refreshAll();
 }
 
-static CCVector3d s_lastMultFactors(1.0,1.0,1.0);
+static CCVector3d s_lastMultFactors(1.0, 1.0, 1.0);
 static bool s_lastMultKeepInPlace = true;
-typedef std::pair<ccHObject*,ccGenericPointCloud*> EntityCloudAssociation;
+typedef std::pair<ccHObject*, ccGenericPointCloud*> EntityCloudAssociation;
 void MainWindow::doActionApplyScale()
 {
-	ccAskThreeDoubleValuesDlg dlg("fx","fy","fz",-1.0e6,1.0e6,s_lastMultFactors.x,s_lastMultFactors.y,s_lastMultFactors.z,8,"Scaling",this);
-	dlg.showCheckbox("Keep in place",s_lastMultKeepInPlace,"Whether the cloud (center) should stay at the same place or not (i.e. coordinates are multiplied directly)");
+	ccAskThreeDoubleValuesDlg dlg("fx", "fy", "fz", -1.0e6, 1.0e6, s_lastMultFactors.x, s_lastMultFactors.y, s_lastMultFactors.z, 8, "Scaling", this);
+	dlg.showCheckbox("Keep in place", s_lastMultKeepInPlace, "Whether the cloud (center) should stay at the same place or not (i.e. coordinates are multiplied directly)");
 	if (!dlg.exec())
 		return;
 
@@ -1549,12 +1554,13 @@ void MainWindow::doActionApplyScale()
 					maxz = std::max( fabs((bbMin.z - C.z) * sZ + C.z), fabs( (bbMax.z - C.z) * sZ + C.z) );
 
 					bool newCoordsAreTooBig = (	maxx > maxCoord
-						||	maxy > maxCoord
-						||	maxz > maxCoord );
+											||	maxy > maxCoord
+											||	maxz > maxCoord );
 
 					if (newCoordsAreTooBig)
 					{
-						if (QMessageBox::question(	this,
+						if (QMessageBox::question(
+							this,
 							"Big coordinates",
 							"Resutling coordinates will be too big (original precision may be lost!). Proceeed anyway?",
 							QMessageBox::Yes,
@@ -1573,7 +1579,7 @@ void MainWindow::doActionApplyScale()
 			}
 
 			assert(cloud);
-			candidates.push_back(EntityCloudAssociation(ent,cloud));
+			candidates.push_back(EntityCloudAssociation(ent, cloud));
 		}
 	}
 
@@ -1592,7 +1598,9 @@ void MainWindow::doActionApplyScale()
 
 			CCVector3 C(0,0,0);
 			if (keepInPlace)
+			{
 				C = cloud->getOwnBB().getCenter();
+			}
 
 			//we temporarily detach entity, as it may undergo
 			//"severe" modifications (octree deletion, etc.) --> see ccPointCloud::scale
@@ -1603,7 +1611,7 @@ void MainWindow::doActionApplyScale()
 							static_cast<PointCoordinateType>(sZ),
 							C );
 
-			putObjectBackIntoDBTree(cloud,objContext);
+			putObjectBackIntoDBTree(cloud, objContext);
 			cloud->prepareDisplayForRefresh_recursive();
 
 			//don't forget the 'global shift'!
@@ -2610,7 +2618,7 @@ void MainWindow::doActionProjectUncertainty()
 	refreshAll();
 }
 
-void MainWindow::doActionCheckPointsInsideFrustrum()
+void MainWindow::doActionCheckPointsInsideFrustum()
 {
 	//there should be only one camera sensor in the current selection!
 	if (m_selectedEntities.size() != 1 || !m_selectedEntities[0]->isKindOf(CC_TYPES::CAMERA_SENSOR))
@@ -2645,20 +2653,20 @@ void MainWindow::doActionCheckPointsInsideFrustrum()
 	assert(octree);
 
 	// filter octree then project the points
-	std::vector<unsigned> inCameraFrustrum;
-	if (!octree->intersectWithFrustrum(sensor, inCameraFrustrum))
+	std::vector<unsigned> inCameraFrustum;
+	if (!octree->intersectWithFrustum(sensor, inCameraFrustum))
 	{
-		ccConsole::Error("Failed to intersect sensor frustrum with octree!");
+		ccConsole::Error("Failed to intersect sensor frustum with octree!");
 	}
 	else
 	{
 		// scalar field
-		const char sfName[] = "Frustrum visibility";
+		const char sfName[] = "Frustum visibility";
 		int sfIdx = pointCloud->getScalarFieldIndexByName(sfName);
 
-		if (inCameraFrustrum.empty())
+		if (inCameraFrustum.empty())
 		{
-			ccConsole::Error("No point fell inside the frustrum!");
+			ccConsole::Error("No point fell inside the frustum!");
 			if (sfIdx >= 0)
 				pointCloud->deleteScalarField(sfIdx);
 		}
@@ -2680,9 +2688,9 @@ void MainWindow::doActionCheckPointsInsideFrustrum()
 
 				const ScalarType c_insideValue = static_cast<ScalarType>(1);
 
-				for (size_t i = 0; i < inCameraFrustrum.size(); i++)
+				for (size_t i = 0; i < inCameraFrustum.size(); i++)
 				{
-					sf->setValue(inCameraFrustrum[i], c_insideValue);
+					sf->setValue(inCameraFrustum[i], c_insideValue);
 				}
 
 				sf->computeMinAndMax();
@@ -2865,8 +2873,8 @@ void MainWindow::doActionComputePointsVisibility()
 		//progress bar
 		ccProgressDialog pdlg(true);
 		CCLib::NormalizedProgress nprogress(&pdlg,pointCloud->size());
-		pdlg.setMethodTitle("Compute visibility");
-		pdlg.setInfo(qPrintable(QString("Points: %1").arg(pointCloud->size())));
+		pdlg.setMethodTitle(tr("Compute visibility"));
+		pdlg.setInfo(tr("Points: %1").arg(pointCloud->size()));
 		pdlg.start();
 		QApplication::processEvents();
 
@@ -3145,7 +3153,7 @@ void MainWindow::doActionFilterByValue()
 		}
 	}
 
-	ccAskTwoDoubleValuesDlg dlg("Min","Max",-1.0e9,1.0e9,minVald,maxVald,8,"Filter by scalar value",this);
+	ccAskTwoDoubleValuesDlg dlg("Min", "Max", -1.0e9, 1.0e9, minVald, maxVald, 8, "Filter by scalar value", this);
 	if (!dlg.exec())
 		return;
 
@@ -3817,7 +3825,7 @@ void MainWindow::doActionRegister()
 
 		//overlap
 		summary << "----------------";
-		QString overlapString = QString("Theorical overlap: %1%").arg(finalOverlap);
+		QString overlapString = QString("Theoretical overlap: %1%").arg(finalOverlap);
 		ccLog::Print(QString("[Register] ")+overlapString);
 		summary << overlapString;
 
@@ -4063,7 +4071,7 @@ void MainWindow::doActionSubsample()
 	ccHObject::Container resultingClouds;
 	{
 		ccProgressDialog pDlg(false,this);
-		pDlg.setMethodTitle("Subsampling");
+		pDlg.setMethodTitle(tr("Subsampling"));
 
 		bool errors = false;
 
@@ -4760,7 +4768,7 @@ static double s_meshMaxEdgeLength = 0;
 void MainWindow::doActionComputeMesh(CC_TRIANGULATION_TYPES type)
 {
 	bool ok = true;
-	double maxEdgeLength = QInputDialog::getDouble(this,"Triangulate", "Max edge length (0 = no limit)", s_meshMaxEdgeLength, 0, 1.0e9, 8, &ok);
+	double maxEdgeLength = QInputDialog::getDouble(this, "Triangulate", "Max edge length (0 = no limit)", s_meshMaxEdgeLength, 0, 1.0e9, 8, &ok);
 	if (!ok)
 		return;
 	s_meshMaxEdgeLength = maxEdgeLength;
@@ -4792,10 +4800,10 @@ void MainWindow::doActionComputeMesh(CC_TRIANGULATION_TYPES type)
 												QMessageBox::No ) == QMessageBox::Yes);
 	}
 
-	ccProgressDialog pDlg(false,this);
-	pDlg.setWindowTitle("Triangulation");
-	pDlg.setInfo("Triangulation in progress...");
-	pDlg.setRange(0,0);
+	ccProgressDialog pDlg(false, this);
+	pDlg.setWindowTitle(tr("Triangulation"));
+	pDlg.setInfo(tr("Triangulation in progress..."));
+	pDlg.setRange(0, 0);
 	pDlg.show();
 	QApplication::processEvents();
 
@@ -4915,22 +4923,39 @@ void MainWindow::doActionFitQuadric()
 
 void MainWindow::doActionComputeDistanceMap()
 {
-	ccHObject::Container selectedEntities = m_selectedEntities;
+	static unsigned steps = 128;
+	static double margin = 0.0;
+	static bool filterRange = false;
+	static double range[2] = { 0.0, 1.0 };
 
-	bool ok = true;
-	unsigned steps = static_cast<unsigned>(QInputDialog::getInt(this, "Distance map", "Distance map resolution", 128, 16, 1024, 16, &ok));
-	if (!ok)
-		return;
+	//show dialog
+	{
+		QDialog dialog(this);
+		Ui_DistanceMapDialog ui;
+		ui.setupUi(&dialog);
 
-	ok = true;
-	double margin = QInputDialog::getDouble(this, "Distance map", "Margin", 0.0, 0.0, 1000000.0, 3, &ok);
-	if (!ok)
-		return;
+		ui.stepsSpinBox->setValue(static_cast<int>(steps));
+		ui.marginDoubleSpinBox->setValue(margin);
+		ui.rangeCheckBox->setChecked(filterRange);
+		ui.minDistDoubleSpinBox->setValue(range[0]);
+		ui.maxDistDoubleSpinBox->setValue(range[1]);
 
-	size_t selNum = selectedEntities.size();
+		if (!dialog.exec())
+		{
+			return;
+		}
+
+		steps = static_cast<unsigned>(ui.stepsSpinBox->value());
+		margin = ui.marginDoubleSpinBox->value();
+		filterRange = ui.rangeCheckBox->isChecked();
+		range[0] = ui.minDistDoubleSpinBox->value();
+		range[1] = ui.maxDistDoubleSpinBox->value();
+	}
+
+	size_t selNum = m_selectedEntities.size();
 	for (size_t i = 0; i < selNum; ++i)
 	{
-		ccHObject* ent = selectedEntities[i];
+		ccHObject* ent = m_selectedEntities[i];
 		if (!ent->isKindOf(CC_TYPES::MESH) && !ent->isKindOf(CC_TYPES::POINT_CLOUD))
 		{
 			//non handled entity type
@@ -5000,21 +5025,35 @@ void MainWindow::doActionComputeDistanceMap()
 				{
 					for (unsigned k = 0; k < steps; ++k)
 					{
-						gridCloud->addPoint(minCorner + CCVector3(i + 0.5, j + 0.5, k + 0.5) * cellDim);
-						ScalarType s = static_cast<ScalarType>(cdt.getValue(i, j, k) * cellDim);
-						//sf->addElement(s < maxDist ? s : NAN_VALUE);
-						sf->addElement(sqrt(s));
+						ScalarType d = sqrt(static_cast<ScalarType>(cdt.getValue(i, j, k))) * cellDim;
+
+						if (!filterRange || (d >= range[0] && d <= range[1]))
+						{
+							gridCloud->addPoint(minCorner + CCVector3(i + 0.5, j + 0.5, k + 0.5) * cellDim);
+							sf->addElement(d);
+						}
 					}
 				}
 			}
 
 			sf->computeMinAndMax();
 			int sfIdx = gridCloud->addScalarField(sf);
-			gridCloud->setCurrentDisplayedScalarField(sfIdx);
-			gridCloud->showSF(true);
-			gridCloud->setDisplay(ent->getDisplay());
-			ent->prepareDisplayForRefresh();
-			addToDB(gridCloud);
+
+			if (gridCloud->size() == 0)
+			{
+				ccLog::Warning(QString("[DistanceMap] Cloud '%1': no point falls inside the specified range").arg(ent->getName()));
+				delete gridCloud;
+				gridCloud = 0;
+			}
+			else
+			{
+				gridCloud->setCurrentDisplayedScalarField(sfIdx);
+				gridCloud->showSF(true);
+				gridCloud->setDisplay(ent->getDisplay());
+				gridCloud->shrinkToFit();
+				ent->prepareDisplayForRefresh();
+				addToDB(gridCloud);
+			}
 		}
 	}
 
@@ -5368,12 +5407,12 @@ void MainWindow::doActionMatchScales()
 		s_msFinalOverlap = msDlg.overlapSpinBox->value();
 	}
 
-	ccLibAlgorithms::ApplyScaleMatchingAlgorithm(s_msAlgorithm,
-																selectedEntities,
-																s_msRmsDiff,
-																s_msFinalOverlap,
-																msDlg.getSelectedIndex(),
-																this);
+	ccLibAlgorithms::ApplyScaleMatchingAlgorithm(	s_msAlgorithm,
+													selectedEntities,
+													s_msRmsDiff,
+													s_msFinalOverlap,
+													msDlg.getSelectedIndex(),
+													this);
 	
 	//reselect previously selected entities!
 	if (m_ccRoot)
@@ -5652,26 +5691,49 @@ ccGLWindow* MainWindow::getActiveGLWindow()
 	QMdiSubWindow *activeSubWindow = m_mdiArea->activeSubWindow();
 	if (activeSubWindow)
 	{
-		return static_cast<ccGLWindow*>(activeSubWindow->widget());
+		return GLWindowFromWidget(activeSubWindow->widget());
 	}
 	else
 	{
 		QList<QMdiSubWindow*> subWindowList = m_mdiArea->subWindowList();
 		if (!subWindowList.isEmpty())
 		{
-			return static_cast<ccGLWindow*>(subWindowList[0]->widget());
+			return GLWindowFromWidget(subWindowList[0]->widget());
 		}
 	}
 
 	return 0;
 }
 
+int MainWindow::getGLWindowCount() const
+{
+	return m_mdiArea ? m_mdiArea->subWindowList().size() : 0;
+}
+
+ccGLWindow* MainWindow::getGLWindow(int index) const
+{
+	QList<QMdiSubWindow*> subWindowList = m_mdiArea->subWindowList();
+	if (index >= 0 && index < subWindowList.size())
+	{
+		ccGLWindow* win = GLWindowFromWidget(subWindowList[index]->widget());
+		assert(win);
+		return win;
+	}
+	else
+	{
+		assert(false);
+		return 0;
+	}
+}
+
 QMdiSubWindow* MainWindow::getMDISubWindow(ccGLWindow* win)
 {
 	QList<QMdiSubWindow*> subWindowList = m_mdiArea->subWindowList();
-	for (int i=0; i<subWindowList.size(); ++i)
-		if (static_cast<ccGLWindow*>(subWindowList[i]->widget()) == win)
+	for (int i = 0; i < subWindowList.size(); ++i)
+	{
+		if (GLWindowFromWidget(subWindowList[i]->widget()) == win)
 			return subWindowList[i];
+	}
 
 	//not found!
 	return 0;
@@ -5701,12 +5763,17 @@ ccGLWindow* MainWindow::new3DView()
 {
 	assert(m_ccRoot && m_mdiArea);
 
-	ccGLWindow *view3D = new ccGLWindow(this);
+	bool stereoMode = QSurfaceFormat::defaultFormat().stereo();
 
-	view3D->setMinimumSize(400,300);
-	view3D->resize(500,400);
+	QWidget* viewWidget = 0;
+	ccGLWindow* view3D = 0;
+	CreateGLWindow(view3D, viewWidget, stereoMode, false);
+	assert(viewWidget && view3D);
 
-	m_mdiArea->addSubWindow(view3D);
+	viewWidget->setMinimumSize(400, 300);
+	viewWidget->resize(500, 400);
+
+	m_mdiArea->addSubWindow(viewWidget);
 
 	connect(view3D,	SIGNAL(entitySelectionChanged(ccHObject*)),					m_ccRoot,	SLOT(selectEntity(ccHObject*)));
 	connect(view3D,	SIGNAL(entitiesSelectionChanged(std::unordered_set<int>)),	m_ccRoot,	SLOT(selectEntities(std::unordered_set<int>)));
@@ -5725,12 +5792,12 @@ ccGLWindow* MainWindow::new3DView()
 	connect(view3D,	SIGNAL(exclusiveFullScreenToggled(bool)),			this,		SLOT(onExclusiveFullScreenToggled(bool)));
 
 	view3D->setSceneDB(m_ccRoot->getRootEntity());
-	view3D->setAttribute(Qt::WA_DeleteOnClose);
+	viewWidget->setAttribute(Qt::WA_DeleteOnClose);
 	m_ccRoot->updatePropertiesView();
 
 	QMainWindow::statusBar()->showMessage(QString("New 3D View"), 2000);
 
-	view3D->showMaximized();
+	viewWidget->showMaximized();
 
 	return view3D;
 }
@@ -5891,7 +5958,7 @@ void MainWindow::placeMDIDialog(ccMDIDialogs& mdiDlg)
 	if (!mdiDlg.dialog || !mdiDlg.dialog->isVisible() || !m_mdiArea)
 		return;
 
-	int dx=0,dy=0;
+	int dx = 0, dy = 0;
 	switch (mdiDlg.position)
 	{
 	case Qt::TopLeftCorner:
@@ -5899,16 +5966,16 @@ void MainWindow::placeMDIDialog(ccMDIDialogs& mdiDlg)
 		dy = 5;
 		break;
 	case Qt::TopRightCorner:
-		dx = std::max(5,m_mdiArea->width() - mdiDlg.dialog->width() - 5);
+		dx = std::max(5, m_mdiArea->width() - mdiDlg.dialog->width() - 5);
 		dy = 5;
 		break;
 	case Qt::BottomLeftCorner:
 		dx = 5;
-		dy = std::max(5,m_mdiArea->height() - mdiDlg.dialog->height() - 5);
+		dy = std::max(5, m_mdiArea->height() - mdiDlg.dialog->height() - 5);
 		break;
 	case Qt::BottomRightCorner:
-		dx = std::max(5,m_mdiArea->width() - mdiDlg.dialog->width() - 5);
-		dy = std::max(5,m_mdiArea->height() - mdiDlg.dialog->height() - 5);
+		dx = std::max(5, m_mdiArea->width() - mdiDlg.dialog->width() - 5);
+		dy = std::max(5, m_mdiArea->height() - mdiDlg.dialog->height() - 5);
 		break;
 	}
 
@@ -5929,7 +5996,7 @@ void MainWindow::toggleVisualDebugTraces()
 	if (win)
 	{
 		win->toggleDebugTrace();
-		win->redraw(true, false);
+		win->redraw(false, false);
 	}
 }
 
@@ -6998,7 +7065,7 @@ void MainWindow::setOrthoView(ccGLWindow* win)
 		{
 			return;
 		}
-		win->setPerspectiveState(false,true);
+		win->setPerspectiveState(false, true);
 		win->redraw();
 
 		//update pop-up menu 'top' icon
@@ -7699,7 +7766,7 @@ void MainWindow::doActionAddConstantSF()
 		return;
 	}
 
-	ScalarType sfValue = static_cast<ScalarType>(QInputDialog::getDouble(this,"Add constant value", "value", s_constantSFValue, -1.0e9, 1.0e9, 8, &ok));
+	ScalarType sfValue = static_cast<ScalarType>(QInputDialog::getDouble(this, "Add constant value", "value", s_constantSFValue, -1.0e9, 1.0e9, 8, &ok));
 	if (!ok)
 		return;
 
@@ -7819,7 +7886,7 @@ void MainWindow::doComputePlaneOrientation(bool fitFacet)
 	if (fitFacet)
 	{
 		bool ok = true;
-		maxEdgeLength = QInputDialog::getDouble(this,"Fit facet", "Max edge length (0 = no limit)", s_polygonMaxEdgeLength, 0, 1.0e9, 8, &ok);
+		maxEdgeLength = QInputDialog::getDouble(this, "Fit facet", "Max edge length (0 = no limit)", s_polygonMaxEdgeLength, 0, 1.0e9, 8, &ok);
 		if (!ok)
 			return;
 		s_polygonMaxEdgeLength = maxEdgeLength;
@@ -8225,9 +8292,9 @@ void MainWindow::doActionComputeBestICPRmsMatrix()
 	//let's start!
 	{
 		ccProgressDialog pDlg(true,this);
-		pDlg.setMethodTitle("Testing all possible positions");
-		pDlg.setInfo(qPrintable(QString("%1 clouds and %2 positions").arg(cloudCount).arg(matrices.size())));
-		CCLib::NormalizedProgress nProgress(&pDlg,static_cast<unsigned>(((cloudCount*(cloudCount-1))/2)*matrices.size()));
+		pDlg.setMethodTitle(tr("Testing all possible positions"));
+		pDlg.setInfo(tr("%1 clouds and %2 positions").arg(cloudCount).arg(matrices.size()));
+		CCLib::NormalizedProgress nProgress(&pDlg, static_cast<unsigned>(((cloudCount*(cloudCount - 1)) / 2)*matrices.size()));
 		pDlg.start();
 		QApplication::processEvents();
 
@@ -8663,6 +8730,12 @@ void MainWindow::toggleActiveWindowStereoVision(bool state)
 		if (isActive)
 		{
 			win->disableStereoMode();
+
+			if (win->getStereoParams().glassType == ccGLWindow::StereoParams::NVIDIA_VISION)
+			{
+				//disable (exclusive) full screen
+				actionExclusiveFullScreen->setChecked(false);
+			}
 		}
 		else
 		{
@@ -8688,6 +8761,10 @@ void MainWindow::toggleActiveWindowStereoVision(bool state)
 
 			if (params.glassType == ccGLWindow::StereoParams::NVIDIA_VISION)
 			{
+#ifndef CC_GL_WINDOW_USE_QWINDOW
+				ccLog::Error("This version of CloudCompare doesn't handle Quad Buffer mode");
+				return;
+#endif
 				//force (exclusive) full screen
 				actionExclusiveFullScreen->setChecked(true);
 			}
@@ -8716,16 +8793,40 @@ bool MainWindow::checkStereoMode(ccGLWindow* win)
 		
 	if (win && win->getViewportParameters().perspectiveView && win->stereoModeIsEnabled())
 	{
-		if (QMessageBox::question(this,"Stereo mode", "Stereo-mode only works in perspective mode. Do you want to disable it?", QMessageBox::Yes, QMessageBox::No) == QMessageBox::No)
+		ccGLWindow::StereoParams params = win->getStereoParams();
+		bool wasExclusiveFullScreen = win->exclusiveFullScreen();
+		if (wasExclusiveFullScreen)
 		{
+			win->toggleExclusiveFullScreen(false);
+		}
+		win->disableStereoMode();
+		
+		if (QMessageBox::question(	this,
+									"Stereo mode",
+									"Stereo-mode only works in perspective mode. Do you want to disable it?",
+									QMessageBox::Yes,
+									QMessageBox::No) == QMessageBox::No )
+		{
+			if (wasExclusiveFullScreen)
+			{
+				win->toggleExclusiveFullScreen(true);
+				win->enableStereoMode(params);
+			}
 			return false;
 		}
 		else
 		{
-			win->disableStereoMode();
-			actionEnableStereo->blockSignals(true);
-			actionEnableStereo->setChecked(false);
-			actionEnableStereo->blockSignals(false);
+			if (win == getActiveGLWindow())
+			{
+				actionEnableStereo->setChecked(false);
+			}
+			else
+			{
+				assert(false);
+				actionEnableStereo->blockSignals(true);
+				actionEnableStereo->setChecked(false);
+				actionEnableStereo->blockSignals(false);
+			}
 		}
 	}
 
@@ -8927,8 +9028,10 @@ void MainWindow::addToDB(	ccHObject* obj,
 					pc->setGlobalScale(pc->getGlobalScale() * scale);
 				}
 
-				for (unsigned i=0; i<child->getChildrenNumber(); ++i)
+				for (unsigned i = 0; i < child->getChildrenNumber(); ++i)
+				{
 					children.push_back(child->getChild(i));
+				}
 			}
 		}
 	}
@@ -8938,8 +9041,10 @@ void MainWindow::addToDB(	ccHObject* obj,
 	{
 		//force a 'global zoom' if the DB was emtpy!
 		if (!m_ccRoot->getRootEntity() || m_ccRoot->getRootEntity()->getChildrenNumber() == 0)
+		{
 			updateZoom = true;
-		m_ccRoot->addElement(obj,autoExpandDBTree);
+		}
+		m_ccRoot->addElement(obj, autoExpandDBTree);
 	}
 	else
 	{
@@ -9236,7 +9341,7 @@ void MainWindow::doActionSaveFile()
 			{
 				bool isExclusive = true;
 				bool multiple = false;
-				canExportClouds = (		filter->canSave(CC_TYPES::POINT_CLOUD,multiple,isExclusive)
+				canExportClouds = (		filter->canSave(CC_TYPES::POINT_CLOUD, multiple, isExclusive)
 									&&	(multiple || clouds.getChildrenNumber() == 1) );
 				atLeastOneExclusive |= isExclusive;
 			}
@@ -9247,7 +9352,7 @@ void MainWindow::doActionSaveFile()
 			{
 				bool isExclusive = true;
 				bool multiple = false;
-				canExportMeshes = (		filter->canSave(CC_TYPES::MESH,multiple,isExclusive)
+				canExportMeshes = (		filter->canSave(CC_TYPES::MESH, multiple, isExclusive)
 									&&	(multiple || meshes.getChildrenNumber() == 1) );
 				atLeastOneExclusive |= isExclusive;
 			}
@@ -9258,7 +9363,7 @@ void MainWindow::doActionSaveFile()
 			{
 				bool isExclusive = true;
 				bool multiple = false;
-				canExportPolylines = (	filter->canSave(CC_TYPES::POLY_LINE,multiple,isExclusive)
+				canExportPolylines = (	filter->canSave(CC_TYPES::POLY_LINE, multiple, isExclusive)
 									&&	(multiple || polylines.getChildrenNumber() == 1) );
 				atLeastOneExclusive |= isExclusive;
 			}
@@ -9269,7 +9374,7 @@ void MainWindow::doActionSaveFile()
 			{
 				bool isExclusive = true;
 				bool multiple = false;
-				canExportImages = (		filter->canSave(CC_TYPES::IMAGE,multiple,isExclusive)
+				canExportImages = (		filter->canSave(CC_TYPES::IMAGE, multiple, isExclusive)
 									&&	(multiple || images.getChildrenNumber() == 1) );
 				atLeastOneExclusive |= isExclusive;
 			}
@@ -9297,7 +9402,7 @@ void MainWindow::doActionSaveFile()
 					ccHObject* child = otherSerializable.getChild(j);
 					bool isExclusive = true;
 					bool multiple = false;
-					canExportSerializables &= (		filter->canSave(child->getUniqueID(),multiple,isExclusive)
+					canExportSerializables &= (		filter->canSave(child->getUniqueID(), multiple, isExclusive)
 												&&	(multiple || otherSerializable.getChildrenNumber() == 1) );
 					atLeastOneExclusive |= isExclusive;
 				}
@@ -9448,7 +9553,7 @@ void MainWindow::doActionSaveFile()
 
 void MainWindow::on3DViewActivated(QMdiSubWindow* mdiWin)
 {
-	ccGLWindow* win = mdiWin ? static_cast<ccGLWindow*>(mdiWin->widget()) : 0;
+	ccGLWindow* win = mdiWin ? GLWindowFromWidget(mdiWin->widget()) : 0;
 	if (win)
 	{
 		updateViewModePopUpMenu(win);
@@ -9545,7 +9650,7 @@ void MainWindow::updateMenus()
 {
 	ccGLWindow* win = getActiveGLWindow();
 	bool hasMdiChild = (win != 0);
-	int mdiChildCount = m_mdiArea->subWindowList().size();
+	int mdiChildCount = getGLWindowCount();
 	bool hasSelectedEntities = (m_ccRoot && m_ccRoot->countSelectedEntities() > 0);
 
 	//General Menu
@@ -9615,7 +9720,7 @@ void MainWindow::update3DViewsMenu()
 
 		for (int i=0; i<windows.size(); ++i)
 		{
-			QWidget *child = windows.at(i)->widget();
+			ccGLWindow *child = GLWindowFromWidget(windows.at(i)->widget());
 
 			QString text = QString("&%1 %2").arg(i + 1).arg(child->windowTitle());
 			QAction *action = menu3DViews->addAction(text);
@@ -9638,14 +9743,14 @@ void MainWindow::redrawAll(bool only2D/*=false*/)
 {
 	QList<QMdiSubWindow*> windows = m_mdiArea->subWindowList();
 	for (int i=0; i<windows.size(); ++i)
-		static_cast<ccGLWindow*>(windows.at(i)->widget())->redraw(only2D);
+		GLWindowFromWidget(windows.at(i)->widget())->redraw(only2D);
 }
 
 void MainWindow::refreshAll(bool only2D/*=false*/)
 {
 	QList<QMdiSubWindow*> windows = m_mdiArea->subWindowList();
 	for (int i=0; i<windows.size(); ++i)
-		static_cast<ccGLWindow*>(windows.at(i)->widget())->refresh(only2D);
+		GLWindowFromWidget(windows.at(i)->widget())->refresh(only2D);
 }
 
 void MainWindow::updateUI()
@@ -9698,7 +9803,7 @@ void MainWindow::disableAllBut(ccGLWindow* win)
 	//we disable all other windows
 	QList<QMdiSubWindow*> windows = m_mdiArea->subWindowList();
 	for (int i=0; i<windows.size(); ++i)
-		if (static_cast<ccGLWindow*>(windows.at(i)->widget()) != win)
+		if (GLWindowFromWidget(windows.at(i)->widget()) != win)
 			windows.at(i)->setEnabled(false);
 }
 
@@ -9815,7 +9920,7 @@ void MainWindow::enableUIItems(dbTreeSelectionInfo& selInfo)
 	actionCreateGBLSensor->setEnabled(atLeastOneCloud);
 	actionCreateCameraSensor->setEnabled(selInfo.selCount <= 1); //free now
 	actionProjectUncertainty->setEnabled(exactlyOneCameraSensor);
-	actionCheckPointsInsideFrustrum->setEnabled(exactlyOneCameraSensor);
+	actionCheckPointsInsideFrustum->setEnabled(exactlyOneCameraSensor);
 	actionLabelConnectedComponents->setEnabled(atLeastOneCloud);
 	actionSORFilter->setEnabled(atLeastOneCloud);
 	actionNoiseFilter->setEnabled(atLeastOneCloud);
@@ -9876,7 +9981,7 @@ void MainWindow::echoMouseWheelRotate(float wheelDelta_deg)
 	QList<QMdiSubWindow *> windows = m_mdiArea->subWindowList();
 	for (int i=0; i<windows.size(); ++i)
 	{
-		ccGLWindow *child = static_cast<ccGLWindow*>(windows.at(i)->widget());
+		ccGLWindow *child = GLWindowFromWidget(windows.at(i)->widget());
 		if (child != sendingWindow)
 		{
 			child->blockSignals(true);
@@ -9899,11 +10004,11 @@ void MainWindow::echoCameraDisplaced(float ddx, float ddy)
 	QList<QMdiSubWindow *> windows = m_mdiArea->subWindowList();
 	for (int i=0; i<windows.size(); ++i)
 	{
-		ccGLWindow *child = static_cast<ccGLWindow*>(windows.at(i)->widget());
+		ccGLWindow *child = GLWindowFromWidget(windows.at(i)->widget());
 		if (child != sendingWindow)
 		{
 			child->blockSignals(true);
-			child->moveCamera(ddx,ddy,0.0f);
+			child->moveCamera(ddx, ddy, 0.0f);
 			child->blockSignals(false);
 			child->redraw();
 		}
@@ -9922,7 +10027,7 @@ void MainWindow::echoBaseViewMatRotation(const ccGLMatrixd& rotMat)
 	QList<QMdiSubWindow *> windows = m_mdiArea->subWindowList();
 	for (int i=0; i<windows.size(); ++i)
 	{
-		ccGLWindow *child = static_cast<ccGLWindow*>(windows.at(i)->widget());
+		ccGLWindow *child = GLWindowFromWidget(windows.at(i)->widget());
 		if (child != sendingWindow)
 		{
 			child->blockSignals(true);
@@ -9945,7 +10050,7 @@ void MainWindow::echoBaseViewMatRotation(const ccGLMatrixd& rotMat)
 	 QList<QMdiSubWindow *> windows = m_mdiArea->subWindowList();
 	 for (int i=0; i<windows.size(); ++i)
 	 {
-		 ccGLWindow *child = static_cast<ccGLWindow*>(windows.at(i)->widget());
+		 ccGLWindow *child = GLWindowFromWidget(windows.at(i)->widget());
 		 if (child != sendingWindow)
 		 {
 			 child->blockSignals(true);
@@ -9968,7 +10073,7 @@ void MainWindow::echoBaseViewMatRotation(const ccGLMatrixd& rotMat)
 	 QList<QMdiSubWindow *> windows = m_mdiArea->subWindowList();
 	 for (int i=0; i<windows.size(); ++i)
 	 {
-		 ccGLWindow *child = static_cast<ccGLWindow*>(windows.at(i)->widget());
+		 ccGLWindow *child = GLWindowFromWidget(windows.at(i)->widget());
 		 if (child != sendingWindow)
 		 {
 			 child->blockSignals(true);
@@ -9991,7 +10096,7 @@ void MainWindow::echoBaseViewMatRotation(const ccGLMatrixd& rotMat)
 	 QList<QMdiSubWindow *> windows = m_mdiArea->subWindowList();
 	 for (int i=0; i<windows.size(); ++i)
 	 {
-		 ccGLWindow *child = static_cast<ccGLWindow*>(windows.at(i)->widget());
+		 ccGLWindow *child = GLWindowFromWidget(windows.at(i)->widget());
 		 if (child != sendingWindow)
 		 {
 			 child->blockSignals(true);
@@ -10060,8 +10165,10 @@ void MainWindow::GetGLWindows(std::vector<ccGLWindow*>& glWindows)
 	glWindows.clear();
 	glWindows.reserve(winNum);
 
-	for (int i=0; i<winNum; ++i)
-		glWindows.push_back(static_cast<ccGLWindow*>(windows.at(i)->widget()));
+	for (int i = 0; i < winNum; ++i)
+	{
+		glWindows.push_back(GLWindowFromWidget(windows.at(i)->widget()));
+	}
 }
 
 ccGLWindow* MainWindow::GetActiveGLWindow()
@@ -10079,7 +10186,7 @@ ccGLWindow* MainWindow::GetGLWindow(const QString& title)
 
 	for (int i=0; i<winNum; ++i)
 	{
-		ccGLWindow* win = static_cast<ccGLWindow*>(windows.at(i)->widget());
+		ccGLWindow* win = GLWindowFromWidget(windows.at(i)->widget());
 		if (win->windowTitle() == title)
 			return win;
 	}
@@ -10158,39 +10265,36 @@ void MainWindow::putObjectBackIntoDBTree(ccHObject* obj, const ccHObjectContext&
 	m_ccRoot->addElement(obj,false);
 }
 
-//For primitives test
-//#include <ccBox.h>
-//#include <ccCone.h>
-//#include <ccCylinder.h>
-//#include <ccTorus.h>
-//#include <ccSphere.h>
-//#include <ccDish.h>
-//#include <ccExtru.h>
-//
-//void doTestPrimitives()
-//{
-//	//PRIMITIVES TEST
-//	addToDB(new ccBox(CCVector3(10, 20, 30)));
-//	addToDB(new ccCone(10, 20, 30));
-//	addToDB(new ccCylinder(20, 30));
-//	addToDB(new ccCone(10, 20, 30, 5, 10));
-//	addToDB(new ccTorus(50, 60, M_PI / 3, false));
-//	addToDB(new ccTorus(50, 60, M_PI / 3, true, 20));
-//	addToDB(new ccSphere(35));
-//	addToDB(new ccDish(35, 15, 0));
-//	addToDB(new ccDish(35, 25, 0));
-//	addToDB(new ccDish(35, 35, 0));
-//	addToDB(new ccDish(35, 15, 15));
-//
-//	std::vector<CCVector2> contour;
-//	contour.push_back(CCVector2(10, 00));
-//	contour.push_back(CCVector2(00, 20));
-//	contour.push_back(CCVector2(15, 25));
-//	contour.push_back(CCVector2(20, 10));
-//	contour.push_back(CCVector2(25, 27));
-//	contour.push_back(CCVector2(18, 35));
-//	contour.push_back(CCVector2(22, 40));
-//	contour.push_back(CCVector2(30, 30));
-//	contour.push_back(CCVector2(27, 05));
-//	addToDB(new ccExtru(contour, 10));
-//}
+void MainWindow::doActionGlobalShiftSeetings()
+{
+	QDialog dialog(this);
+	Ui_GlobalShiftSettingsDialog ui;
+	ui.setupUi(&dialog);
+
+	ui.maxAbsCoordSpinBox->setValue(static_cast<int>(log10(ccGlobalShiftManager::MaxCoordinateAbsValue())));
+	ui.maxAbsDiagSpinBox->setValue(static_cast<int>(log10(ccGlobalShiftManager::MaxBoundgBoxDiagonal())));
+
+	if (!dialog.exec())
+	{
+		return;
+	}
+
+	double maxAbsCoord = pow(10.0, static_cast<double>(ui.maxAbsCoordSpinBox->value()));
+	double maxAbsDiag = pow(10.0, static_cast<double>(ui.maxAbsDiagSpinBox->value()));
+
+	ccGlobalShiftManager::SetMaxCoordinateAbsValue(maxAbsCoord);
+	ccGlobalShiftManager::SetMaxBoundgBoxDiagonal(maxAbsDiag);
+
+	ccLog::Print(QString("[Global Shift] Max abs. coord = %1 / max abs. diag = %2")
+		.arg(ccGlobalShiftManager::MaxCoordinateAbsValue(), 0, 'e', 0)
+		.arg(ccGlobalShiftManager::MaxBoundgBoxDiagonal(), 0, 'e', 0));
+
+	//save to persistent settings
+	{
+		QSettings settings;
+		settings.beginGroup(ccPS::GlobalShift());
+		settings.setValue(ccPS::MaxAbsCoord(), maxAbsCoord);
+		settings.setValue(ccPS::MaxAbsDiag(), maxAbsDiag);
+		settings.endGroup();
+	}
+}

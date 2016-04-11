@@ -30,6 +30,7 @@
 #include "ccScalarField.h"
 #include "ccColorScalesManager.h"
 #include "ccGenericGLDisplay.h"
+#include "ccProgressDialog.h"
 
 //CCLib
 #include <ManualSegmentationTools.h>
@@ -540,7 +541,7 @@ void ccMesh::transformTriNormals(const ccGLMatrix& trans)
 
 bool ccMesh::laplacianSmooth(	unsigned nbIteration,
 								PointCoordinateType factor,
-								CCLib::GenericProgressCallback* progressCb/*=0*/)
+								ccProgressDialog* progressCb/*=0*/)
 {
 	if (!m_associatedCloud)
 		return false;
@@ -552,7 +553,7 @@ bool ccMesh::laplacianSmooth(	unsigned nbIteration,
 	if (!vertCount || !faceCount)
 		return false;
 
-	GenericChunkedArray<3,PointCoordinateType>* verticesDisplacement = new GenericChunkedArray<3,PointCoordinateType>;
+	GenericChunkedArray<3, PointCoordinateType>* verticesDisplacement = new GenericChunkedArray < 3, PointCoordinateType > ;
 	if (!verticesDisplacement->resize(vertCount))
 	{
 		//not enough memory
@@ -586,8 +587,8 @@ bool ccMesh::laplacianSmooth(	unsigned nbIteration,
 	CCLib::NormalizedProgress nProgress(progressCb, nbIteration);
 	if (progressCb)
 	{
-		progressCb->setMethodTitle("Laplacian smooth");
-		progressCb->setInfo(qPrintable(QString("Iterations: %1\nVertices: %2\nFaces: %3").arg(nbIteration).arg(vertCount).arg(faceCount)));
+		progressCb->setMethodTitle(QObject::tr("Laplacian smooth"));
+		progressCb->setInfo(QObject::tr("Iterations: %1\nVertices: %2\nFaces: %3").arg(nbIteration).arg(vertCount).arg(faceCount));
 		progressCb->start();
 	}
 
@@ -1474,10 +1475,6 @@ void ccMesh::drawMeOnly(CC_DRAW_CONTEXT& context)
 
 		//GL name pushing
 		bool pushName = MACRO_DrawEntityNames(context);
-		//special case: triangle names pushing (for picking)
-		bool pushTriangleNames = MACRO_DrawTriangleNames(context);
-		pushName |= pushTriangleNames;
-
 		if (pushName)
 		{
 			//not fast at all!
@@ -1576,7 +1573,7 @@ void ccMesh::drawMeOnly(CC_DRAW_CONTEXT& context)
 			EnableGLStippleMask(context.qGLContext, true);
 		}
 
-		if (!pushTriangleNames && !visFiltering && !(applyMaterials || showTextures) && (!glParams.showSF || greyForNanScalarValues))
+		if (!visFiltering && !(applyMaterials || showTextures) && (!glParams.showSF || greyForNanScalarValues))
 		{
 #define OPTIM_MEM_CPY //use optimized mem. transfers
 #ifdef OPTIM_MEM_CPY
@@ -1836,11 +1833,6 @@ void ccMesh::drawMeOnly(CC_DRAW_CONTEXT& context)
 				glFunc->glEnable(GL_TEXTURE_2D);
 			}
 
-			if (pushTriangleNames)
-			{
-				glFunc->glPushName(0);
-			}
-
 			GLenum triangleDisplayType = lodEnabled ? GL_POINTS : showWired ? GL_LINE_LOOP : GL_TRIANGLES;
 			glFunc->glBegin(triangleDisplayType);
 
@@ -1958,13 +1950,7 @@ void ccMesh::drawMeOnly(CC_DRAW_CONTEXT& context)
 					}
 				}
 
-				if (pushTriangleNames)
-				{
-					glFunc->glEnd();
-					glFunc->glLoadName(n);
-					glFunc->glBegin(triangleDisplayType);
-				}
-				else if (showWired)
+				if (showWired)
 				{
 					glFunc->glEnd();
 					glFunc->glBegin(triangleDisplayType);
@@ -1999,11 +1985,6 @@ void ccMesh::drawMeOnly(CC_DRAW_CONTEXT& context)
 			}
 
 			glFunc->glEnd();
-
-			if (pushTriangleNames)
-			{
-				glFunc->glPopName();
-			}
 
 			if (showTextures)
 			{

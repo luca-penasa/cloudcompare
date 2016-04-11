@@ -681,8 +681,8 @@ bool ccGBLSensor::computeDepthBuffer(CCLib::GenericCloud* theCloud, int& errorCo
 			//progress bar
 			ccProgressDialog pdlg(true);
 			CCLib::NormalizedProgress nprogress(&pdlg,pointCount);
-			pdlg.setMethodTitle("Depth buffer");
-			pdlg.setInfo(qPrintable(QString("Points: %1").arg(pointCount)));
+			pdlg.setMethodTitle(QObject::tr("Depth buffer"));
+			pdlg.setInfo(QObject::tr("Points: %1").arg(pointCount));
 			pdlg.start();
 			QCoreApplication::processEvents();
 
@@ -986,7 +986,7 @@ bool ccGBLSensor::applyViewport(ccGenericGLDisplay* win/*=0*/)
 	viewMat.invert();
 	viewMat.setTranslation(sensorCenterd);
 	//TODO: can we set the right FOV?
-	win->setupProjectiveViewport(viewMat,0,1.0f,true,true);
+	win->setupProjectiveViewport(viewMat, 0, 1.0f, true, true);
 
 	return true;
 }

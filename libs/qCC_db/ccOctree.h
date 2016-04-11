@@ -33,7 +33,7 @@
 #include <vector>
 
 class ccGenericPointCloud;
-class ccOctreeFrustrumIntersector;
+class ccOctreeFrustumIntersector;
 class ccCameraSensor;
 
 //! Octree structure
@@ -99,8 +99,8 @@ public: //RENDERING
 	void draw(CC_DRAW_CONTEXT& context);
 
 	//! Intersects octree with a camera sensor
-	bool intersectWithFrustrum(	ccCameraSensor* sensor,
-								std::vector<unsigned>& inCameraFrustrum);
+	bool intersectWithFrustum(	ccCameraSensor* sensor,
+								std::vector<unsigned>& inCameraFrustum);
 
 	//! Octree-driven point picking algorithm
 	bool pointPicking(	const CCVector2d& clickPos,
@@ -149,8 +149,8 @@ protected: //MEMBERS
 	//! Whether the display (list) should be refreshed or not
 	bool m_glListIsDeprecated;
 
-	//! For frustrum intersection
-	ccOctreeFrustrumIntersector* m_frustrumIntersector;
+	//! For frustum intersection
+	ccOctreeFrustumIntersector* m_frustumIntersector;
 
 };
 

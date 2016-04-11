@@ -26,6 +26,8 @@
 #include "ccSensor.h"
 #include "ccGenericGLDisplay.h"
 #include "ccProgressDialog.h"
+#include "ccPointCloud.h"
+#include "ccScalarField.h"
 
 ccGenericPointCloud::ccGenericPointCloud(QString name)
 	: ccShiftedObject(name)
@@ -143,6 +145,26 @@ ccOctree::Shared ccGenericPointCloud::getOctree() const
 	}
 }
 
+void ccGenericPointCloud::setOctree(ccOctree::Shared octree, bool autoAddChild/*=true*/)
+{
+	if (!octree || octree->getNumberOfProjectedPoints() == 0)
+	{
+		assert(false);
+		return;
+	}
+
+	deleteOctree();
+
+	ccOctreeProxy* proxy = new ccOctreeProxy(octree);
+	proxy->setDisplay(getDisplay());
+	proxy->setVisible(true);
+	proxy->setEnabled(false);
+	if (autoAddChild)
+	{
+		addChild(proxy);
+	}
+}
+
 ccOctree::Shared ccGenericPointCloud::computeOctree(CCLib::GenericProgressCallback* progressCb, bool autoAddChild/*=true*/)
 {
 	deleteOctree();
@@ -150,14 +172,7 @@ ccOctree::Shared ccGenericPointCloud::computeOctree(CCLib::GenericProgressCallba
 	ccOctree::Shared octree = ccOctree::Shared(new ccOctree(this));
 	if (octree->build(progressCb) > 0)
 	{
-		ccOctreeProxy* proxy = new ccOctreeProxy(octree);
-		proxy->setDisplay(getDisplay());
-		proxy->setVisible(true);
-		proxy->setEnabled(false);
-		if (autoAddChild)
-		{
-			addChild(proxy);
-		}
+		setOctree(octree, autoAddChild);
 	}
 	else
 	{
@@ -415,33 +430,58 @@ bool ccGenericPointCloud::pointPicking(	const CCVector2d& clickPos,
 		ccGLMatrix trans;
 		bool noGLTrans = !getAbsoluteGLTransformation(trans);
 
+		//visibility table (if any)
+		const ccGenericPointCloud::VisibilityTableType* visTable = isVisibilityTableInstantiated() ? getTheVisibilityArray() : 0;
+
+		//scalar field with hidden values (if any)
+		ccScalarField* activeSF = 0;
+		if (	sfShown()
+			&&	isA(CC_TYPES::POINT_CLOUD)
+			&&	!visTable //if the visibility table is instantiated, we always display ALL points
+			)
+		{
+			ccPointCloud* pc = static_cast<ccPointCloud*>(this);
+			ccScalarField* sf = pc->getCurrentDisplayedScalarField();
+			if (sf && sf->mayHaveHiddenValues() && sf->getColorScale())
+			{
+				//we must take this SF display parameters into account as some points may be hidden!
+				activeSF = sf;
+			}
+		}
+
 #if defined(_OPENMP)
 #pragma omp parallel for
 #endif
 		for (int i=0; i<static_cast<int>(size()); ++i)
 		{
-			const CCVector3* P = getPoint(i);
+			//we shouldn't test points that are actually hidden!
+			if (	(!visTable || visTable->getValue(i) == POINT_VISIBLE)
+				&&	(!activeSF || activeSF->getColor(activeSF->getValue(i)))
+				)
+			{
+				const CCVector3* P = getPoint(i);
 
-			CCVector3d Q2D;
-			if (noGLTrans)
-			{
-				camera.project(*P, Q2D);
-			}
-			else
-			{
-				CCVector3 P3D = *P;
-				trans.apply(P3D);
-				camera.project(P3D, Q2D);
-			}
-
-			if (	fabs(Q2D.x-clickPos.x) <= pickWidth
-				&&	fabs(Q2D.y-clickPos.y) <= pickHeight)
-			{
-				double squareDist = CCVector3d(X.x-P->x, X.y-P->y, X.z-P->z).norm2d();
-				if (nearestPointIndex < 0 || squareDist < nearestSquareDist)
+				CCVector3d Q2D;
+				if (noGLTrans)
 				{
-					nearestSquareDist = squareDist;
-					nearestPointIndex = static_cast<int>(i);
+					camera.project(*P, Q2D);
+				}
+				else
+				{
+					CCVector3 P3D = *P;
+					trans.apply(P3D);
+					camera.project(P3D, Q2D);
+				}
+
+				if (	fabs(Q2D.x-clickPos.x) <= pickWidth
+					&&	fabs(Q2D.y-clickPos.y) <= pickHeight)
+				{
+					double squareDist = CCVector3d(X.x-P->x, X.y-P->y, X.z-P->z).norm2d();
+					if (nearestPointIndex < 0 || squareDist < nearestSquareDist)
+					{
+						nearestSquareDist = squareDist;
+						nearestPointIndex = static_cast<int>(i);
+					}
 				}
 			}
 		}

@@ -438,9 +438,12 @@ int ccFastMarchingForNormsDirection::OrientNormals(	ccPointCloud* cloud,
 	//progress notification
 	if (progressCb)
 	{
-		progressCb->reset();
-		progressCb->setMethodTitle("Norms direction");
-		progressCb->setInfo(qPrintable(QString("Octree level: %1\nPoints: %2").arg(octreeLevel).arg(numberOfPoints)));
+		if (progressCb->textCanBeEdited())
+		{
+			progressCb->setMethodTitle("Norms direction");
+			progressCb->setInfo(qPrintable(QString("Octree level: %1\nPoints: %2").arg(octreeLevel).arg(numberOfPoints)));
+		}
+		progressCb->update(0);
 		progressCb->start();
 	}
 
@@ -470,12 +473,12 @@ int ccFastMarchingForNormsDirection::OrientNormals(	ccPointCloud* cloud,
 		//its corresponding cell in fact ;)
 		const CCVector3 *thePoint = cloud->getPoint(lastProcessedPoint);
 		Tuple3i cellPos;
-		octree->getTheCellPosWhichIncludesThePoint(thePoint,cellPos,octreeLevel);
+		octree->getTheCellPosWhichIncludesThePoint(thePoint, cellPos, octreeLevel);
 
 		//clipping (in case the octree is not 'complete')
-		cellPos.x = std::min(octreeWidth,cellPos.x);
-		cellPos.y = std::min(octreeWidth,cellPos.y);
-		cellPos.z = std::min(octreeWidth,cellPos.z);
+		cellPos.x = std::min(octreeWidth, cellPos.x);
+		cellPos.y = std::min(octreeWidth, cellPos.y);
+		cellPos.z = std::min(octreeWidth, cellPos.z);
 
 		//set corresponding FM cell as 'seed'
 		fm.setSeedCell(cellPos);

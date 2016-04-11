@@ -646,6 +646,11 @@ protected:
 	virtual bool fromFile_MeOnly(QFile& in, short dataVersion, int flags) override;
 	virtual void notifyGeometryUpdate() override;
 
+	//! Draws the cloud with the octree
+	void drawWithOctree(CC_DRAW_CONTEXT& context,
+						const CCLib::DgmOctree& octree,
+						const glDrawParams& glParams);
+
 	//inherited from ChunkedPointCloud
 	/** \warning Doesn't handle scan grids!
 	**/
@@ -705,6 +710,14 @@ protected: // VBO
 		//! States of th VBO(s)
 		enum STATES { NEW, INITIALIZED, FAILED };
 
+		//! Update flags
+		enum UPDATE_FLAGS {
+			UPDATE_POINTS = 1,
+			UPDATE_COLORS = 2,
+			UPDATE_NORMALS = 4,
+			UPDATE_ALL = UPDATE_POINTS | UPDATE_COLORS | UPDATE_NORMALS
+		};
+		
 		vboSet()
 			: hasColors(false)
 			, colorIsSF(false)
@@ -712,6 +725,7 @@ protected: // VBO
 			, hasNormals(false)
 			, totalMemSizeBytes(0)
 			, state(NEW)
+			, updateFlags(0)
 		{}
 
 		std::vector<VBO*> vbos;
@@ -720,6 +734,7 @@ protected: // VBO
 		ccScalarField* sourceSF;
 		bool hasNormals;
 		int totalMemSizeBytes;
+		int updateFlags;
 
 		//! Current state
 		STATES state;
@@ -836,7 +851,7 @@ public: //Level of Detail (LOD)
 	//! Intializes the LOD structure
 	/** \return success
 	**/
-	bool initLOD(CCLib::GenericProgressCallback* progressCallback = 0);
+	bool initLOD();
 
 	//! Clears the LOD structure
 	inline void clearLOD() { m_lod.clear(); }

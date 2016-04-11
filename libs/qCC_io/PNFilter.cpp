@@ -83,8 +83,8 @@ CC_FILE_ERROR PNFilter::saveToFile(ccHObject* entity, QString filename, SavePara
 	//progress dialog
 	ccProgressDialog pdlg(true, parameters.parentWidget); //cancel available
 	CCLib::NormalizedProgress nprogress(&pdlg,numberOfPoints);
-	pdlg.setMethodTitle("Save PN file");
-	pdlg.setInfo(qPrintable(QString("Points: %1").arg(numberOfPoints)));
+	pdlg.setMethodTitle(QObject::tr("Save PN file"));
+	pdlg.setInfo(QObject::tr("Points: %1").arg(numberOfPoints));
 	pdlg.start();
 
 	CC_FILE_ERROR result = CC_FERR_NO_ERROR;
@@ -96,7 +96,7 @@ CC_FILE_ERROR PNFilter::saveToFile(ccHObject* entity, QString filename, SavePara
 			const CCVector3* P = theCloud->getPoint(i);
 			
 			//conversion to float
-			Vector3Tpl<float> Pfloat = Vector3Tpl<float>::fromArray(P->u);
+			CCVector3f Pfloat = CCVector3f::fromArray(P->u);
 			if (out.write(reinterpret_cast<const char*>(Pfloat.u),3*sizeof(float)) < 0)
 			{
 				result = CC_FERR_WRITING;
@@ -151,8 +151,8 @@ CC_FILE_ERROR PNFilter::loadFile(QString filename, ccHObject& container, LoadPar
 	//progress dialog
 	ccProgressDialog pdlg(true, parameters.parentWidget); //cancel available
 	CCLib::NormalizedProgress nprogress(&pdlg,numberOfPoints);
-	pdlg.setMethodTitle("Open PN file");
-	pdlg.setInfo(qPrintable(QString("Points: %1").arg(numberOfPoints)));
+	pdlg.setMethodTitle(QObject::tr("Open PN file"));
+	pdlg.setInfo(QObject::tr("Points: %1").arg(numberOfPoints));
 	pdlg.start();
 
 	ccPointCloud* loadedCloud = 0;

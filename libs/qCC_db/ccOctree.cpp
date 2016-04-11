@@ -23,6 +23,8 @@
 //Local
 #include "ccCameraSensor.h"
 #include "ccNormalVectors.h"
+#include "ccScalarField.h"
+#include "ccPointCloud.h"
 #include "ccBox.h"
 
 //CCLib
@@ -32,18 +34,20 @@
 ccOctree::ccOctree(ccGenericPointCloud* aCloud)
 	: CCLib::DgmOctree(aCloud)
 	, m_theAssociatedCloudAsGPC(aCloud)
+	, m_displayedLevel(1)
+	, m_displayMode(WIRE)
 	, m_glListID(0)
 	, m_glListIsDeprecated(true)
-	, m_frustrumIntersector(0)
+	, m_frustumIntersector(0)
 {
 }
 
 ccOctree::~ccOctree()
 {
-	if (m_frustrumIntersector)
+	if (m_frustumIntersector)
 	{
-		delete m_frustrumIntersector;
-		m_frustrumIntersector = 0;
+		delete m_frustumIntersector;
+		m_frustumIntersector = 0;
 	}
 }
 
@@ -119,7 +123,7 @@ void ccOctree::translateBoundingBox(const CCVector3& T)
 
 void ccOctree::draw(CC_DRAW_CONTEXT& context)
 {
-	if (	m_theAssociatedCloudAsGPC
+	if (	!m_theAssociatedCloudAsGPC
 		||	m_thePointsAndTheirCellCodes.empty() )
 	{
 		return;
@@ -142,7 +146,7 @@ void ccOctree::draw(CC_DRAW_CONTEXT& context)
 		glFunc->glDisable(GL_LIGHTING);
 		ccGL::Color3v(glFunc, ccColor::green.rgba);
 
-		void* additionalParameters[] = {	reinterpret_cast<void*>(m_frustrumIntersector),
+		void* additionalParameters[] = {	reinterpret_cast<void*>(m_frustumIntersector),
 											reinterpret_cast<void*>(glFunc)
 		};
 		executeFunctionForAllCellsAtLevel(	m_displayedLevel,
@@ -253,19 +257,19 @@ bool ccOctree::DrawCellAsABox(	const CCLib::DgmOctree::octreeCell& cell,
 								void** additionalParameters,
 								CCLib::NormalizedProgress* nProgress/*=0*/)
 {
-	ccOctreeFrustrumIntersector* ofi = static_cast<ccOctreeFrustrumIntersector*>(additionalParameters[0]);
+	ccOctreeFrustumIntersector* ofi = static_cast<ccOctreeFrustumIntersector*>(additionalParameters[0]);
 	QOpenGLFunctions_2_1* glFunc     = static_cast<QOpenGLFunctions_2_1*>(additionalParameters[1]);
 	assert(glFunc != nullptr);
 
 	CCVector3 bbMin, bbMax;
 	cell.parentOctree->computeCellLimits(cell.truncatedCode, cell.level, bbMin, bbMax, true);
 
-	ccOctreeFrustrumIntersector::OctreeCellVisibility vis = ccOctreeFrustrumIntersector::CELL_OUTSIDE_FRUSTRUM;
+	ccOctreeFrustumIntersector::OctreeCellVisibility vis = ccOctreeFrustumIntersector::CELL_OUTSIDE_FRUSTUM;
 	if (ofi)
 		vis = ofi->positionFromFrustum(cell.truncatedCode, cell.level);
 
 	// outside
-	if (vis == ccOctreeFrustrumIntersector::CELL_OUTSIDE_FRUSTRUM)
+	if (vis == ccOctreeFrustumIntersector::CELL_OUTSIDE_FRUSTUM)
 	{
 		ccGL::Color3v(glFunc, ccColor::green.rgba);
 	}
@@ -274,7 +278,7 @@ bool ccOctree::DrawCellAsABox(	const CCLib::DgmOctree::octreeCell& cell,
 		glFunc->glPushAttrib(GL_LINE_BIT);
 		glFunc->glLineWidth(2.0f);
 		// inside
-		if (vis == ccOctreeFrustrumIntersector::CELL_INSIDE_FRUSTRUM)
+		if (vis == ccOctreeFrustumIntersector::CELL_INSIDE_FRUSTUM)
 			ccGL::Color3v(glFunc, ccColor::magenta.rgba);
 		// intersecting
 		else
@@ -307,7 +311,7 @@ bool ccOctree::DrawCellAsABox(	const CCLib::DgmOctree::octreeCell& cell,
 	glFunc->glEnd();
 
 	// not outside
-	if (vis != ccOctreeFrustrumIntersector::CELL_OUTSIDE_FRUSTRUM)
+	if (vis != ccOctreeFrustumIntersector::CELL_OUTSIDE_FRUSTUM)
 	{
 		glFunc->glPopAttrib();
 	}
@@ -446,7 +450,7 @@ CCVector3 ccOctree::ComputeAverageNorm(CCLib::ReferenceCloud* subset, ccGenericP
 	return N;
 }
 
-bool ccOctree::intersectWithFrustrum(ccCameraSensor* sensor, std::vector<unsigned>& inCameraFrustrum)
+bool ccOctree::intersectWithFrustum(ccCameraSensor* sensor, std::vector<unsigned>& inCameraFrustum)
 {
 	if (!sensor)
 		return false;
@@ -458,25 +462,25 @@ bool ccOctree::intersectWithFrustrum(ccCameraSensor* sensor, std::vector<unsigne
 	CCVector3 globalCenter; 
 	sensor->computeGlobalPlaneCoefficients(globalPlaneCoefficients, globalCorners, globalEdges, globalCenter);
 
-	if (!m_frustrumIntersector)
+	if (!m_frustumIntersector)
 	{
-		m_frustrumIntersector = new ccOctreeFrustrumIntersector();
-		if (!m_frustrumIntersector->build(this))
+		m_frustumIntersector = new ccOctreeFrustumIntersector();
+		if (!m_frustumIntersector->build(this))
 		{
-			ccLog::Warning("[ccOctree::intersectWithFrustrum] Not enough memory!");
+			ccLog::Warning("[ccOctree::intersectWithFrustum] Not enough memory!");
 			return false;
 		}
 	}
 
-	// get points of cells in frustrum
+	// get points of cells in frustum
 	std::vector< std::pair<unsigned, CCVector3> > pointsToTest;
-	m_frustrumIntersector->computeFrustumIntersectionWithOctree(pointsToTest, inCameraFrustrum, globalPlaneCoefficients, globalCorners, globalEdges, globalCenter);
+	m_frustumIntersector->computeFrustumIntersectionWithOctree(pointsToTest, inCameraFrustum, globalPlaneCoefficients, globalCorners, globalEdges, globalCenter);
 	
 	// project points
 	for (size_t i=0; i<pointsToTest.size(); i++)
 	{
-		if (sensor->isGlobalCoordInFrustrum(pointsToTest[i].second/*, false*/))
-			inCameraFrustrum.push_back(pointsToTest[i].first);
+		if (sensor->isGlobalCoordInFrustum(pointsToTest[i].second/*, false*/))
+			inCameraFrustum.push_back(pointsToTest[i].first);
 	}
 
 	return true;
@@ -499,11 +503,10 @@ bool ccOctree::pointPicking(const CCVector2d& clickPos,
 	if (m_thePointsAndTheirCellCodes.empty())
 	{
 		//nothing to do
-		assert(false);
 		return false;
 	}
 	
-	CCVector3d clickPosd(clickPos.x, clickPos.y, 0);
+	CCVector3d clickPosd(clickPos.x, clickPos.y, 0.0);
 	CCVector3d X(0,0,0);
 	if (!camera.unproject(clickPosd, X))
 	{
@@ -516,7 +519,7 @@ bool ccOctree::pointPicking(const CCVector2d& clickPos,
 	//compute 3D picking 'ray'
 	CCVector3 rayAxis, rayOrigin;
 	{
-		CCVector3d clickPosd2(clickPos.x, clickPos.y, 1);
+		CCVector3d clickPosd2(clickPos.x, clickPos.y, 1.0);
 		CCVector3d Y(0,0,0);
 		if (!camera.unproject(clickPosd2, Y))
 		{
@@ -566,7 +569,8 @@ bool ccOctree::pointPicking(const CCVector2d& clickPos,
 	//binary shift for cell code truncation at current level
 	unsigned char currentBitDec = GET_BIT_SHIFT(level);
 	//current cell code
-	OctreeCellCodeType currentCode = INVALID_CELL_CODE;
+	CellCode currentCellCode = INVALID_CELL_CODE;
+	CellCode currentCellTruncatedCode = INVALID_CELL_CODE;
 	//whether the current cell should be skipped or not
 	bool skipThisCell = false;
 
@@ -577,19 +581,38 @@ bool ccOctree::pointPicking(const CCVector2d& clickPos,
 	//ray with origin expressed in the local coordinate system!
 	Ray<PointCoordinateType> rayLocal(rayAxis, rayOrigin - m_dimMin);
 
+	//visibility table (if any)
+	const ccGenericPointCloud::VisibilityTableType* visTable = m_theAssociatedCloudAsGPC->isVisibilityTableInstantiated() ? m_theAssociatedCloudAsGPC->getTheVisibilityArray() : 0;
+
+	//scalar field with hidden values (if any)
+	ccScalarField* activeSF = 0;
+	if (	m_theAssociatedCloudAsGPC->sfShown()
+		&&	m_theAssociatedCloudAsGPC->isA(CC_TYPES::POINT_CLOUD)
+		&&	!visTable //if the visibility table is instantiated, we always display ALL points
+		)
+	{
+		ccPointCloud* pc = static_cast<ccPointCloud*>(m_theAssociatedCloudAsGPC);
+		ccScalarField* sf = pc->getCurrentDisplayedScalarField();
+		if (sf && sf->mayHaveHiddenValues() && sf->getColorScale())
+		{
+			//we must take this SF display parameters into account as some points may be hidden!
+			activeSF = sf;
+		}
+	}
+
 	//let's sweep through the octree
 	for (cellsContainer::const_iterator it = m_thePointsAndTheirCellCodes.begin(); it != m_thePointsAndTheirCellCodes.end(); ++it)
 	{
-		OctreeCellCodeType truncatedCode = (it->theCode >> currentBitDec);
+		CellCode truncatedCode = (it->theCode >> currentBitDec);
 		
 		//new cell?
-		if (truncatedCode != (currentCode >> currentBitDec))
+		if (truncatedCode != currentCellTruncatedCode)
 		{
 			//look for the biggest 'parent' cell that englobes this cell and the previous one (if any)
 			while (level > 1)
 			{
 				unsigned char bitDec = GET_BIT_SHIFT(level-1);
-				if ((it->theCode >> bitDec) == (currentCode >> bitDec))
+				if ((it->theCode >> bitDec) == (currentCellCode >> bitDec))
 				{
 					//same parent cell, we can stop here
 					break;
@@ -597,7 +620,7 @@ bool ccOctree::pointPicking(const CCVector2d& clickPos,
 				--level;
 			}
 
-			currentCode = it->theCode;
+			currentCellCode = it->theCode;
 
 			//now try to go deeper with the new cell
 			while (level < maxLevel)
@@ -606,7 +629,7 @@ bool ccOctree::pointPicking(const CCVector2d& clickPos,
 				getCellPos(it->theCode, level, cellPos, false);
 
 				//first test with the total bounding box
-				const PointCoordinateType& halfCellSize = getCellSize(level) / 2;
+				PointCoordinateType halfCellSize = getCellSize(level) / 2;
 				CCVector3 cellCenter(	(2* cellPos.x + 1) * halfCellSize,
 										(2* cellPos.y + 1) * halfCellSize,
 										(2* cellPos.z + 1) * halfCellSize);
@@ -635,7 +658,9 @@ bool ccOctree::pointPicking(const CCVector2d& clickPos,
 				else
 					++level;
 			}
+			
 			currentBitDec = GET_BIT_SHIFT(level);
+			currentCellTruncatedCode = (currentCellCode >> currentBitDec);
 		}
 
 #ifdef QT_DEBUG
@@ -644,26 +669,32 @@ bool ccOctree::pointPicking(const CCVector2d& clickPos,
 
 		if (!skipThisCell)
 		{
-			//test the point
-			const CCVector3* P = m_theAssociatedCloud->getPoint(it->theIndex);
-			CCVector3 Q = *P;
-			if (hasGLTrans)
+			//we shouldn't test points that are actually hidden!
+			if (	(!visTable || visTable->getValue(it->theIndex) == POINT_VISIBLE)
+				&&	(!activeSF || activeSF->getColor(activeSF->getValue(it->theIndex)))
+				)
 			{
-				trans.apply(Q);
-			}
-
-			CCVector3d Q2D;
-			camera.project(Q, Q2D);
-
-			if (	fabs(Q2D.x - clickPos.x) <= pickWidth_pix
-				&&	fabs(Q2D.y - clickPos.y) <= pickWidth_pix )
-			{
-				double squareDist = CCVector3d(X.x - Q.x, X.y - Q.y, X.z - Q.z).norm2d();
-				if (!output.point || squareDist < output.squareDistd)
+				//test the point
+				const CCVector3* P = m_theAssociatedCloud->getPoint(it->theIndex);
+				CCVector3 Q = *P;
+				if (hasGLTrans)
 				{
-					output.point = P;
-					output.pointIndex = it->theIndex;
-					output.squareDistd = squareDist;
+					trans.apply(Q);
+				}
+
+				CCVector3d Q2D;
+				camera.project(Q, Q2D);
+
+				if (	fabs(Q2D.x - clickPos.x) <= pickWidth_pix
+					&&	fabs(Q2D.y - clickPos.y) <= pickWidth_pix )
+				{
+					double squareDist = CCVector3d(X.x - Q.x, X.y - Q.y, X.z - Q.z).norm2d();
+					if (!output.point || squareDist < output.squareDistd)
+					{
+						output.point = P;
+						output.pointIndex = it->theIndex;
+						output.squareDistd = squareDist;
+					}
 				}
 			}
 		}

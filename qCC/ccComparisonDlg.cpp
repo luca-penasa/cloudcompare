@@ -505,9 +505,9 @@ int ccComparisonDlg::determineBestOctreeLevel(double maxSearchDist)
 
 	//we don't test the very first and very last level
 	ccProgressDialog progressCb(false,this);
-	progressCb.setMethodTitle("Determining optimal octree level");
-	progressCb.setInfo(qPrintable(QString("Testing %1 levels...").arg(MAX_OCTREE_LEVEL))); //we lie here ;)
-	CCLib::NormalizedProgress nProgress(&progressCb,MAX_OCTREE_LEVEL-2);
+	progressCb.setMethodTitle(tr("Determining optimal octree level"));
+	progressCb.setInfo(tr("Testing %1 levels...").arg(MAX_OCTREE_LEVEL)); //we lie here ;)
+	CCLib::NormalizedProgress nProgress(&progressCb, MAX_OCTREE_LEVEL - 2);
 	progressCb.start();
 	QApplication::processEvents();
 
@@ -517,7 +517,7 @@ int ccComparisonDlg::determineBestOctreeLevel(double maxSearchDist)
 	//for each level
 	for (int level=2; level<MAX_OCTREE_LEVEL; ++level)
 	{
-		const int bitDec = GET_BIT_SHIFT(level);
+		const unsigned char bitDec = CCLib::DgmOctree::GET_BIT_SHIFT(level);
 		unsigned numberOfPointsInCell = 0;
 		unsigned index = 0;
 		double cellDist = -1;
@@ -532,13 +532,13 @@ int ccComparisonDlg::determineBestOctreeLevel(double maxSearchDist)
 		if (m_refOctree)
 			refListDensity = m_refOctree->computeMeanOctreeDensity(static_cast<unsigned char>(level));
 
-		CCLib::DgmOctree::OctreeCellCodeType tempCode = 0xFFFFFFFF;
+		CCLib::DgmOctree::CellCode tempCode = 0xFFFFFFFF;
 
 		//scan the octree structure
 		const CCLib::DgmOctree::cellsContainer& compCodes = m_compOctree->pointsAndTheirCellCodes();
 		for (CCLib::DgmOctree::cellsContainer::const_iterator c=compCodes.begin(); c!=compCodes.end(); ++c)
 		{
-			CCLib::DgmOctree::OctreeCellCodeType truncatedCode = (c->theCode >> bitDec);
+			CCLib::DgmOctree::CellCode truncatedCode = (c->theCode >> bitDec);
 
 			//new cell?
 			if (truncatedCode != tempCode)
@@ -554,7 +554,7 @@ int ccComparisonDlg::determineBestOctreeLevel(double maxSearchDist)
 						cellDist /= cellSize;
 
 						//approx. neighborhood width (in terms of cells)
-						double neighbourSize = 2.0*cellDist+1.0;
+						double neighbourSize = 2.0*cellDist + 1.0;
 
 						//if the reference is a mesh
 						if (mesh)

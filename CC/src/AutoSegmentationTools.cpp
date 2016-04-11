@@ -157,7 +157,7 @@ bool AutoSegmentationTools::frontPropagationBasedSegmentation(	GenericIndexedClo
 	//et on lisse le resultat
 	if (applyGaussianFilter)
 	{
-        ScalarFieldTools::applyScalarFieldGaussianFilter(radius/3,theCloud,-1,progressCb,theOctree);
+		ScalarFieldTools::applyScalarFieldGaussianFilter(radius / 3, theCloud, -1, progressCb, theOctree);
 	}
 
 	unsigned seedPoints = 0;
@@ -169,8 +169,8 @@ bool AutoSegmentationTools::frontPropagationBasedSegmentation(	GenericIndexedClo
 	fm->setJumpCoef(50.0);
 	fm->setDetectionThreshold(alpha);
 
-	int result = fm->init(theCloud,theOctree,octreeLevel);
-	int octreeLength = OCTREE_LENGTH(octreeLevel)-1;
+	int result = fm->init(theCloud, theOctree, octreeLevel);
+	int octreeLength = DgmOctree::OCTREE_LENGTH(octreeLevel) - 1;
 
 	if (result < 0)
 	{
@@ -182,18 +182,21 @@ bool AutoSegmentationTools::frontPropagationBasedSegmentation(	GenericIndexedClo
 
 	if (progressCb)
 	{
-		progressCb->reset();
-		progressCb->setMethodTitle("FM Propagation");
-		char buffer[256];
-		sprintf(buffer,"Octree level: %i\nNumber of points: %u",octreeLevel,numberOfPoints);
-		progressCb->setInfo(buffer);
+		if (progressCb->textCanBeEdited())
+		{
+			progressCb->setMethodTitle("FM Propagation");
+			char buffer[256];
+			sprintf(buffer, "Octree level: %i\nNumber of points: %u", octreeLevel, numberOfPoints);
+			progressCb->setInfo(buffer);
+		}
+		progressCb->update(0);
 		progressCb->start();
 	}
 
 	ScalarField* theDists = new ScalarField("distances");
 	{
 		ScalarType d = theCloud->getPointScalarValue(0);
-		if (!theDists->resize(numberOfPoints,true,d))
+		if (!theDists->resize(numberOfPoints, true, d))
 		{
 			if (!inputOctree)
 				delete theOctree;
@@ -247,7 +250,7 @@ bool AutoSegmentationTools::frontPropagationBasedSegmentation(	GenericIndexedClo
 		//set seed point
 		{
 			Tuple3i cellPos;
-			theOctree->getTheCellPosWhichIncludesThePoint(&startPoint,cellPos,octreeLevel);
+			theOctree->getTheCellPosWhichIncludesThePoint(&startPoint, cellPos, octreeLevel);
 			//clipping (important!)
 			cellPos.x = std::min(octreeLength,cellPos.x);
 			cellPos.y = std::min(octreeLength,cellPos.y);
