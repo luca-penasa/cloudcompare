@@ -1066,7 +1066,9 @@ Qt::ItemFlags ccDBRoot::flags(const QModelIndex &index) const
 			item->isKindOf(CC_TYPES::IMAGE)										||
 			item->isKindOf(CC_TYPES::LABEL_2D)									||
 			item->isKindOf(CC_TYPES::CAMERA_SENSOR)								||
-			item->isKindOf(CC_TYPES::PRIMITIVE))
+            item->isKindOf(CC_TYPES::PRIMITIVE)                                 ||
+            item->isKindOf(CC_TYPES::CUSTOM_H_OBJECT))
+
 		{
 			defaultFlags |= (Qt::ItemIsDragEnabled | Qt::ItemIsDropEnabled);
 		}
