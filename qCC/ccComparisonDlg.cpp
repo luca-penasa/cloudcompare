@@ -126,7 +126,7 @@ ccComparisonDlg::ccComparisonDlg(	ccHObject* compEntity,
 	{
 		signedDistCheckBox->setEnabled(false);
 		split3DCheckBox->setEnabled(true);
-		lmRadiusDoubleSpinBox->setValue(static_cast<double>(compEntBBox.getDiagNorm())/200);
+		lmRadiusDoubleSpinBox->setValue(compEntBBox.getDiagNorm() / 200.0);
 		filterVisibilityCheckBox->setEnabled(m_refCloud && m_refCloud->isA(CC_TYPES::POINT_CLOUD) && static_cast<ccPointCloud*>(m_refCloud)->hasSensor());
 	}
 
@@ -137,6 +137,11 @@ ccComparisonDlg::ccComparisonDlg(	ccHObject* compEntity,
 	connect(localModelComboBox,		SIGNAL(currentIndexChanged(int)),	this,	SLOT(locaModelChanged(int)));
 	connect(maxDistCheckBox,		SIGNAL(toggled(bool)),				this,	SLOT(maxDistUpdated()));
 	connect(maxSearchDistSpinBox,	SIGNAL(valueChanged(double)),		this,	SLOT(maxDistUpdated()));
+
+	//be sure to show the dialog before computing the approx distances
+	//(otherwise the progress bars appear anywhere!)
+	show();
+	QCoreApplication::processEvents();
 
 	//compute approximate results and unlock GUI
 	computeApproxDistances();
@@ -326,7 +331,8 @@ bool ccComparisonDlg::computeApproxDistances()
 	assert(sf);
 
 	//prepare the octree structures
-	ccProgressDialog progressDlg(true,this);
+	ccProgressDialog progressDlg(true, this);
+	progressDlg.show();
 
 	int approxResult = -1;
 	QElapsedTimer eTimer;
@@ -375,14 +381,14 @@ bool ccComparisonDlg::computeApproxDistances()
 	//if the approximate distances comptation failed...
 	if (approxResult < 0)
 	{
-		ccLog::Warning("[computeApproxDistances] Computation failed (error code %i)",approxResult);
+		ccLog::Warning("[computeApproxDistances] Computation failed (error code %i)", approxResult);
 		m_compCloud->deleteScalarField(sfIdx);
 		sfIdx = -1;
 		m_currentSFIsDistance = false;
 	}
 	else
 	{
-		ccLog::Print("[computeApproxDistances] Time: %3.2f s.",static_cast<double>(elapsedTime_ms)/1.0e3);
+		ccLog::Print("[computeApproxDistances] Time: %3.2f s.", elapsedTime_ms / 1.0e3);
 
 		//display approx. dist. statistics
 		ScalarType mean,variance;
@@ -417,8 +423,10 @@ bool ccComparisonDlg::computeApproxDistances()
 		approxStats->setItem(curRow, 0, new QTableWidgetItem("Max error"));
 		approxStats->setItem(curRow++, 1, new QTableWidgetItem(QString("%1").arg(e)));
 
-		for (int i=0; i<curRow; ++i)
-			approxStats->setRowHeight(i,20);
+		for (int i = 0; i < curRow; ++i)
+		{
+			approxStats->setRowHeight(i, 20);
+		}
 
 		approxStats->setEditTriggers(QAbstractItemView::NoEditTriggers);
 
@@ -504,7 +512,7 @@ int ccComparisonDlg::determineBestOctreeLevel(double maxSearchDist)
 	int theBestOctreeLevel = 2;
 
 	//we don't test the very first and very last level
-	ccProgressDialog progressCb(false,this);
+	ccProgressDialog progressCb(false, this);
 	progressCb.setMethodTitle(tr("Determining optimal octree level"));
 	progressCb.setInfo(tr("Testing %1 levels...").arg(MAX_OCTREE_LEVEL)); //we lie here ;)
 	CCLib::NormalizedProgress nProgress(&progressCb, MAX_OCTREE_LEVEL - 2);
@@ -530,7 +538,9 @@ int ccComparisonDlg::determineBestOctreeLevel(double maxSearchDist)
 		//we also use the reference cloud density (points/cell) if we have the info
 		double refListDensity = 1.0;
 		if (m_refOctree)
+		{
 			refListDensity = m_refOctree->computeMeanOctreeDensity(static_cast<unsigned char>(level));
+		}
 
 		CCLib::DgmOctree::CellCode tempCode = 0xFFFFFFFF;
 
@@ -621,12 +631,14 @@ int ccComparisonDlg::determineBestOctreeLevel(double maxSearchDist)
 		//ccLog::Print("[Timing] Level %i --> %f",level,timings[level]);
 		//timings[level] += (static_cast<qreal>(skippedCells)/1000)*skippedCells; //empirical correction for skipped cells (not taken into account while they actually require some processing time!)
 		if (timings[level] < timings[theBestOctreeLevel])
+		{
 			theBestOctreeLevel = level;
+		}
 
 		nProgress.oneStep();
 	}
 
-	ccLog::PrintDebug("[Distances] Best level: %i (maxSearchDist = %f)",theBestOctreeLevel,maxSearchDist);
+	ccLog::PrintDebug("[Distances] Best level: %i (maxSearchDist = %f)", theBestOctreeLevel, maxSearchDist);
 
 	return theBestOctreeLevel;
 }
@@ -691,32 +703,60 @@ bool ccComparisonDlg::computeDistances()
 	//multi-thread
 	bool multiThread = multiThreadedCheckBox->isChecked();
 
-	//for 3D splitting (cloud-cloud dist. only)
-	CCLib::ReferenceCloud* CPSet = 0;
-	if (split3D)
-	{
-		assert(m_refCloud);
-		CPSet = new CCLib::ReferenceCloud(m_refCloud);
-	}
-
 	CCLib::DistanceComputationTools::Cloud2CloudDistanceComputationParams c2cParams;
 	CCLib::DistanceComputationTools::Cloud2MeshDistanceComputationParams  c2mParams;
 	c2cParams.maxThreadCount = c2mParams.maxThreadCount = maxThreadCountSpinBox->value();
 
 	int result = -1;
-	ccProgressDialog progressDlg(true,this);
+	ccProgressDialog progressDlg(true, this);
 
 	QElapsedTimer eTimer;
 	eTimer.start();
 	switch(m_compType)
 	{
 	case CLOUDCLOUD_DIST: //cloud-cloud
+
+		if (split3D)
+		{
+			//we create 3 new scalar fields, one for each dimension
+			unsigned count = m_compCloud->size();
+
+			bool success = true;
+			for (unsigned j = 0; j < 3; ++j)
+			{
+				ccScalarField* sfDim = new ccScalarField();
+				if (sfDim->resize(count))
+				{
+					sfDim->link();
+					c2cParams.splitDistances[j] = sfDim;
+				}
+				else
+				{
+					success = false;
+					break;
+				}
+			}
+
+			if (!success)
+			{
+				ccLog::Error("[ComputeDistances] Not enough memory to generate 3D split fields!");
+
+				for (unsigned j = 0; j < 3; ++j)
+				{
+					if (c2cParams.splitDistances[j])
+					{
+						c2cParams.splitDistances[j]->release();
+						c2cParams.splitDistances[j] = 0;
+					}
+				}
+			}
+		}
 		
 		if (m_refCloud->isA(CC_TYPES::POINT_CLOUD))
 		{
 			ccPointCloud* pc = static_cast<ccPointCloud*>(m_refCloud);
 
-			//we enable the visibility checking if the use asked for it
+			//we enable the visibility checking if the user asked for it
 			bool filterVisibility = filterVisibilityCheckBox->isEnabled() && filterVisibilityCheckBox->isChecked();
 			if (filterVisibility)
 			{
@@ -731,7 +771,7 @@ bool ccComparisonDlg::computeDistances()
 						if (sensor->getDepthBuffer().zBuff.empty())
 						{
 							int errorCode;
-							if (!sensor->computeDepthBuffer(pc,errorCode))
+							if (!sensor->computeDepthBuffer(pc, errorCode))
 							{
 								ccLog::Warning(QString("[ComputeDistances] ") + ccGBLSensor::GetErrorString(errorCode));
 							}
@@ -750,7 +790,11 @@ bool ccComparisonDlg::computeDistances()
 				if (validDB == 0)
 				{
 					filterVisibilityCheckBox->setChecked(false);
-					if (QMessageBox::warning(this, "Error", "Failed to find/init the depth buffer(s) on the associated sensor! Do you want to continue?", QMessageBox::Yes, QMessageBox::No) == QMessageBox::No)
+					if (QMessageBox::warning(	this,
+												"Error",
+												"Failed to find/init the depth buffer(s) on the associated sensor! Do you want to continue?",
+												QMessageBox::Yes,
+												QMessageBox::No) == QMessageBox::No)
 					{
 						break;
 					}
@@ -776,7 +820,7 @@ bool ccComparisonDlg::computeDistances()
 			}
 			c2cParams.maxSearchDist = maxSearchDist;
 			c2cParams.multiThread = multiThread;
-			c2cParams.CPSet = CPSet;
+			c2cParams.CPSet = 0;
 		}
 		
 		result = CCLib::DistanceComputationTools::computeCloud2CloudDistance(	m_compCloud,
@@ -822,7 +866,7 @@ bool ccComparisonDlg::computeDistances()
 		//display some statics about the computed distances
 		ScalarType mean,variance;
 		sf->computeMinAndMax();
-		sf->computeMeanAndVariance(mean,&variance);
+		sf->computeMeanAndVariance(mean, &variance);
 		ccLog::Print("[ComputeDistances] Mean distance = %f / std deviation = %f",mean,sqrt(variance));
 
 		m_compCloud->setCurrentDisplayedScalarField(sfIdx);
@@ -854,7 +898,9 @@ bool ccComparisonDlg::computeDistances()
 		}
 
 		if (flipNormals)
+		{
 			m_sfName += QString("[-]");
+		}
 
 		m_currentSFIsDistance = true;
 
@@ -866,52 +912,24 @@ bool ccComparisonDlg::computeDistances()
 
 		if (split3D)
 		{
-			//we create 3 new scalar fields, one for each dimension
-			assert(CPSet && CPSet->size() == m_compCloud->size());
-			unsigned count = CPSet->size();
-			ccScalarField* sfDims[3]= {	new ccScalarField(qPrintable(m_sfName+QString(" (X)"))),
-										new ccScalarField(qPrintable(m_sfName+QString(" (Y)"))),
-										new ccScalarField(qPrintable(m_sfName+QString(" (Z)")))
-			};
-
-			sfDims[0]->link();
-			sfDims[1]->link();
-			sfDims[2]->link();
-
-			if (sfDims[0]->resize(count) &&
-				sfDims[1]->resize(count) &&
-				sfDims[2]->resize(count))
+			//we add the corresponding scalar fields (one for each dimension)
+			static const QChar charDim[3] = { 'X', 'Y', 'Z' };
+			for (unsigned j = 0; j < 3; ++j)
 			{
-				for (unsigned i=0; i<count; ++i)
+				CCLib::ScalarField* sf = c2cParams.splitDistances[j];
+				if (sf)
 				{
-					const CCVector3* P = CPSet->getPoint(i);
-					const CCVector3* Q = m_compCloud->getPoint(i);
-					CCVector3 D = *Q-*P;
-					sfDims[0]->setValue(i,static_cast<ScalarType>(D.x));
-					sfDims[1]->setValue(i,static_cast<ScalarType>(D.y));
-					sfDims[2]->setValue(i,static_cast<ScalarType>(D.z));
-				}
-
-				for (unsigned j=0; j<3; ++j)
-				{
-					sfDims[j]->computeMinAndMax();
+					sf->setName(qPrintable(m_sfName + QString(" (%1)").arg(charDim[j])));
+					sf->computeMinAndMax();
 					//check that SF doesn't already exist
-					int sfExit = m_compCloud->getScalarFieldIndexByName(sfDims[j]->getName());
+					int sfExit = m_compCloud->getScalarFieldIndexByName(sf->getName());
 					if (sfExit >= 0)
 						m_compCloud->deleteScalarField(sfExit);
-					sfExit = m_compCloud->addScalarField(sfDims[j]);
-					assert(sfExit >= 0);
+					int sfEnter = m_compCloud->addScalarField(static_cast<ccScalarField*>(sf));
+					assert(sfEnter >= 0);
 				}
-				ccLog::Warning("[ComputeDistances] Result has been split along each dimension (check the 3 other scalar fields with '_X', '_Y' and '_Z' suffix!)");
 			}
-			else
-			{
-				ccLog::Error("[ComputeDistances] Not enough memory to generate 3D split fields!");
-			}
-
-			sfDims[0]->release();
-			sfDims[1]->release();
-			sfDims[2]->release();
+			ccLog::Warning("[ComputeDistances] Result has been split along each dimension (check the 3 other scalar fields with '_X', '_Y' and '_Z' suffix!)");
 		}
 	}
 	else
@@ -924,13 +942,16 @@ bool ccComparisonDlg::computeDistances()
 		m_currentSFIsDistance = false;
 	}
 
-	updateDisplay(sfIdx >= 0, false);
-
-	if (CPSet)
+	for (unsigned j = 0; j < 3; ++j)
 	{
-		delete CPSet;
-		CPSet = 0;
+		CCLib::ScalarField* sf = c2cParams.splitDistances[j];
+		if (sf)
+		{
+			sf->release();
+		}
 	}
+			
+	updateDisplay(sfIdx >= 0, false);
 
 	return result >= 0;
 }
@@ -949,10 +970,10 @@ void ccComparisonDlg::showHisto()
 	{
 		ccHistogramWindow* histogram = hDlg->window();
 		histogram->setTitle(QString("Approximate distances (%1 values)").arg(m_compCloud->size()));
-		histogram->fromSF(sf,8,false);
-		histogram->setAxisLabels("Approximate distances","Count");
+		histogram->fromSF(sf, 8, false);
+		histogram->setAxisLabels("Approximate distances", "Count");
 	}
-	hDlg->resize(400,300);
+	hDlg->resize(400, 300);
 	hDlg->show();
 }
 

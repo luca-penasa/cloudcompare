@@ -217,11 +217,25 @@ int DistanceComputationTools::computeCloud2CloudDistance(	GenericIndexedCloudPer
 		params.octreeLevel = comparedOctree->findBestLevelForComparisonWithOctree(referenceOctree);
 	}
 
+	//whether to compute split distances or not
+	bool computeSplitDistances = false;
+	{
+		for (int i = 0; i < 3; ++i)
+		{
+			if (params.splitDistances[i] && params.splitDistances[i]->currentSize() == comparedCloud->size())
+			{
+				computeSplitDistances = true;
+				params.splitDistances[i]->fill(NAN_VALUE);
+			}
+		}
+	}
+
 	//additional parameters
-	void* additionalParameters[4] = {	reinterpret_cast<void*>(referenceCloud),
+	void* additionalParameters[] = {	reinterpret_cast<void*>(referenceCloud),
 										reinterpret_cast<void*>(referenceOctree),
 										reinterpret_cast<void*>(&params),
-										reinterpret_cast<void*>(&maxSearchSquareDistd)
+										reinterpret_cast<void*>(&maxSearchSquareDistd),
+										reinterpret_cast<void*>(&computeSplitDistances)
 	};
 
 	int result = 0;
@@ -269,17 +283,17 @@ DistanceComputationTools::SOReturnCode
 		return EMPTY_CLOUD;
 
 	//we compute the bounding box of BOTH clouds
-	CCVector3 minsA,minsB,maxsA,maxsB;
-	comparedCloud->getBoundingBox(minsA,maxsA);
-	referenceCloud->getBoundingBox(minsB,maxsB);
+	CCVector3 minsA, minsB, maxsA, maxsB;
+	comparedCloud->getBoundingBox(minsA, maxsA);
+	referenceCloud->getBoundingBox(minsB, maxsB);
 
 	//we compute the union of both bounding-boxes
 	CCVector3 maxD,minD;
 	{
 		for (unsigned char k=0; k<3; k++)
 		{
-			minD.u[k] = std::min(minsA.u[k],minsB.u[k]);
-			maxD.u[k] = std::max(maxsA.u[k],maxsB.u[k]);
+			minD.u[k] = std::min(minsA.u[k], minsB.u[k]);
+			maxD.u[k] = std::max(maxsA.u[k], maxsB.u[k]);
 		}
 	}
 
@@ -288,8 +302,8 @@ DistanceComputationTools::SOReturnCode
 		//we reduce the bouding box to the intersection of both bounding-boxes enlarged by 'maxDist'
 		for (unsigned char k=0; k<3; k++)
 		{
-			minD.u[k] = std::max(minD.u[k],std::max(minsA.u[k],minsB.u[k])-maxDist);
-			maxD.u[k] = std::min(maxD.u[k],std::min(maxsA.u[k],maxsB.u[k])+maxDist);
+			minD.u[k] = std::max(minD.u[k], std::max(minsA.u[k], minsB.u[k]) - maxDist);
+			maxD.u[k] = std::min(maxD.u[k], std::min(maxsA.u[k], maxsB.u[k]) + maxDist);
 			if (minD.u[k] > maxD.u[k])
 			{
 				return DISJOINT;
@@ -301,7 +315,7 @@ DistanceComputationTools::SOReturnCode
 	CCVector3 maxPoints = maxD;
 
 	//we make this bounding-box cubical (+1% growth to avoid round-off issues)
-	CCMiscTools::MakeMinAndMaxCubical(minD,maxD,0.01);
+	CCMiscTools::MakeMinAndMaxCubical(minD, maxD, 0.01);
 
 	//then we (re)compute octree A if necessary
 	bool needToRecalculateOctreeA = true;
@@ -332,7 +346,7 @@ DistanceComputationTools::SOReturnCode
 			octreeACreated = true;
 		}
 
-		if (comparedOctree->build(minD,maxD,&minPoints,&maxPoints,progressCb) < 1)
+		if (comparedOctree->build(minD, maxD, &minPoints, &maxPoints, progressCb) < 1)
 		{
 			if (octreeACreated)
 			{
@@ -372,7 +386,7 @@ DistanceComputationTools::SOReturnCode
 			octreeBCreated = true;
 		}
 
-		if (referenceOctree->build(minD,maxD,&minPoints,&maxPoints,progressCb) < 1)
+		if (referenceOctree->build(minD, maxD, &minPoints, &maxPoints, progressCb) < 1)
 		{
 			if (octreeACreated)
 			{
@@ -408,6 +422,7 @@ bool DistanceComputationTools::computeCellHausdorffDistance(const DgmOctree::oct
 	const DgmOctree* referenceOctree					= reinterpret_cast<DgmOctree*>(additionalParameters[1]);
 	Cloud2CloudDistanceComputationParams* params		= reinterpret_cast<Cloud2CloudDistanceComputationParams*>(additionalParameters[2]);
 	const double* maxSearchSquareDistd					= reinterpret_cast<double*>(additionalParameters[3]);
+	bool computeSplitDistances							= *reinterpret_cast<bool*>(additionalParameters[4]);
 
 	//structure for the nearest neighbor search
 	DgmOctree::NearestNeighboursSearchStruct nNSS;
@@ -436,7 +451,23 @@ bool DistanceComputationTools::computeCellHausdorffDistance(const DgmOctree::oct
 				cell.points->setPointScalarValue(i, dist);
 
 				if (params->CPSet)
+				{
 					params->CPSet->setPointIndex(cell.points->getPointGlobalIndex(i), nNSS.theNearestPointIndex);
+				}
+
+				if (computeSplitDistances)
+				{
+					CCVector3 P;
+					referenceCloud->getPoint(nNSS.theNearestPointIndex, P);
+					
+					unsigned index = cell.points->getPointGlobalIndex(i);
+					if (params->splitDistances[0])
+						params->splitDistances[0]->setValue(index, static_cast<ScalarType>(nNSS.queryPoint.x - P.x));
+					if (params->splitDistances[1])
+						params->splitDistances[1]->setValue(index, static_cast<ScalarType>(nNSS.queryPoint.y - P.y));
+					if (params->splitDistances[2])
+						params->splitDistances[2]->setValue(index, static_cast<ScalarType>(nNSS.queryPoint.z - P.z));
+				}
 			}
 			else
 			{
@@ -471,6 +502,7 @@ bool DistanceComputationTools::computeCellHausdorffDistanceWithLocalModel(	const
 	const DgmOctree* referenceOctree				= reinterpret_cast<DgmOctree*>(additionalParameters[1]);
 	Cloud2CloudDistanceComputationParams* params	= reinterpret_cast<Cloud2CloudDistanceComputationParams*>(additionalParameters[2]);
 	const double* maxSearchSquareDistd				= reinterpret_cast<double*>(additionalParameters[3]);
+	bool computeSplitDistances						= *reinterpret_cast<bool*>(additionalParameters[4]);
 
 	assert(params && params->localModel != NO_MODEL);
 
@@ -576,7 +608,7 @@ bool DistanceComputationTools::computeCellHausdorffDistanceWithLocalModel(	const
 					else
 					{
 						kNN = referenceOctree->findNearestNeighborsStartingFromCell(nNSS_Model);
-						kNN = std::min(kNN,params->kNNForLocalModel);
+						kNN = std::min(kNN, params->kNNForLocalModel);
 					}
 
 					//if there's enough neighbours
@@ -617,18 +649,38 @@ bool DistanceComputationTools::computeCellHausdorffDistanceWithLocalModel(	const
 				//if we have a local model
 				if (lm)
 				{
-					ScalarType distToModel = lm->computeDistanceFromModelToPoint(&nNSS.queryPoint);
+					CCVector3 nearestModelPoint;
+					ScalarType distToModel = lm->computeDistanceFromModelToPoint(&nNSS.queryPoint, computeSplitDistances ? &nearestModelPoint : 0);
 
 					//we take the best estimation between the nearest neighbor and the model!
 					//this way we only reduce any potential noise (that would be due to sampling)
 					//instead of 'adding' noise if the model is badly shaped
-					distPt = std::min(distToNearestPoint,distToModel);
+					if (distToNearestPoint <= distToModel)
+					{
+						distPt = distToNearestPoint;
+					}
+					else
+					{
+						distPt = distToModel;
+						nearestPoint = nearestModelPoint;
+					}
 
 					if (!params->reuseExistingLocalModels)
 					{
 						//we don't need the local model anymore!
 						delete lm;
 						lm = 0;
+					}
+
+					if (computeSplitDistances)
+					{
+						unsigned index = cell.points->getPointGlobalIndex(i);
+						if (params->splitDistances[0])
+							params->splitDistances[0]->setValue(index, static_cast<ScalarType>(nNSS.queryPoint.x - nearestPoint.x));
+						if (params->splitDistances[1])
+							params->splitDistances[1]->setValue(index, static_cast<ScalarType>(nNSS.queryPoint.y - nearestPoint.y));
+						if (params->splitDistances[2])
+							params->splitDistances[2]->setValue(index, static_cast<ScalarType>(nNSS.queryPoint.z - nearestPoint.z));
 					}
 				}
 				else
@@ -2346,7 +2398,7 @@ int DistanceComputationTools::computeApproxCloud2CloudDistance(	GenericIndexedCl
 
 	//compute octrees with the same bounding-box
 	DgmOctree *octreeA = compOctree, *octreeB = refOctree;
-	if (synchronizeOctrees(comparedCloud,referenceCloud,octreeA,octreeB,maxSearchDist,progressCb) != SYNCHRONIZED)
+	if (synchronizeOctrees(comparedCloud, referenceCloud, octreeA, octreeB, maxSearchDist, progressCb) != SYNCHRONIZED)
 		return -3;
 
 	const int* minIndexesA = octreeA->getMinFillIndexes(octreeLevel);
@@ -2375,8 +2427,10 @@ int DistanceComputationTools::computeApproxCloud2CloudDistance(	GenericIndexedCl
 		//if maxSearchDist is defined, we might skip some points
 		//so we set a default distance for all of them
 		const ScalarType resetValue = static_cast<ScalarType>(maxSearchDist);
-		for (unsigned i=0; i<comparedCloud->size(); ++i)
-			comparedCloud->setPointScalarValue(i,resetValue);
+		for (unsigned i = 0; i < comparedCloud->size(); ++i)
+		{
+			comparedCloud->setPointScalarValue(i, resetValue);
+		}
 	}
 
 	int result = 0;

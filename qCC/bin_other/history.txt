@@ -8,6 +8,7 @@ v2.7.0 - 04/XX/2016
 		- Now handles RGB colors
 		- Raster export dialog updated
 		- The 'Cancel' button of the grid update progress bar is now handled properly
+		- Now exports images with the active (default) color scale
 
 	* The 'Global Shift & Scale' mechanism now allows for shifting values above 1.0e9
 		(for georeferenced clouds expressed in millimeters!)
@@ -24,6 +25,27 @@ v2.7.0 - 04/XX/2016
 	* Bubble View mode
 		- nows allows for horizontal AND vertical rotation
 		- the 3D mouse is now properly handled
+
+	* Command line mode
+		- I/O plugins are now loaded in command line mode (i.e. the FARO, DP and PCD formats can now be used)
+		- new option 'MAX_TCOUNT' to specify the maximum number of threads to be used for computing distances (C2C or C2M)
+			as well as for ICP registration
+
+	* Default light position
+		- the default (sun) light position is now in the middle of the screen so as to get a brighter visualization of meshes
+
+	* Distance computation
+		- C2C distance can now be split along the 3 dimensions (X, Y, Z) even when using local models or a maximum distance
+			(in which case some values may be NaN)
+
+	* ICP registration
+		- the user can now set the maximum number of threads/core to use
+
+- Bug fix:
+	
+	* The HSV to RGB method was broken
+	* The 'Convert normals to HSV colors' mehod doesn't rely on the Dip / Dip direction anymore as the way these values
+		are computed have been changed recently (with a symmetry about the plane Z = 0)
 
 v2.6.3.1 - 03/XX/2016
 
