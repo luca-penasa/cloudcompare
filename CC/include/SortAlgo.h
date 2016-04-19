@@ -15,31 +15,24 @@
 //#                                                                        #
 //##########################################################################
 
-#ifndef CC_PLATFORM_HEADER
-#define CC_PLATFORM_HEADER
+#ifndef SORT_ALGO_HEADER
+#define SORT_ALGO_HEADER
 
-//Defines the following macros (depending on the compilation platform/settings)
-//	- CC_WINDOWS / CC_MAC_OS / CC_LINUX
-//	- CC_ENV32 / CC_ENV64
-#if defined(_WIN32) || defined(_WIN64) || defined(WIN32)
-	#define CC_WINDOWS
-#if defined(_WIN64)
-	#define CC_ENV_64
-#else
-	#define CC_ENV_32
-#endif
-#else
-#if defined(__APPLE__)
-	#define CC_MAC_OS
-#else
-	#define CC_LINUX
-#endif
-#if defined(__x86_64__) || defined(__ppc64__)
-	#define CC_ENV_64
-#else
-	#define CC_ENV_32
-#endif
-#endif
+#ifndef SortAlgo
 
+	#if (_MSC_VER >= 1800)
 
-#endif //CC_PLATFORM_HEADER
+		//Parallel Patterns Library (for parallel sort)
+		#include <ppl.h>
+		#define SortAlgo Concurrency::parallel_sort
+
+	#else
+
+		//TODO: find a portable parallel sort algorithm
+		#define SortAlgo std::sort
+
+	#endif
+
+#endif //#ifndef SortAlgo
+
+#endif //SORT_ALGO_HEADER

@@ -47,339 +47,15 @@
 #include "ccFrustum.h"
 
 //Qt
-#include <QAtomicInt>
-#include <QThread>
 #include <QElapsedTimer>
 #include <QSharedPointer>
 
 //system
 #include <assert.h>
 
-//! Thread for background computation
-class LodStructThread : public QThread
-{
-public:
-	
-	//! Default constructor
-	LodStructThread(ccPointCloud& cloud)
-		: QThread()
-		, m_cloud(cloud)
-		, m_abort(0)
-	{}
-	
-	//!Destructor
-	virtual ~LodStructThread()
-	{
-		stop();
-	}
-	
-	//! Stops the thread
-	void stop(unsigned long timeout = ULONG_MAX)
-	{
-		m_abort = 1;
-		wait(timeout);
-	}
-
-protected:
-
-	//reimplemented from QThread
-	virtual void run()
-	{
-		m_abort = 0;
-
-		ccPointCloud::LodStruct& lod = m_cloud.getLOD();
-
-		//reset structure
-		lod.clearExtended(false,ccPointCloud::LodStruct::UNDER_CONSTRUCTION);
-
-		unsigned pointCount = m_cloud.size();
-		if (pointCount == 0)
-		{
-			lod.setState(ccPointCloud::LodStruct::BROKEN);
-			return;
-		}
-
-		ccLog::Print(QString("[LoD] Preparing LoD acceleration structure for cloud '%1' [%2 points]...").arg(m_cloud.getName()).arg(pointCount));
-		QElapsedTimer timer;
-		timer.start();
-
-		//first we need an octree
-		//DGM: we don't use the cloud's octree (if any)
-		//as we don't know when it will be deleted!
-		//(the user can do it anytime for instance)
-		ccOctree::Shared octree = m_cloud.getOctree();
-		if (!octree)
-		{
-			octree = ccOctree::Shared(new ccOctree(&m_cloud));
-			if (octree->build(0/*progressCallback*/) <= 0)
-			{
-				//not enough memory
-				ccLog::Warning(QString("[LoD] Failed to compute octree on cloud '%1' (not enough memory)").arg(m_cloud.getName()));
-				lod.setState(ccPointCloud::LodStruct::BROKEN);
-				return;
-			}
-
-			if (!m_cloud.getOctree())
-			{
-				m_cloud.setOctree(octree);
-			}
-		}
-
-		//flags
-		GenericChunkedArray<1, unsigned char>* flags = new GenericChunkedArray<1, unsigned char>();
-		static const unsigned char NoFlag = 0;
-		if (!flags->resize(pointCount, true, NoFlag))
-		{
-			//not enough memory
-			ccLog::Warning(QString("[LoD] Failed to compute LOD structure on cloud '%1' (not enough memory)").arg(m_cloud.getName()));
-			lod.setState(ccPointCloud::LodStruct::BROKEN);
-			flags->release();
-			return;
-		}
-
-		//init LoD indexes and level descriptors
-		if (!lod.reserve(	pointCount,
-							CCLib::DgmOctree::MAX_OCTREE_LEVEL + 1) ) //level 0 included
-		{
-			//not enough memory
-			ccLog::Warning(QString("[LoD] Failed to compute LOD structure on cloud '%1' (not enough memory)").arg(m_cloud.getName()));
-			lod.setState(ccPointCloud::LodStruct::BROKEN);
-			flags->release();
-			return;
-		}
-
-		//if (progressCallback)
-		//{
-		//	progressCallback->setMethodTitle(QObject::tr("L.O.D. display"));
-		//	progressCallback->setInfo(QObject::tr("Preparing L.O.D. structure to speed-up the display..."));
-		//	progressCallback->start();
-		//}
-		//CCLib::NormalizedProgress nProgress(progressCallback,pointCount);
-
-		assert(CCLib::DgmOctree::MAX_OCTREE_LEVEL <= 255);
-		//first level (default)
-		lod.addLevel(ccPointCloud::LodStruct::LevelDesc(0, 0));
-
-		unsigned remainingCount = pointCount;
-
-		//and the next ones
-		for (unsigned char level=1; level<=static_cast<unsigned char>(CCLib::DgmOctree::MAX_OCTREE_LEVEL); ++level)
-		{
-			//current level descriptor
-			ccPointCloud::LodStruct::LevelDesc levelDesc;
-			ccPointCloud::LodStruct::IndexSet* indexes = lod.indexes();
-			assert(indexes);
-			levelDesc.startIndex = indexes->currentSize();
-
-			//no need to process the points if there are less points remaining than the previous level
-			if (remainingCount > lod.level(level - 1).count)
-			{
-				const unsigned char bitDec = CCLib::DgmOctree::GET_BIT_SHIFT(level);
-
-				//for each cell we'll look for the (not-yet-flagged) point which is closest to the cell center
-				static const unsigned INVALID_INDEX = (~static_cast<unsigned>(0));
-				unsigned nearestIndex = INVALID_INDEX;
-				PointCoordinateType nearestSquareDist = 0;
-				CCVector3 cellCenter(0, 0, 0);
-
-				CCLib::DgmOctree::CellCode currentTruncatedCellCode = (~static_cast<CCLib::DgmOctree::CellCode>(0));
-
-				//scan the octree structure
-				const CCLib::DgmOctree::cellsContainer& thePointsAndTheirCellCodes = octree->pointsAndTheirCellCodes();
-				for (CCLib::DgmOctree::cellsContainer::const_iterator c = thePointsAndTheirCellCodes.begin(); c != thePointsAndTheirCellCodes.end(); ++c)
-				{
-					if (flags->getValue(c->theIndex) != NoFlag)
-					{
-						//we can skip already flagged points!
-						continue;
-					}
-					CCLib::DgmOctree::CellCode truncatedCode = (c->theCode >> bitDec);
-
-					//new cell?
-					if (truncatedCode != currentTruncatedCellCode)
-					{
-						//process the previous cell
-						if (nearestIndex != INVALID_INDEX)
-						{
-							indexes->addElement(nearestIndex);
-							assert(flags->getValue(nearestIndex) == NoFlag);
-							flags->setValue(nearestIndex, level);
-							levelDesc.count++;
-							assert(remainingCount);
-							--remainingCount;
-							//nProgress.oneStep();
-							if (m_abort.load() == 1)
-								break;
-							nearestIndex = INVALID_INDEX;
-						}
-
-						//prepare new cell
-						currentTruncatedCellCode = truncatedCode;
-						octree->computeCellCenter(currentTruncatedCellCode, level, cellCenter, true);
-					}
-
-					//compute distance to the cell center
-					const CCVector3* P = m_cloud.getPoint(c->theIndex);
-					PointCoordinateType squareDist = (*P - cellCenter).norm2();
-					if (nearestIndex == INVALID_INDEX || squareDist < nearestSquareDist)
-					{
-						nearestSquareDist = squareDist;
-						nearestIndex = c->theIndex;
-					}
-				}
-
-				if (m_abort.load() == 1)
-				{
-					break;
-				}
-
-				//don't forget the last cell!
-				if (nearestIndex != INVALID_INDEX)
-				{
-					indexes->addElement(nearestIndex);
-					assert(flags->getValue(nearestIndex) == NoFlag);
-					flags->setValue(nearestIndex, level);
-					levelDesc.count++;
-					assert(remainingCount);
-					--remainingCount;
-					//nProgress.oneStep();
-					nearestIndex = INVALID_INDEX;
-				}
-			}
-
-			if (remainingCount)
-			{
-				//no new point was flagged during this round? Then we have reached the maximum level
-				if (levelDesc.count == 0 || level == CCLib::DgmOctree::MAX_OCTREE_LEVEL)
-				{
-					//assert(indexes->currentSize() == levelDesc.startIndex);
-
-					//flag the remaining points with the current level
-					for (unsigned i=0; i<pointCount; ++i)
-					{
-						if (flags->getValue(i) == NoFlag)
-						{
-							indexes->addElement(i);
-							levelDesc.count++;
-							assert(remainingCount);
-							--remainingCount;
-							//nProgress.oneStep();
-						}
-					}
-				}
-			}
-
-			if (levelDesc.count)
-			{
-				lod.addLevel(levelDesc);
-				ccLog::PrintDebug(QString("[LoD] Cloud %1 - level %2: %3 points").arg(m_cloud.getName()).arg(level).arg(levelDesc.count));
-			}
-			else
-			{
-				assert(remainingCount == 0);
-			}
-
-			if (indexes->currentSize() == pointCount)
-			{
-				//all points have been processed? We can stop right now
-				break;
-			}
-		}
-
-		if (m_abort.load() == 0)
-		{
-			assert(lod.indexes() && lod.indexes()->currentSize() == pointCount);
-			lod.shrink();
-			lod.setState(ccPointCloud::LodStruct::INITIALIZED);
-		}
-		else
-		{
-			//reset
-			lod.clearExtended(false, ccPointCloud::LodStruct::NOT_INITIALIZED);
-		}
-
-		flags->release();
-		flags = 0;
-
-		ccLog::Print(QString("[LoD] Acceleration structure ready for cloud '%1' (max level: %2 / duration: %3 s.)").arg(m_cloud.getName()).arg(static_cast<int>(lod.maxLevel())-1).arg(timer.elapsed() / 1000.0,0,'f',1));
-	}
-
-	ccPointCloud& m_cloud;
-	
-	QAtomicInt	m_abort;
-};
-
 bool ccPointCloud::initLOD()
 {
-	return m_lod.init(*this);
-}
-
-bool ccPointCloud::LodStruct::init(ccPointCloud& cloud)
-{
-	if (isBroken())
-		return false;
-
-	if (!m_thread)
-	{
-		m_thread = new LodStructThread(cloud);
-	}
-	else if (m_thread->isRunning())
-	{
-		//already running?
-		assert(false);
-		return true;
-	}
-
-	m_thread->start();
-	return true;
-}
-
-bool ccPointCloud::LodStruct::reserve(unsigned pointCount, int levelCount)
-{
-	m_mutex.lock();
-	//init the levels descriptors
-	try
-	{
-		m_levels.reserve(levelCount);
-	}
-	catch (const std::bad_alloc&)
-	{
-		m_mutex.unlock();
-		return false;
-	}
-
-	//init LoD indexes
-	if (!m_indexes)
-	{
-		m_indexes = new LodStruct::IndexSet;
-	}
-	if (!m_indexes->reserve(pointCount))
-	{
-		m_indexes->release();
-	}
-	m_mutex.unlock();
-
-	return m_indexes != 0;
-}
-
-void ccPointCloud::LodStruct::clearExtended(bool autoStopThread, State newState)
-{
-	if (autoStopThread && m_thread)
-	{
-		m_thread->stop();
-		delete m_thread;
-		m_thread = 0;
-	}
-
-	m_mutex.lock();
-	m_levels.clear();
-	if (m_indexes)
-	{
-		m_indexes->release();
-		m_indexes = 0;
-	}
-	m_state = newState;
-	m_mutex.unlock();
+	return m_lod.init(this);
 }
 
 ccPointCloud::ccPointCloud(QString name) throw()
@@ -846,7 +522,7 @@ const ccPointCloud& ccPointCloud::append(ccPointCloud* addedCloud, unsigned poin
 
 			//we import colors (if necessary)
 			if (hasColors() && m_rgbColors->currentSize() == pointCountBefore)
-				for (unsigned i=0; i<addedPoints; i++)
+				for (unsigned i = 0; i < addedPoints; i++)
 					addRGBColor(addedCloud->m_rgbColors->getValue(i));
 		}
 	}
@@ -1156,7 +832,7 @@ void ccPointCloud::unallocateColors()
 	}
 
 	//remove the grid colors as well!
-	for (size_t i=0; i<m_grids.size(); ++i)
+	for (size_t i = 0; i < m_grids.size(); ++i)
 	{
 		if (m_grids[i])
 		{
@@ -2322,7 +1998,7 @@ void ccPointCloud::glChunkSFPointer(const CC_DRAW_CONTEXT& context, unsigned chu
 
 template <class QOpenGLFunctions> void glLODChunkVertexPointer(	ccPointCloud* cloud,
 																QOpenGLFunctions* glFunc,
-																const ccPointCloud::LodStruct::IndexSet& indexMap,
+																const ccPointCloudLOD::IndexSet& indexMap,
 																unsigned startIndex,
 																unsigned stopIndex)
 {
@@ -2344,7 +2020,7 @@ template <class QOpenGLFunctions> void glLODChunkVertexPointer(	ccPointCloud* cl
 
 template <class QOpenGLFunctions> void glLODChunkNormalPointer(	NormsIndexesTableType* normals,
 																QOpenGLFunctions* glFunc,
-																const ccPointCloud::LodStruct::IndexSet& indexMap,
+																const ccPointCloudLOD::IndexSet& indexMap,
 																unsigned startIndex,
 																unsigned stopIndex)
 {
@@ -2371,7 +2047,7 @@ template <class QOpenGLFunctions> void glLODChunkNormalPointer(	NormsIndexesTabl
 
 template <class QOpenGLFunctions> void glLODChunkColorPointer(	ColorsTableType* colors,
 																QOpenGLFunctions* glFunc, 
-																const ccPointCloud::LodStruct::IndexSet& indexMap,
+																const ccPointCloudLOD::IndexSet& indexMap,
 																unsigned startIndex,
 																unsigned stopIndex)
 {
@@ -2395,7 +2071,7 @@ template <class QOpenGLFunctions> void glLODChunkColorPointer(	ColorsTableType* 
 
 template <class QOpenGLFunctions> void glLODChunkSFPointer(	ccScalarField* sf,
 															QOpenGLFunctions* glFunc,
-															const ccPointCloud::LodStruct::IndexSet& indexMap,
+															const ccPointCloudLOD::IndexSet& indexMap,
 															unsigned startIndex,
 															unsigned stopIndex)
 {
@@ -2420,7 +2096,7 @@ template <class QOpenGLFunctions> void glLODChunkSFPointer(	ccScalarField* sf,
 }
 
 //description of the (sub)set of points to display
-struct DisplayDesc : ccPointCloud::LodStruct::LevelDesc
+struct DisplayDesc : ccPointCloudLOD::LevelDesc
 {
 	//! Default constructor
 	DisplayDesc()
@@ -2451,7 +2127,7 @@ struct DisplayDesc : ccPointCloud::LodStruct::LevelDesc
 	unsigned endIndex;
 
 	//! Map of indexes (to invert the natural order)
-	ccPointCloud::LodStruct::IndexSet* indexMap;
+	ccPointCloudLOD::IndexSet* indexMap;
 
 	//! Decimation step (for non-octree based LoD)
 	unsigned decimStep;
@@ -3047,8 +2723,10 @@ void ccPointCloud::drawMeOnly(CC_DRAW_CONTEXT& context)
 
 					if (toDisplay.count > context.minLODPointCount && context.minLODPointCount != 0)
 					{
-						GLint maxStride = 1;
+						GLint maxStride = 2048;
+#ifdef GL_MAX_VERTEX_ATTRIB_STRIDE
 						glFunc->glGetIntegerv(GL_MAX_VERTEX_ATTRIB_STRIDE, &maxStride);
+#endif
 						//maxStride == decimStep * 3 * sizeof(PointCoordinateType)
 						toDisplay.decimStep = static_cast<int>(ceil(static_cast<float>(toDisplay.count) / context.minLODPointCount));
 						toDisplay.decimStep = std::min<unsigned>(toDisplay.decimStep, maxStride / (3 * sizeof(PointCoordinateType)));
@@ -3893,14 +3571,14 @@ bool ccPointCloud::interpolateColorsFrom(	ccGenericPointCloud* otherCloud,
 		unallocateColors();
 		return false;
 	}
-		
+
 	//import colors
 	unsigned CPsize = CPSet.size();
 	assert(CPsize == size());
-	for (unsigned i=0; i<CPsize; ++i)
+	for (unsigned i = 0; i < CPsize; ++i)
 	{
 		unsigned index = CPSet.getPointGlobalIndex(i);
-		setPointColor(i,otherCloud->getPointColor(index));
+		setPointColor(i, otherCloud->getPointColor(index));
 	}
 
 	//We must update the VBOs
@@ -4127,13 +3805,13 @@ bool ccPointCloud::toFile_MeOnly(QFile& out) const
 	//points array (dataVersion>=20)
 	if (!m_points)
 		return ccLog::Error("Internal error - point cloud has no valid points array? (not enough memory?)");
-	if (!ccSerializationHelper::GenericArrayToFile(*m_points,out))
+	if (!ccSerializationHelper::GenericArrayToFile(*m_points, out))
 		return false;
 
 	//colors array (dataVersion>=20)
 	{
 		bool hasColorsArray = hasColors();
-		if (out.write((const char*)&hasColorsArray,sizeof(bool)) < 0)
+		if (out.write((const char*)&hasColorsArray, sizeof(bool)) < 0)
 			return WriteError();
 		if (hasColorsArray)
 		{
@@ -4146,7 +3824,7 @@ bool ccPointCloud::toFile_MeOnly(QFile& out) const
 	//normals array (dataVersion>=20)
 	{
 		bool hasNormalsArray = hasNormals();
-		if (out.write((const char*)&hasNormalsArray,sizeof(bool)) < 0)
+		if (out.write((const char*)&hasNormalsArray, sizeof(bool)) < 0)
 			return WriteError();
 		if (hasNormalsArray)
 		{
@@ -4160,11 +3838,11 @@ bool ccPointCloud::toFile_MeOnly(QFile& out) const
 	{
 		//number of scalar fields (dataVersion>=20)
 		uint32_t sfCount = static_cast<uint32_t>(getNumberOfScalarFields());
-		if (out.write((const char*)&sfCount,4) < 0)
+		if (out.write((const char*)&sfCount, 4) < 0)
 			return WriteError();
 
 		//scalar fields (dataVersion>=20)
-		for (uint32_t i=0; i<sfCount; ++i)
+		for (uint32_t i = 0; i < sfCount; ++i)
 		{
 			ccScalarField* sf = static_cast<ccScalarField*>(getScalarField(i));
 			assert(sf);
@@ -4177,12 +3855,12 @@ bool ccPointCloud::toFile_MeOnly(QFile& out) const
 		//	return WriteError();
 
 		//'show current sf color scale' state (dataVersion>=20)
-		if (out.write((const char*)&m_sfColorScaleDisplayed,sizeof(bool)) < 0)
+		if (out.write((const char*)&m_sfColorScaleDisplayed, sizeof(bool)) < 0)
 			return WriteError();
 
 		//Displayed scalar field index (dataVersion>=20)
 		int32_t displayedScalarFieldIndex = (int32_t)m_currentDisplayedScalarFieldIndex;
-		if (out.write((const char*)&displayedScalarFieldIndex,4) < 0)
+		if (out.write((const char*)&displayedScalarFieldIndex, 4) < 0)
 			return WriteError();
 	}
 
@@ -4190,11 +3868,11 @@ bool ccPointCloud::toFile_MeOnly(QFile& out) const
 	{
 		//number of grids
 		uint32_t count = static_cast<uint32_t>(this->gridCount());
-		if (out.write((const char*)&count,4) < 0)
+		if (out.write((const char*)&count, 4) < 0)
 			return WriteError();
 
 		//save each grid
-		for (uint32_t i=0; i<count; ++i)
+		for (uint32_t i = 0; i < count; ++i)
 		{
 			const Grid::Shared& g = grid(static_cast<unsigned>(i));
 			if (!g || g->indexes.empty())
@@ -4202,7 +3880,7 @@ bool ccPointCloud::toFile_MeOnly(QFile& out) const
 
 			//width
 			uint32_t w = static_cast<uint32_t>(g->w);
-			if (out.write((const char*)&w,4) < 0)
+			if (out.write((const char*)&w, 4) < 0)
 				return WriteError();
 			//height
 			uint32_t h = static_cast<uint32_t>(g->h);
@@ -4215,7 +3893,7 @@ bool ccPointCloud::toFile_MeOnly(QFile& out) const
 
 			//indexes
 			int* _index = &(g->indexes.front());
-			for (uint32_t j=0; j<w*h; ++j, ++_index)
+			for (uint32_t j = 0; j < w*h; ++j, ++_index)
 			{
 				int32_t index = static_cast<int32_t>(*_index);
 				if (out.write((const char*)&index, 4) < 0)
@@ -4226,10 +3904,10 @@ bool ccPointCloud::toFile_MeOnly(QFile& out) const
 			bool hasColors = (g->colors.size() == g->indexes.size());
 			if (out.write((const char*)&hasColors, 1) < 0)
 				return WriteError();
-			
+
 			if (hasColors)
 			{
-				for (uint32_t j=0; j<g->colors.size(); ++j)
+				for (uint32_t j = 0; j < g->colors.size(); ++j)
 				{
 					if (out.write((const char*)g->colors[j].rgb, 3) < 0)
 						return WriteError();
@@ -4257,15 +3935,15 @@ bool ccPointCloud::fromFile_MeOnly(QFile& in, short dataVersion, int flags)
 		bool fileCoordIsDouble = (flags & ccSerializableObject::DF_POINT_COORDS_64_BITS);
 		if (!fileCoordIsDouble && sizeof(PointCoordinateType) == 8) //file is 'float' and current type is 'double'
 		{
-			result = ccSerializationHelper::GenericArrayFromTypedFile<3,PointCoordinateType,float>(*m_points,in,dataVersion);
+			result = ccSerializationHelper::GenericArrayFromTypedFile<3, PointCoordinateType, float>(*m_points, in, dataVersion);
 		}
 		else if (fileCoordIsDouble && sizeof(PointCoordinateType) == 4) //file is 'double' and current type is 'float'
 		{
-			result = ccSerializationHelper::GenericArrayFromTypedFile<3,PointCoordinateType,double>(*m_points,in,dataVersion);
+			result = ccSerializationHelper::GenericArrayFromTypedFile<3, PointCoordinateType, double>(*m_points, in, dataVersion);
 		}
 		else
 		{
-			result = ccSerializationHelper::GenericArrayFromFile(*m_points,in,dataVersion);
+			result = ccSerializationHelper::GenericArrayFromFile(*m_points, in, dataVersion);
 		}
 		if (!result)
 		{
@@ -4298,7 +3976,7 @@ bool ccPointCloud::fromFile_MeOnly(QFile& in, short dataVersion, int flags)
 	//colors array (dataVersion>=20)
 	{
 		bool hasColorsArray = false;
-		if (in.read((char*)&hasColorsArray,sizeof(bool)) < 0)
+		if (in.read((char*)&hasColorsArray, sizeof(bool)) < 0)
 			return ReadError();
 		if (hasColorsArray)
 		{
@@ -4321,7 +3999,7 @@ bool ccPointCloud::fromFile_MeOnly(QFile& in, short dataVersion, int flags)
 	//normals array (dataVersion>=20)
 	{
 		bool hasNormalsArray = false;
-		if (in.read((char*)&hasNormalsArray,sizeof(bool)) < 0)
+		if (in.read((char*)&hasNormalsArray, sizeof(bool)) < 0)
 			return ReadError();
 		if (hasNormalsArray)
 		{
@@ -4345,11 +4023,11 @@ bool ccPointCloud::fromFile_MeOnly(QFile& in, short dataVersion, int flags)
 	{
 		//number of scalar fields (dataVersion>=20)
 		uint32_t sfCount = 0;
-		if (in.read((char*)&sfCount,4) < 0)
+		if (in.read((char*)&sfCount, 4) < 0)
 			return ReadError();
 
 		//scalar fields (dataVersion>=20)
-		for (uint32_t i=0; i<sfCount; ++i)
+		for (uint32_t i = 0; i < sfCount; ++i)
 		{
 			ccScalarField* sf = new ccScalarField();
 			if (!sf->fromFile(in, dataVersion, flags))
@@ -4364,25 +4042,25 @@ bool ccPointCloud::fromFile_MeOnly(QFile& in, short dataVersion, int flags)
 		{
 			//'show NaN values in grey' state (27>dataVersion>=20)
 			bool greyForNanScalarValues = true;
-			if (in.read((char*)&greyForNanScalarValues,sizeof(bool)) < 0)
+			if (in.read((char*)&greyForNanScalarValues, sizeof(bool)) < 0)
 				return ReadError();
 
 			//update all scalar fields accordingly (old way)
-			for (unsigned i=0; i<getNumberOfScalarFields(); ++i)
+			for (unsigned i = 0; i < getNumberOfScalarFields(); ++i)
 			{
 				static_cast<ccScalarField*>(getScalarField(i))->showNaNValuesInGrey(greyForNanScalarValues);
 			}
 		}
 
 		//'show current sf color scale' state (dataVersion>=20)
-		if (in.read((char*)&m_sfColorScaleDisplayed,sizeof(bool)) < 0)
+		if (in.read((char*)&m_sfColorScaleDisplayed, sizeof(bool)) < 0)
 			return ReadError();
 
 		//Displayed scalar field index (dataVersion>=20)
 		int32_t displayedScalarFieldIndex = 0;
-		if (in.read((char*)&displayedScalarFieldIndex,4) < 0)
+		if (in.read((char*)&displayedScalarFieldIndex, 4) < 0)
 			return ReadError();
-		if (displayedScalarFieldIndex<(int32_t)sfCount)
+		if (displayedScalarFieldIndex < (int32_t)sfCount)
 			setCurrentDisplayedScalarField(displayedScalarFieldIndex);
 	}
 
@@ -4391,28 +4069,28 @@ bool ccPointCloud::fromFile_MeOnly(QFile& in, short dataVersion, int flags)
 	{
 		//number of grids
 		uint32_t count = 0;
-		if (in.read((char*)&count,4) < 0)
+		if (in.read((char*)&count, 4) < 0)
 			return ReadError();
 
 		//load each grid
-		for (uint32_t i=0; i<count; ++i)
+		for (uint32_t i = 0; i < count; ++i)
 		{
 			Grid::Shared g(new Grid);
 
 			//width
 			uint32_t w = 0;
-			if (in.read((char*)&w,4) < 0)
+			if (in.read((char*)&w, 4) < 0)
 				return ReadError();
 			//height
 			uint32_t h = 0;
-			if (in.read((char*)&h,4) < 0)
+			if (in.read((char*)&h, 4) < 0)
 				return ReadError();
 
 			g->w = static_cast<unsigned>(w);
 			g->h = static_cast<unsigned>(h);
 
 			//sensor matrix
-			if (!g->sensorPosition.fromFile(in,dataVersion,flags))
+			if (!g->sensorPosition.fromFile(in, dataVersion, flags))
 				return WriteError();
 
 			try
@@ -4426,10 +4104,10 @@ bool ccPointCloud::fromFile_MeOnly(QFile& in, short dataVersion, int flags)
 
 			//indexes
 			int* _index = &(g->indexes.front());
-			for (uint32_t j=0; j<w*h; ++j, ++_index)
+			for (uint32_t j = 0; j < w*h; ++j, ++_index)
 			{
 				int32_t index = 0;
-				if (in.read((char*)&index,4) < 0)
+				if (in.read((char*)&index, 4) < 0)
 					return ReadError();
 
 				*_index = index;
@@ -4453,7 +4131,7 @@ bool ccPointCloud::fromFile_MeOnly(QFile& in, short dataVersion, int flags)
 			bool hasColors = false;
 			if (in.read((char*)&hasColors, 1) < 0)
 				return ReadError();
-			
+
 			if (hasColors)
 			{
 				try
@@ -4465,7 +4143,7 @@ bool ccPointCloud::fromFile_MeOnly(QFile& in, short dataVersion, int flags)
 					return MemoryError();
 				}
 
-				for (uint32_t j=0; j<g->colors.size(); ++j)
+				for (uint32_t j = 0; j < g->colors.size(); ++j)
 				{
 					if (in.read((char*)g->colors[j].rgb, 3) < 0)
 						return ReadError();

@@ -560,13 +560,15 @@ public: //stereo mode
 
 		//! Glass/HMD type
 		enum GlassType {	RED_BLUE = 1,
-							RED_CYAN = 2,
-							NVIDIA_VISION = 3,
-							OCULUS = 4
+							BLUE_RED = 2,
+							RED_CYAN = 3,
+							CYAN_RED = 4,
+							NVIDIA_VISION = 5,
+							OCULUS = 6
 		};
 
 		//! Whether stereo-mode is 'analgyph' or real stereo mode
-		inline bool isAnaglyph() const { return glassType == RED_BLUE || glassType == RED_CYAN; }
+		inline bool isAnaglyph() const { return glassType <= 4; }
 		
 		bool autoFocal;
 		double focalDist;
@@ -850,19 +852,20 @@ protected: //other methods
 	void wheelEvent(QWheelEvent *event) override;
 	bool event(QEvent* evt) override;
 
-	virtual void dragEnterEvent(QDragEnterEvent* event);
-	virtual void dropEvent(QDropEvent* event);
-
 	bool initialize();
 
 #ifdef CC_GL_WINDOW_USE_QWINDOW
 	void resizeGL(int w, int h);
 	void paintGL();
+	virtual void dragEnterEvent(QDragEnterEvent* event);
+	virtual void dropEvent(QDropEvent* event);
 #else
 	void initializeGL() override { initialize(); }
 	void resizeGL(int w, int h) override;
 	void paintGL() override;
 	GLuint defaultQtFBO() const;
+	virtual void dragEnterEvent(QDragEnterEvent* event) override;
+	virtual void dropEvent(QDropEvent* event) override;
 #endif
 
 	//Graphical features controls

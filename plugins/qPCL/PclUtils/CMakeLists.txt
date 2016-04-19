@@ -26,10 +26,9 @@ file( GLOB_RECURSE source_list *.cpp )
 file( GLOB_RECURSE impl_list *.hpp)
 file( GLOB_RECURSE ui_list *.ui )
 
-
 qt5_wrap_ui(generated_ui_list ${ui_list})
 
-add_library( ${PROJECT_NAME} STATIC ${header_list} ${source_list} ${impl_list} ${moc_list} ${generated_ui_list} )
+add_library( ${PROJECT_NAME} STATIC ${header_list} ${source_list} ${impl_list} ${generated_ui_list} )
 
 # Add custom preprocessor definitions
 if (WIN32)
