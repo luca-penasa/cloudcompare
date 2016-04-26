@@ -560,13 +560,15 @@ public: //stereo mode
 
 		//! Glass/HMD type
 		enum GlassType {	RED_BLUE = 1,
-							RED_CYAN = 2,
-							NVIDIA_VISION = 3,
-							OCULUS = 4
+							BLUE_RED = 2,
+							RED_CYAN = 3,
+							CYAN_RED = 4,
+							NVIDIA_VISION = 5,
+							OCULUS = 6
 		};
 
 		//! Whether stereo-mode is 'analgyph' or real stereo mode
-		inline bool isAnaglyph() const { return glassType == RED_BLUE || glassType == RED_CYAN; }
+		inline bool isAnaglyph() const { return glassType <= 4; }
 		
 		bool autoFocal;
 		double focalDist;
@@ -600,12 +602,22 @@ public slots:
 	//! Tests frame rate
 	void startFrameRateTest();
 
+	//! Request an update of the display
+	/** The request will be executed if not in auto refresh mode already
+	**/
+	void requestUpdate();
+
 #ifdef CC_GL_WINDOW_USE_QWINDOW
-	//! Updates the display
+	//! For compatibility with the QOpenGLWidget version
 	inline void update() { paintGL(); }
 #endif
 
 protected slots:
+
+#ifdef CC_GL_WINDOW_USE_QWINDOW
+	//! Updates the display
+	void paintGL();
+#endif
 
 	//! Renders the next L.O.D. level
 	void renderNextLODLevel();
@@ -850,19 +862,19 @@ protected: //other methods
 	void wheelEvent(QWheelEvent *event) override;
 	bool event(QEvent* evt) override;
 
-	virtual void dragEnterEvent(QDragEnterEvent* event);
-	virtual void dropEvent(QDropEvent* event);
-
 	bool initialize();
+	GLuint defaultQtFBO() const;
 
 #ifdef CC_GL_WINDOW_USE_QWINDOW
 	void resizeGL(int w, int h);
-	void paintGL();
+	virtual void dragEnterEvent(QDragEnterEvent* event);
+	virtual void dropEvent(QDropEvent* event);
 #else
 	void initializeGL() override { initialize(); }
 	void resizeGL(int w, int h) override;
 	void paintGL() override;
-	GLuint defaultQtFBO() const;
+	virtual void dragEnterEvent(QDragEnterEvent* event) override;
+	virtual void dropEvent(QDropEvent* event) override;
 #endif
 
 	//Graphical features controls
@@ -876,8 +888,8 @@ protected: //other methods
 	//! Optional output metrics (from computeProjectionMatrix)
 	struct ProjectionMetrics
 	{
-		ProjectionMetrics() : zNear(0), zFar(0), pivotCameraDist(0), pivotBorderDist(0) {}
-		double zNear, zFar, pivotCameraDist, pivotBorderDist;
+		ProjectionMetrics() : zNear(0), zFar(0), cameraToBBCenterDist(0), bbHalfDiag(0) {}
+		double zNear, zFar, cameraToBBCenterDist, bbHalfDiag;
 	};
 
 	//! Computes the projection matrix
@@ -1075,10 +1087,10 @@ protected: //members
 	ccGLMatrixd m_projMatd;
 	//! Whether the projection matrix is valid (or need to be recomputed)
 	bool m_validProjectionMatrix;
-	//! Distance between the camera and the pivot point
-	double m_pivotCameraDist;
-	//! Distance between the pivot and the farthest (theoretical) point in DB
-	double m_pivotBorderDist;
+	//! Distance between the camera and the displayed objects bounding-box
+	double m_cameraToBBCenterDist;
+	//! Half size of the displayed objects bounding-box
+	double m_bbHalfDiag;
 
 	//! GL viewport
 	QRect m_glViewport;

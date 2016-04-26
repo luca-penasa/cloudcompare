@@ -2,8 +2,6 @@
 //#                                                                        #
 //#                            CLOUDCOMPARE                                #
 //#                                                                        #
-//#  This project has been initiated under funding from ANR/CIFRE          #
-//#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU General Public License as published by  #
 //#  the Free Software Foundation; version 2 of the License.               #
@@ -13,56 +11,28 @@
 //#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
-//#          COPYRIGHT: EDF R&D / TELECOM ParisTech (ENST-TSI)             #
+//#                    COPYRIGHT: CloudCompare project                     #
 //#                                                                        #
 //##########################################################################
 
-#include "ccCommon.h"
+#ifndef SORT_ALGO_HEADER
+#define SORT_ALGO_HEADER
 
-//CCLib
-#include <CCPlatform.h>
+#ifndef SortAlgo
 
-#define CC_VER_NUM "2"
-#define CC_SUB_VER "7.0" //2016-04-21
+	#if (_MSC_VER >= 1800)
 
-//! Returns current version as a string
-QString ccCommon::GetCCVersion(bool full/*=true*/)
-{
-	QString verStr = QString("%1.%2").arg(CC_VER_NUM).arg(CC_SUB_VER);
-#ifdef CC_GL_WINDOW_USE_QWINDOW
-	verStr += " Stereo";
-#endif
+		//Parallel Patterns Library (for parallel sort)
+		#include <ppl.h>
+		#define SortAlgo Concurrency::parallel_sort
 
-#if defined(CC_ENV_64)
-	QString arch = "64 bits";
-#elif defined(CC_ENV_32)
-	QString arch = "32 bits";
-#else
-	QString arch = "?? bits";
-#endif
+	#else
 
-	if (full)
-	{
-#if defined(CC_WINDOWS)
-		QString platform = "Windows";
-#elif defined(CC_MAC_OS)
-		QString platform = "Mac OS";
-#elif defined(CC_LINUX)
-		QString platform = "Linux";
-#else
-		QString platform = "Unknown OS";
-#endif
+		//TODO: find a portable parallel sort algorithm
+		#define SortAlgo std::sort
 
-		verStr += QString(" [%1 %2]").arg(platform).arg(arch);
-	}
-	else
-	{
-		verStr += QString(" [%1]").arg(arch);
-	}
+	#endif
 
-#ifdef QT_DEBUG
-	verStr += QString(" [DEBUG]");
-#endif
+#endif //#ifndef SortAlgo
 
-	return verStr;
-};
+#endif //SORT_ALGO_HEADER

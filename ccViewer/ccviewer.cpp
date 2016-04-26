@@ -22,6 +22,7 @@
 //Qt
 #include <QVBoxLayout>
 #include <QMessageBox>
+#include <QString>
 
 //plugins handling
 #include <QPluginLoader>
@@ -57,8 +58,22 @@
 #include <assert.h>
 
 //! Current version
-const double CC_VIEWER_VERSION = 1.35;
-const QString CC_VIEWER_VERSION_STR = QString::number(CC_VIEWER_VERSION,'f',2);
+struct VerInfo
+{
+	VerInfo()
+		: number(1.35)
+	{
+		title = QString::number(number,'f',2);
+#ifdef CC_GL_WINDOW_USE_QWINDOW
+		title += " Stereo";
+#endif
+	}
+
+	double number;
+	QString title;
+
+};
+static const VerInfo CC_VIEWER_VERSION;
 
 //Camera parameters dialog
 ccCameraParamEditDlg* s_cpeDlg = 0;
@@ -71,7 +86,7 @@ ccViewer::ccViewer(QWidget *parent, Qt::WindowFlags flags)
 {
 	ui.setupUi(this);
 
-	setWindowTitle(QString("ccViewer V%1").arg(CC_VIEWER_VERSION_STR));
+	setWindowTitle(QString("ccViewer V%1").arg(CC_VIEWER_VERSION.title));
 
 	//insert GL window in a vertical layout
 	{
@@ -83,7 +98,7 @@ ccViewer::ccViewer(QWidget *parent, Qt::WindowFlags flags)
 		bool stereoMode = QSurfaceFormat::defaultFormat().stereo();
 
 		QWidget* glWidget = 0;
-		CreateGLWindow(m_glWindow, glWidget, true);
+		CreateGLWindow(m_glWindow, glWidget, stereoMode);
 		assert(m_glWindow && glWidget);
 
 		verticalLayout->addWidget(glWidget);
@@ -172,7 +187,7 @@ ccViewer::~ccViewer()
 	if (s_cpeDlg)
 	{
 		delete s_cpeDlg;
-		s_cpeDlg=0;
+		s_cpeDlg = 0;
 	}
 
 	ccHObject* currentRoot = m_glWindow->getSceneDB();
@@ -182,6 +197,9 @@ ccViewer::~ccViewer()
 		//m_glWindow->redraw();
 		delete currentRoot;
 	}
+#ifdef CC_GL_WINDOW_USE_QWINDOW
+	m_glWindow->setParent(0);
+#endif
 }
 
 void ccViewer::loadPlugins()
@@ -797,6 +815,19 @@ void ccViewer::toggleStereoMode(bool state)
 			return;
 		}
 
+		ccGLWindow::StereoParams params = smDlg.getParameters();
+#ifndef CC_GL_WINDOW_USE_QWINDOW
+		if (!params.isAnaglyph())
+		{
+			ccLog::Error("This version doesn't handle stereo glasses and headsets.\nUse the 'Stereo' version instead.");
+			//activation of the stereo mode failed: cancel selection
+			ui.actionEnableStereo->blockSignals(true);
+			ui.actionEnableStereo->setChecked(false);
+			ui.actionEnableStereo->blockSignals(false);
+			return;
+		}
+#endif
+
 		//force perspective state!
 		if (!m_glWindow->getViewportParameters().perspectiveView)
 		{
@@ -804,14 +835,8 @@ void ccViewer::toggleStereoMode(bool state)
 			reflectPerspectiveState();
 		}
 
-		ccGLWindow::StereoParams params = smDlg.getParameters();
-
 		if (params.glassType == ccGLWindow::StereoParams::NVIDIA_VISION)
 		{
-#ifndef CC_GL_WINDOW_USE_QWINDOW
-			ccLog::Error("This version of ccViewer doesn't handle Quad Buffer mode");
-			return;
-#endif
 			//force full screen
 			ui.actionFullScreen->setChecked(true);
 		}
@@ -1063,7 +1088,7 @@ void ccViewer::doActionAbout()
 
 	Ui::AboutDialog ui;
 	ui.setupUi(&aboutDialog);
-	ui.textEdit->setHtml(ui.textEdit->toHtml().arg(CC_VIEWER_VERSION_STR));
+	ui.textEdit->setHtml(ui.textEdit->toHtml().arg(CC_VIEWER_VERSION.title));
 
 	aboutDialog.exec();
 }

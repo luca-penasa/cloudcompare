@@ -32,19 +32,13 @@
 
 //Qt
 #include <QGLBuffer>
-#include <QMutex>
 
 class ccPointCloud;
 class ccScalarField;
 class ccPolyline;
 class QGLBuffer;
-class LodStructThread;
 class ccProgressDialog;
-
-//! Maximum number of points (per cloud) displayed in a single LOD iteration
-/** \warning MUST BE GREATER THAN 'MAX_NUMBER_OF_ELEMENTS_PER_CHUNK'
-**/
-static const unsigned MAX_POINT_COUNT_PER_LOD_RENDER_PASS = (MAX_NUMBER_OF_ELEMENTS_PER_CHUNK << 3); //~ 65K * 8 = 512K
+class ccPointCloudLOD;
 
 /***************************************************
 				ccPointCloud
@@ -412,7 +406,7 @@ public:
 	CCLib::ReferenceCloud* crop(const ccBBox& box, bool inside = true) override;
 	virtual void scale(PointCoordinateType fx, PointCoordinateType fy, PointCoordinateType fz, CCVector3 center = CCVector3(0,0,0)) override;
 	/** \warning if removeSelectedPoints is true, any attached octree will be deleted. **/
-	virtual ccGenericPointCloud* createNewCloudFromVisibilitySelection(bool removeSelectedPoints = false) override;
+	virtual ccGenericPointCloud* createNewCloudFromVisibilitySelection(bool removeSelectedPoints = false, VisibilityTableType* visTable = 0) override;
 	virtual void applyRigidTransformation(const ccGLMatrix& trans) override;
 	//virtual bool isScalarFieldEnabled() const;
 	inline virtual void refreshBB() override { invalidateBoundingBox(); }
@@ -646,11 +640,6 @@ protected:
 	virtual bool fromFile_MeOnly(QFile& in, short dataVersion, int flags) override;
 	virtual void notifyGeometryUpdate() override;
 
-	//! Draws the cloud with the octree
-	void drawWithOctree(CC_DRAW_CONTEXT& context,
-						const CCLib::DgmOctree& octree,
-						const glDrawParams& glParams);
-
 	//inherited from ChunkedPointCloud
 	/** \warning Doesn't handle scan grids!
 	**/
@@ -751,118 +740,18 @@ protected: // VBO
 
 public: //Level of Detail (LOD)
 
-	//! L.O.D. (Level of Detail) structure
-	class LodStruct
-	{
-	public:
-		//! Structure initialization state
-		enum State { NOT_INITIALIZED, UNDER_CONSTRUCTION, INITIALIZED, BROKEN };
-
-		//! Default constructor
-		LodStruct() : m_indexes(0), m_thread(0), m_state(NOT_INITIALIZED) {}
-		//! Destructor
-		~LodStruct() { clear(); }
-
-		//! Initializes the construction process (asynchronous)
-		bool init(ccPointCloud& cloud);
-
-		//! Locks the structure
-		inline void lock() { m_mutex.lock(); }
-		//! Unlocks the structure
-		inline void unlock() { m_mutex.unlock(); }
-
-		//! Returns the current state
-		inline State getState() { lock(); State state = m_state; unlock(); return state; }
-
-		//! Sets the current state
-		inline void setState(State state) { lock(); m_state = state; unlock(); }
-
-		//! Clears the structure
-		inline void clear() { clearExtended(true, NOT_INITIALIZED); }
-		//! Clears the structure (extended version)
-		void clearExtended(bool autoStopThread, State newState);
-
-		//! Reserves memory for the indexes
-		bool reserve(unsigned pointCount, int levelCount);
-
-		//! Returns whether the structure is null (i.e. not under construction or initialized) or not
-		inline bool isNull() { return getState() == NOT_INITIALIZED; }
-
-		//! Returns whether the structure is initialized or not
-		inline bool isInitialized() { return getState() == INITIALIZED; }
-
-		//! Returns whether the structure is initialized or not
-		inline bool isUnderConstruction() { return getState() == UNDER_CONSTRUCTION; }
-
-		//! Returns whether the structure is broken or not
-		inline bool isBroken() { return getState() == BROKEN; }
-
-		//! L.O.D. indexes set
-		typedef GenericChunkedArray<1, unsigned> IndexSet;
-
-		//! Returns the indexes (if any)
-		inline IndexSet* indexes() { return m_indexes; }
-		//! Returns the indexes (if any) - const version
-		inline const IndexSet* indexes() const { return m_indexes; }
-
-		//! Level descriptor
-		struct LevelDesc
-		{
-			//! Default constructor
-			LevelDesc() : startIndex(0), count(0) {}
-			//! Constructor from a start index and a count value
-			LevelDesc(unsigned _startIndex, unsigned _count) : startIndex(_startIndex), count(_count) {}
-			//! Start index (refers to the 'indexes' table)
-			unsigned startIndex;
-			//! Index count for this level
-			unsigned count;
-		};
-
-		//! Adds a level descriptor
-		inline void addLevel(const LevelDesc& desc) { lock(); m_levels.push_back(desc); unlock(); }
-		//! Shrinks the level descriptor set to its minimal size
-		inline void shrink() { lock(); m_levels.resize(m_levels.size()); unlock(); } //DGM: shrink_to_fit is a C++11 method
-
-		//! Returns the maximum level
-		inline unsigned char maxLevel() { lock(); size_t count = m_levels.size(); unlock(); return static_cast<unsigned char>(std::min<size_t>(count,256)); }
-		//! Returns a given level descriptor
-		inline LevelDesc level(unsigned char index) { lock(); LevelDesc desc = m_levels[index]; unlock(); return desc; }
-
-	protected:
-
-		//! L.O.D. indexes
-		/** Point indexes that should be displayed at each level of detail.
-		**/
-		IndexSet* m_indexes;
-
-		//! Actual levels
-		std::vector<LevelDesc> m_levels;
-
-		//! Computing thread
-		LodStructThread* m_thread;
-
-		//! For concurrent access
-		QMutex m_mutex;
-
-		//! State
-		State m_state;
-	};
-
 	//! Intializes the LOD structure
 	/** \return success
 	**/
 	bool initLOD();
 
 	//! Clears the LOD structure
-	inline void clearLOD() { m_lod.clear(); }
+	void clearLOD();
 
-	//! Returns the LOD structure
-	inline LodStruct& getLOD() { return m_lod; }
-
-protected:
+protected: //Level of Detail (LOD)
 
 	//! L.O.D. structure
-	LodStruct m_lod;
+	ccPointCloudLOD* m_lod;
 };
 
 #endif //CC_POINT_CLOUD_HEADER

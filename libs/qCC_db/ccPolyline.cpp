@@ -141,7 +141,7 @@ ccBBox ccPolyline::getOwnBB(bool withGLFeatures/*=false*/)
 {
 	ccBBox emptyBox;
 	getBoundingBox(emptyBox.minCorner(), emptyBox.maxCorner());
-	emptyBox.setValidity(/*!is2DMode() && */size() != 0);
+	emptyBox.setValidity((!is2DMode() || !withGLFeatures) && size() != 0); //a 2D polyline is considered as a purely 'GL' fature
 	return emptyBox;
 }
 
@@ -263,8 +263,8 @@ void ccPolyline::drawMeOnly(CC_DRAW_CONTEXT& context)
 					c_unitArrow->setTempColor(context.pointsDefaultCol);
 				//build-up unit arrow own 'context'
 				CC_DRAW_CONTEXT markerContext = context;
-				markerContext.flags &= (~CC_DRAW_ENTITY_NAMES); //we must remove the 'push name flag' so that the sphere doesn't push its own!
-				markerContext._win = 0;
+				markerContext.drawingFlags &= (~CC_DRAW_ENTITY_NAMES); //we must remove the 'push name flag' so that the sphere doesn't push its own!
+				markerContext.display = 0;
 
 				glFunc->glMatrixMode(GL_MODELVIEW);
 				glFunc->glPushMatrix();

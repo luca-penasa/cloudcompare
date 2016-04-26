@@ -26,6 +26,7 @@
 #include <QTime>
 #include <QTranslator>
 #include <QSettings>
+#include <QGLFormat>
 
 #ifdef Q_OS_MAC
 #include <QFileOpenEvent>
@@ -35,6 +36,7 @@
 #include <ccTimer.h>
 #include <ccNormalVectors.h>
 #include <ccColorScalesManager.h>
+#include <ccMaterial.h>
 
 //qCC_io
 #include <FileIOFilter.h>
@@ -65,6 +67,7 @@ public:
 		// Mac OS X apps don't show icons in menus
 		setAttribute( Qt::AA_DontShowIconsInMenus );
 #endif
+		connect(this, &qccApplication::aboutToQuit, [=](){ ccMaterial::ReleaseTextures(); });
 	}
 
 #ifdef Q_OS_MAC
@@ -124,14 +127,19 @@ int main(int argc, char **argv)
 	//QT initialiation
 	qccApplication app(argc, argv);
 
-	//Force 'english' local so as to get a consistent behavior everywhere
-	//QLocale::setDefault(QLocale::English); //DGM: useless? (see below)
+	//Locale management
+	{
+		//Force 'english' locale so as to get a consistent behavior everywhere
+		QLocale locale = QLocale(QLocale::English);
+		locale.setNumberOptions(QLocale::c().numberOptions());
+		QLocale::setDefault(locale);
 
-	// We reset the numeric locale.
-	// See http://qt-project.org/doc/qt-5/qcoreapplication.html#locale-settings
-	QLocale locale = QLocale::system();
-	locale.setNumberOptions( QLocale::c().numberOptions() );
-	QLocale::setDefault( locale );
+#ifdef Q_OS_UNIX
+		//We reset the numeric locale for POSIX functions
+		//See http://qt-project.org/doc/qt-5/qcoreapplication.html#locale-settings
+		setlocale(LC_NUMERIC, "C");
+#endif
+	}
 
 #ifdef USE_VLD
 	VLDEnable();
@@ -195,12 +203,11 @@ int main(int argc, char **argv)
 	//command line mode
 	if (!commandLine)
 	{
-		//DGM FIXME: do the same with Qt 5 + reject if Qt version is < 2.1
-		//if (!QGLFormat::hasOpenGL())
-		//{
-		//	QMessageBox::critical(0, "Error", "This application needs OpenGL to run!");
-		//	return EXIT_FAILURE;
-		//}
+		if ((QGLFormat::openGLVersionFlags() & QGLFormat::OpenGL_Version_2_1) == 0)
+		{
+			QMessageBox::critical(0, "Error", "This application needs OpenGL 2.1 at least to run!");
+			return EXIT_FAILURE;
+		}
 
 		//splash screen
 		splashStartTime.start();
@@ -279,7 +286,7 @@ int main(int argc, char **argv)
 		}
 		catch(...)
 		{
-			QMessageBox::warning(0, "CC crashed!","Hum, it seems that CC has crashed... Sorry about that :)");
+			QMessageBox::warning(0, "CC crashed!", "Hum, it seems that CC has crashed... Sorry about that :)");
 		}
 	}
 

@@ -1,19 +1,33 @@
 *** CloudCompare versions history ***
 
-v2.7.0 - 04/XX/2016
+v2.7.0 - 04/22/2016
 
 - Enhancements:
 	
+	* Cross section tool
+		- Now based on OpenGL for a much faster display (+ proper integration in the new LOD mechanism)
+
 	* Rasterize tool improved
 		- Now handles RGB colors
 		- Raster export dialog updated
 		- The 'Cancel' button of the grid update progress bar is now handled properly
 		- Now exports images with the active (default) color scale
 
+	* Support for the Oculus Rift device
+		- new option of the 'Stereo' mode (you have to use the 'Stereo' version of CloudCompare)
+		- development is still in 'alpha' state
+		- units must be expressed in meters
+		- works best with a 3D mouse
+		- works best in 'bubble view' mode (i.e. with FARO or PTX files)
+
 	* The 'Global Shift & Scale' mechanism now allows for shifting values above 1.0e9
 		(for georeferenced clouds expressed in millimeters!)
 
-	* New 'File > Global Shift settings' dialog to set the limits that trigger the 'Global Shift & Scale' mechanism
+	* New 'File > Global Shift settings' dialog
+		- can be used to set the limits that trigger the 'Global Shift & Scale' mechanism
+		- settings are persistent
+		- settings are used for both the standard application and the command line mode
+		- default triggering value (for the coordinates) have been lowered to 10^4 
 
 	* New 'Tools > Sand-box > Distance Map' tool
 		* allows to compute distance maps for clouds (= distances from regularly sampled positions around the points)
@@ -23,13 +37,14 @@ v2.7.0 - 04/XX/2016
 		and 'Tools > Registration > Match scales' methods now update the 'transformation history matrix' of the entities
 
 	* Bubble View mode
-		- nows allows for horizontal AND vertical rotation
+		- now allows for horizontal AND vertical rotation
 		- the 3D mouse is now properly handled
 
 	* Command line mode
 		- I/O plugins are now loaded in command line mode (i.e. the FARO, DP and PCD formats can now be used)
 		- new option 'MAX_TCOUNT' to specify the maximum number of threads to be used for computing distances (C2C or C2M)
 			as well as for ICP registration
+		- the SPLIT_XYZ and MAX_DIST options can now be used together for C2C distance
 
 	* Default light position
 		- the default (sun) light position is now in the middle of the screen so as to get a brighter visualization of meshes
@@ -41,11 +56,27 @@ v2.7.0 - 04/XX/2016
 	* ICP registration
 		- the user can now set the maximum number of threads/core to use
 
+	* LOD mechanism enhanced (faster and smarter)
+
+	* The 'Link camera' checkbox has been moved to the 'Display menu'
+
+	* Mac OS X adds support for OpenGL Frame Buffer Objects (FBOs)
+
+	* Mac OS X adds support for the CSV Matrix I/O file format
+
+	* Mac OS X adds support for the following plugins:
+		- qFacet
+		- qAnimation
+
 - Bug fix:
 	
 	* The HSV to RGB method was broken
 	* The 'Convert normals to HSV colors' mehod doesn't rely on the Dip / Dip direction anymore as the way these values
 		are computed have been changed recently (with a symmetry about the plane Z = 0)
+	* When playing with the 'skip lines' parameter of the ASCII file loading dialog, the roles assignments could be cleared
+		(when a line was reappearing while it had less elements than the other lines)
+	* Mac OS X properly saves and restores the main window's state & geometry
+	* Mac OS X uses the standard menu names and keyboard shortcuts for entering and exiting full screen
 
 v2.6.3.1 - 03/XX/2016
 
@@ -59,7 +90,7 @@ v2.6.3.1 - 03/XX/2016
 	* The meshes over the user-specified limit (display options) were ALWAYS decimated (and not only when the mouse is moved)
 	* 2D area label picking was broken (first corner was misplaced)
 	* 3D point picking on a cloud with a temporary GL transformation (e.g. in the Align tool) was not working properly
-	* The camera sensor dialog was presenting the camera orientation vectors in the wrong order (horizontal instaed of vertical)
+	* The camera sensor dialog was presenting the camera orientation vectors in the wrong order (horizontal instead of vertical)
 	* OpenMP support disabled for Ransac Shape Detection on Windows (the process loops infinitely if enabled)
 	* When custom labels were defined for a custom color scale, the values that were not present in the active SF range were ignored
 
@@ -79,7 +110,7 @@ v2.6.3 (= pre 2.7.0 for systems that don't support Qt5) - 03/13/2016
 
 	* Exclusive full screen mode for 3D views
 
-	* Support of the NVidia 3D Vision glasses (thanks to Amfax (UK) - www.amfax.co.uk)
+	* Support for the NVidia 3D Vision glasses (thanks to Amfax (UK) - www.amfax.co.uk)
 		- new option of the 'Stereo' mode
 		- the graphic card must support OpenGL quad buffering (i.e. latest GeForce or Quadro cards)
 		- the 3D stereo mode must be enabled in the NVidia Control Pannel
@@ -88,12 +119,6 @@ v2.6.3 (= pre 2.7.0 for systems that don't support Qt5) - 03/13/2016
 		- shaders (EDL, etc.) are supported
 
 	* New method: Edit > Colors > Convert to grey scale
-
-	* Mac OS X adds support for the CSV Matrix I/O file format
-
-	* Mac OS X adds support for the following plugins:
-	   - qFacet
-	   - qAnimation
 
 - Enhancements:
 	* Point-pair based alignment tool:
@@ -140,7 +165,7 @@ v2.6.3 (= pre 2.7.0 for systems that don't support Qt5) - 03/13/2016
 
 	* CANUPO plugin:
 		- the statistics (Training mode) now takes the actual boundary into account (and not the default one)
-		- bug fix: the classes (labels) could be inversed in some cases
+		- bug fix: the classes (labels) could be inverted in some cases
 		- the user can now set the maximum number of threads/core to use
 
 	* Distance computation tool:
@@ -148,7 +173,7 @@ v2.6.3 (= pre 2.7.0 for systems that don't support Qt5) - 03/13/2016
 
 	* Rasterize tool:
 		- the Rasterize tool can now compute Hillshade
-		- the 'interpolate' option can now be used with the 'average height' projection. In this case
+		- the 'resample' option can now be used with the 'average height' projection. In this case
 			only the coordinates of the original point are kept (the point which is the closest to the cell center)
 			and the height is replaced by the average cell height.
 
@@ -165,11 +190,9 @@ v2.6.3 (= pre 2.7.0 for systems that don't support Qt5) - 03/13/2016
 		- E57: big coordinates are now properly handled (Global Shift & Scale mechanism)
 		- Smarter progress dialogs
 
-	* Clipping-box tool
+	* Cross section tool
 		- new button to hide the clipping-box
 		- new button to restore the previous clipping-box settings (per-entity)
-
-	* Mac OS X adds support for OpenGL Frame Buffer Objects (FBOs)
 
 	* Triangulation: 
 		- due to licensing issue with Triangle lib (incompatibility with GPL/LGPL) CGAL is now the prefered library for 2.5D 
@@ -198,8 +221,6 @@ v2.6.3 (= pre 2.7.0 for systems that don't support Qt5) - 03/13/2016
 	* Command line mode: the mesh obtained with the -DELAUNAY command could only be saved as a BIN file
 	* Rasterize: applying the tool a second time on a cloud already generated with the rasterize tool could make CC crash
 	* E57: some files may be rejected due to a minor warning (about duplicate extensions) that was considered as a critical error
-	* Mac OS X properly saves and restores the main window's state & geometry
-	* Mac OS X uses the standard menu names and keyboard shortcuts for entering and exiting full screen
 
 v2.6.2 10/08/2015
 - New features:
@@ -1124,7 +1145,7 @@ v2.5.2 12/19/2013
 	- 'Edit > Fuse' entry renamed 'Edit > Merge'
 - Bug fixes:
 	- the 'dip' value (in "dip & dip direction" computation with e.g. the plane orientation tool)
-		was inversed from the currently accepted definition (i.e. 0° for horizontal and 90° for vertical planes)
+		was inverted from the currently accepted definition (i.e. 0° for horizontal and 90° for vertical planes)
 	- blank lines or commentaries were causing an infinite loop when importing ASCII files
 	- primitives (sphere, cylinder, etc.) were not correctly loaded from BIN files (CC would crash when loading them)
 	- sub-meshes' bounding boxes were not updated when a transformation was applied to their parent mesh or its
@@ -1242,7 +1263,7 @@ v2.5.0 07/12/2013
 	* global shift information is now kept by qRansacSD plugin (shape detection)
 	* qHPR (Hidden Point Removal) plugin now generates a new cloud with the visible points only
 		(instead of hacking the points visibility) along with the corresponding viewport
-	* scaled transformation matrix are now properly inversed (i.e. scale is taken into account)
+	* scaled transformation matrix are now properly inverted (i.e. scale is taken into account)
 	* point-pair based alignment tool outputs a summary on completion (RMS, scale, etc.)
 	* scale estimation during point-pair based alignment has been enhanced
 - Bug fixes:

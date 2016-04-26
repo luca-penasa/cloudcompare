@@ -27,6 +27,7 @@
 #include <SimpleCloud.h>
 #include <Delaunay2dMesh.h>
 #include <Jacobi.h>
+#include <SortAlgo.h>
 
 //for tests
 #include <ChamferDistanceTransform.h>
@@ -1063,7 +1064,7 @@ void MainWindow::doActionComputeKdTree()
 	if (!ok)
 		return;
 
-	ccProgressDialog pDlg(true,this);
+	ccProgressDialog pDlg(true, this);
 
 	//computation
 	QElapsedTimer eTimer;
@@ -1115,7 +1116,9 @@ void MainWindow::doActionResampleWithOctree()
 	if (!ok)
 		return;
 
-	ccProgressDialog pDlg(false,this);
+	ccProgressDialog pDlg(false, this);
+	pDlg.setAutoClose(false);
+
 	assert(pointCount > 0);
 	unsigned aimedPoints = static_cast<unsigned>(pointCount);
 
@@ -2820,7 +2823,8 @@ void MainWindow::doActionSamplePoints()
 	if (!dlg.exec())
 		return;
 
-	ccProgressDialog pDlg(false,this);
+	ccProgressDialog pDlg(false, this);
+	pDlg.setAutoClose(false);
 
 	bool withNormals = dlg.generateNormals();
 	bool withRGB = dlg.interpolateRGB();
@@ -2892,7 +2896,10 @@ void MainWindow::doRemoveDuplicatePoints()
 
 	static const char DEFAULT_DUPLICATE_TEMP_SF_NAME[] = "DuplicateFlags";
 
-	for (size_t i=0; i<selNum; ++i)
+	ccProgressDialog pDlg(true, this);
+	pDlg.setAutoClose(false);
+
+	for (size_t i = 0; i<selNum; ++i)
 	{
 		ccHObject* ent = selectedEntities[i];
 
@@ -2912,7 +2919,6 @@ void MainWindow::doRemoveDuplicatePoints()
 			}
 
 			ccOctree::Shared octree = cloud->getOctree();
-			ccProgressDialog pDlg(true,this);
 
 			int result = CCLib::GeometricalAnalysisTools::flagDuplicatePoints(	cloud,
 																				minDistanceBetweenPoints,
@@ -3265,7 +3271,8 @@ void MainWindow::doActionSubdivideMesh()
 	if (!ok)
 		return;
 
-	//ccProgressDialog pDlg(true,this);
+	//ccProgressDialog pDlg(true, this);
+	//pDlg.setAutoClose(false);
 
 	size_t selNum = m_selectedEntities.size();
 	for (size_t i=0; i<selNum; ++i)
@@ -3292,7 +3299,7 @@ void MainWindow::doActionSubdivideMesh()
 				{
 					subdividedMesh->setName(QString("%1.subdivided(S<%2)").arg(mesh->getName()).arg(s_subdivideMaxArea));
 					subdividedMesh->setDisplay(mesh->getDisplay());
-					mesh->refreshDisplay_recursive();
+					mesh->redrawDisplay();
 					mesh->setEnabled(false);
 					addToDB(subdividedMesh);
 				}
@@ -3324,7 +3331,8 @@ void MainWindow::doActionSmoothMeshLaplacian()
 	if (!ok)
 		return;
 
-	ccProgressDialog pDlg(true,this);
+	ccProgressDialog pDlg(true, this);
+	pDlg.setAutoClose(false);
 
 	size_t selNum = m_selectedEntities.size();
 	for (size_t i=0; i<selNum; ++i)
@@ -3854,7 +3862,7 @@ void MainWindow::doAction4pcsRegister()
 
 	unsigned nbMaxCandidates = aDlg.isNumberOfCandidatesLimited() ? aDlg.getMaxNumberOfCandidates() : 0;
 
-	ccProgressDialog pDlg(true,this);
+	ccProgressDialog pDlg(true, this);
 
 	CCLib::PointProjectionTools::Transformation transform;
 	if (CCLib::FPCSRegistrationTools::RegisterClouds(	subModel,
@@ -3954,7 +3962,9 @@ void MainWindow::doActionSubsample()
 	//process clouds
 	ccHObject::Container resultingClouds;
 	{
-		ccProgressDialog pDlg(false,this);
+		ccProgressDialog pDlg(false, this);
+		pDlg.setAutoClose(false);
+
 		pDlg.setMethodTitle(tr("Subsampling"));
 
 		bool errors = false;
@@ -3991,7 +4001,7 @@ void MainWindow::doActionSubsample()
 				cloud->setEnabled(false);
 				addToDB(newPointCloud);
 
-				newPointCloud->refreshDisplay();
+				newPointCloud->prepareDisplayForRefresh();
 				resultingClouds.push_back(newPointCloud);
 
 				if (warnings)
@@ -4081,7 +4091,7 @@ void MainWindow::createComponentsClouds(ccGenericPointCloud* cloud,
 				sortedIndexes.push_back(ComponentIndexAndSize(i,components[i]->size()));
 			}
 
-			std::sort(sortedIndexes.begin(), sortedIndexes.end(), ComponentIndexAndSize::DescendingCompOperator);
+			SortAlgo(sortedIndexes.begin(), sortedIndexes.end(), ComponentIndexAndSize::DescendingCompOperator);
 			_sortedIndexes = &sortedIndexes;
 		}
 	}
@@ -4195,7 +4205,8 @@ void MainWindow::doActionLabelConnectedComponents()
 	int minComponentSize = dlg.getMinPointsNb();
 	bool randColors = dlg.randomColors();
 
-	ccProgressDialog pDlg(false,this);
+	ccProgressDialog pDlg(false, this);
+	pDlg.setAutoClose(false);
 
 	//we unselect all entities as we are going to automatically select the created components
 	//(otherwise the user won't percieve the change!)
@@ -4213,8 +4224,8 @@ void MainWindow::doActionLabelConnectedComponents()
 			ccOctree::Shared theOctree = cloud->getOctree();
 			if (!theOctree)
 			{
-				ccProgressDialog pDlg(true, this);
-				theOctree = cloud->computeOctree(&pDlg);
+				ccProgressDialog pOctreeDlg(true, this);
+				theOctree = cloud->computeOctree(&pOctreeDlg);
 				if (!theOctree)
 				{
 					ccConsole::Error(QString("Couldn't compute octree for cloud '%s'!").arg(cloud->getName()));
@@ -4685,6 +4696,7 @@ void MainWindow::doActionComputeMesh(CC_TRIANGULATION_TYPES type)
 	}
 
 	ccProgressDialog pDlg(false, this);
+	pDlg.setAutoClose(false);
 	pDlg.setWindowTitle(tr("Triangulation"));
 	pDlg.setInfo(tr("Triangulation in progress..."));
 	pDlg.setRange(0, 0);
@@ -4836,6 +4848,9 @@ void MainWindow::doActionComputeDistanceMap()
 		range[1] = ui.maxDistDoubleSpinBox->value();
 	}
 
+	ccProgressDialog pDlg(true, this);
+	pDlg.setAutoClose(false);
+
 	size_t selNum = m_selectedEntities.size();
 	for (size_t i = 0; i < selNum; ++i)
 	{
@@ -4859,8 +4874,6 @@ void MainWindow::doActionComputeDistanceMap()
 		PointCoordinateType largestDim = box.getMaxBoxDim() + static_cast<PointCoordinateType>(margin);
 		PointCoordinateType cellDim = largestDim / steps;
 		CCVector3 minCorner = box.getCenter() - CCVector3(1, 1, 1) * (largestDim / 2);
-
-		ccProgressDialog pDlg(true, this);
 
 		bool result = false;
 		if (ent->isKindOf(CC_TYPES::MESH))
@@ -5104,7 +5117,7 @@ void MainWindow::doActionComputeCPS()
 	//cmpPC->forEach(CCLib::ScalarFieldTools::SetScalarValueToNaN); //now done by default by computeCloud2CloudDistance
 
 	CCLib::ReferenceCloud CPSet(srcCloud);
-	ccProgressDialog pDlg(true,this);
+	ccProgressDialog pDlg(true, this);
 	CCLib::DistanceComputationTools::Cloud2CloudDistanceComputationParams params;
 	params.CPSet = &CPSet;
 	int result = CCLib::DistanceComputationTools::computeCloud2CloudDistance(compCloud,srcCloud,params,&pDlg);
@@ -5323,7 +5336,8 @@ void MainWindow::doActionSORFilter()
 	s_sorFilterKnn = sorDlg.knnSpinBox->value();
 	s_sorFilterNSigma = sorDlg.nSigmaDoubleSpinBox->value();
 
-	ccProgressDialog pDlg(true,this);
+	ccProgressDialog pDlg(true, this);
+	pDlg.setAutoClose(false);
 
 	size_t selNum = m_selectedEntities.size();
 	bool firstCloud = true;
@@ -5334,7 +5348,7 @@ void MainWindow::doActionSORFilter()
 
 		//specific test for locked vertices
 		bool lockedVertices;
-		ccPointCloud* cloud = ccHObjectCaster::ToPointCloud(ent,&lockedVertices);
+		ccPointCloud* cloud = ccHObjectCaster::ToPointCloud(ent, &lockedVertices);
 		if (cloud && lockedVertices)
 		{
 			ccUtils::DisplayLockedVerticesWarning(ent->getName(),selNum == 1);
@@ -5359,7 +5373,7 @@ void MainWindow::doActionSORFilter()
 				ccPointCloud* cleanCloud = cloud->partialClone(selection);
 				if (cleanCloud)
 				{
-					cleanCloud->setName(cloud->getName()+QString(".clean"));
+					cleanCloud->setName(cloud->getName() + QString(".clean"));
 					cleanCloud->setDisplay(cloud->getDisplay());
 					if (cloud->getParent())
 						cloud->getParent()->addChild(cleanCloud);
@@ -5432,7 +5446,8 @@ void MainWindow::doActionFilterNoise()
 	s_noiseFilterAbsError = noiseDlg.absErrorDoubleSpinBox->value();
 	s_noiseFilterRemoveIsolatedPoints = noiseDlg.removeIsolatedPointsCheckBox->isChecked();
 
-	ccProgressDialog pDlg(true,this);
+	ccProgressDialog pDlg(true, this);
+	pDlg.setAutoClose(false);
 
 	size_t selNum = m_selectedEntities.size();
 	bool firstCloud = true;
@@ -5540,7 +5555,7 @@ void MainWindow::doActionUnroll()
 	int mode = unrollDlg.getType();
 	PointCoordinateType radius = static_cast<PointCoordinateType>(unrollDlg.getRadius());
 	double angle = unrollDlg.getAngle();
-	unsigned char dim = (unsigned char)unrollDlg.getAxisDimension();
+	unsigned char dim = static_cast<unsigned char>(unrollDlg.getAxisDimension());
 	CCVector3* pCenter = 0;
 	CCVector3 center;
 	if (mode == 1 || !unrollDlg.isAxisPositionAuto())
@@ -5550,12 +5565,12 @@ void MainWindow::doActionUnroll()
 	}
 
 	//We apply unrolling method
-	ccProgressDialog pDlg(true,this);
+	ccProgressDialog pDlg(true, this);
 
 	if (mode == 0)
-		pc->unrollOnCylinder(radius,pCenter,dim,(CCLib::GenericProgressCallback*)&pDlg);
+		pc->unrollOnCylinder(radius, pCenter, dim, (CCLib::GenericProgressCallback*)&pDlg);
 	else if (mode == 1)
-		pc->unrollOnCone(radius,angle,center,dim,(CCLib::GenericProgressCallback*)&pDlg);
+		pc->unrollOnCone(radius, angle, center, dim, (CCLib::GenericProgressCallback*)&pDlg);
 	else
 		assert(false);
 
@@ -7026,10 +7041,11 @@ void MainWindow::enablePickingOperation(ccGLWindow* win, QString message)
 		m_pprDlg->pause(true);
 
 	connect(win, SIGNAL(itemPicked(ccHObject*, unsigned, int, int, const CCVector3&)), this, SLOT(processPickedPoint(ccHObject*, unsigned, int, int, const CCVector3&)));
+	
 	s_pickingWindow = win;
 	s_previousPickingMode = win->getPickingMode();
 	win->setPickingMode(ccGLWindow::POINT_OR_TRIANGLE_PICKING); //points or triangles
-	win->displayNewMessage(message,ccGLWindow::LOWER_LEFT_MESSAGE,true,24*3600);
+	win->displayNewMessage(message, ccGLWindow::LOWER_LEFT_MESSAGE, true, 24 * 3600);
 	win->redraw(true, false);
 
 	freezeUI(true);
@@ -7072,6 +7088,7 @@ void MainWindow::cancelPreviousPickingOperation(bool aborted)
 	freezeUI(false);
 
 	disconnect(s_pickingWindow, SIGNAL(itemPicked(ccHObject*, unsigned, int, int, const CCVector3&)), this, SLOT(processPickedPoint(ccHObject*, unsigned, int, int, const CCVector3&)));
+	
 	//restore previous picking mode
 	s_pickingWindow->setPickingMode(s_previousPickingMode);
 	s_pickingWindow = 0;
@@ -7704,8 +7721,10 @@ void MainWindow::doActionFitSphere()
 	double outliersRatio = 0.5;
 	double confidence = 0.99;
 
-	ccProgressDialog pDlg(true,this);
-	for (size_t i=0; i<selNum; ++i)
+	ccProgressDialog pDlg(true, this);
+	pDlg.setAutoClose(false);
+
+	for (size_t i = 0; i<selNum; ++i)
 	{
 		ccHObject* ent = m_selectedEntities[i];
 
@@ -7990,7 +8009,7 @@ void MainWindow::doCylindricalNeighbourhoodExtractionTest()
 	//reset scalar field
 	cloud->getScalarField(sfIdx)->fill(NAN_VALUE);
 
-	ccProgressDialog pDlg(true,this);
+	ccProgressDialog pDlg(true, this);
 	ccOctree::Shared octree = cloud->computeOctree(&pDlg);
 	if (octree)
 	{
@@ -8175,7 +8194,7 @@ void MainWindow::doActionComputeBestICPRmsMatrix()
 
 	//let's start!
 	{
-		ccProgressDialog pDlg(true,this);
+		ccProgressDialog pDlg(true, this);
 		pDlg.setMethodTitle(tr("Testing all possible positions"));
 		pDlg.setInfo(tr("%1 clouds and %2 positions").arg(cloudCount).arg(matrices.size()));
 		CCLib::NormalizedProgress nProgress(&pDlg, static_cast<unsigned>(((cloudCount*(cloudCount - 1)) / 2)*matrices.size()));
@@ -8641,20 +8660,27 @@ void MainWindow::toggleActiveWindowStereoVision(bool state)
 				return;
 			}
 
+			ccGLWindow::StereoParams params = smDlg.getParameters();
+#ifndef CC_GL_WINDOW_USE_QWINDOW
+			if (!params.isAnaglyph())
+			{
+				ccLog::Error("This version doesn't handle stereo glasses and headsets.\nUse the 'Stereo' version instead.");
+				//activation of the stereo mode failed: cancel selection
+				actionEnableStereo->blockSignals(true);
+				actionEnableStereo->setChecked(false);
+				actionEnableStereo->blockSignals(false);
+				return;
+			}
+#endif
+
 			//force perspective state!
 			if (!win->getViewportParameters().perspectiveView)
 			{
 				setCenteredPerspectiveView(win, false);
 			}
 
-			ccGLWindow::StereoParams params = smDlg.getParameters();
-
 			if (params.glassType == ccGLWindow::StereoParams::NVIDIA_VISION)
 			{
-#ifndef CC_GL_WINDOW_USE_QWINDOW
-				ccLog::Error("This version of CloudCompare doesn't handle Quad Buffer mode");
-				return;
-#endif
 				//force (exclusive) full screen
 				actionExclusiveFullScreen->setChecked(true);
 			}
@@ -9861,7 +9887,7 @@ void MainWindow::enableUIItems(dbTreeSelectionInfo& selInfo)
 
 void MainWindow::echoMouseWheelRotate(float wheelDelta_deg)
 {
-	if (checkBoxCameraLink->checkState() != Qt::Checked)
+	if (!actionEnableCameraLink->isChecked())
 		return;
 
 	ccGLWindow* sendingWindow = dynamic_cast<ccGLWindow*>(sender());
@@ -9884,7 +9910,7 @@ void MainWindow::echoMouseWheelRotate(float wheelDelta_deg)
 
 void MainWindow::echoCameraDisplaced(float ddx, float ddy)
 {
-	if (checkBoxCameraLink->checkState() != Qt::Checked)
+	if (!actionEnableCameraLink->isChecked())
 		return;
 
 	ccGLWindow* sendingWindow = dynamic_cast<ccGLWindow*>(sender());
@@ -9907,7 +9933,7 @@ void MainWindow::echoCameraDisplaced(float ddx, float ddy)
 
 void MainWindow::echoBaseViewMatRotation(const ccGLMatrixd& rotMat)
 {
-	if (checkBoxCameraLink->checkState() != Qt::Checked)
+	if (!actionEnableCameraLink->isChecked())
 		return;
 
 	ccGLWindow* sendingWindow = dynamic_cast<ccGLWindow*>(sender());
@@ -9930,7 +9956,7 @@ void MainWindow::echoBaseViewMatRotation(const ccGLMatrixd& rotMat)
 
  void MainWindow::echoCameraPosChanged(const CCVector3d& P)
  {
-	 if (checkBoxCameraLink->checkState() != Qt::Checked)
+	 if (!actionEnableCameraLink->isChecked())
 		 return;
 
 	 ccGLWindow* sendingWindow = dynamic_cast<ccGLWindow*>(sender());
@@ -9953,7 +9979,7 @@ void MainWindow::echoBaseViewMatRotation(const ccGLMatrixd& rotMat)
 
  void MainWindow::echoPivotPointChanged(const CCVector3d& P)
  {
-	 if (checkBoxCameraLink->checkState() != Qt::Checked)
+	 if (!actionEnableCameraLink->isChecked())
 		 return;
 
 	 ccGLWindow* sendingWindow = dynamic_cast<ccGLWindow*>(sender());
@@ -9976,7 +10002,7 @@ void MainWindow::echoBaseViewMatRotation(const ccGLMatrixd& rotMat)
 
  void MainWindow::echoPixelSizeChanged(float pixelSize)
  {
-	 if (checkBoxCameraLink->checkState() != Qt::Checked)
+	 if (!actionEnableCameraLink->isChecked())
 		 return;
 
 	 ccGLWindow* sendingWindow = dynamic_cast<ccGLWindow*>(sender());

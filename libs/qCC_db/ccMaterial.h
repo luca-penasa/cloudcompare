@@ -111,6 +111,9 @@ public:
 	//! Returns the texture (if any)
 	const QImage getTexture() const;
 
+	//! Returns the texture ID (if any)
+	GLuint getTextureID() const;
+
 	//! Helper: makes all active GL light sources neutral (i.e. 'gray')
 	/** WARNING: an OpenGL context must be active!
 	**/
@@ -121,6 +124,11 @@ public:
 
 	//! Adds a texture to the global texture DB
 	static void AddTexture(QImage image, QString absoluteFilename);
+
+	//! Release all texture objects
+	/** Should be called BEFORE the global shared context is destroyed.
+	**/
+	static void ReleaseTextures();
 
 	//! Compares this material with another one
 	/** \return true if both materials are equivalent or false otherwise

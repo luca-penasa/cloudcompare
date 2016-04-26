@@ -24,6 +24,7 @@
 #include "CCMiscTools.h"
 #include "ScalarField.h"
 #include "RayAndBox.h"
+#include "SortAlgo.h"
 
 //system
 #include <algorithm>
@@ -368,11 +369,13 @@ int DgmOctree::genericBuild(GenericProgressCallback* progressCb)
 	if (m_numberOfProjectedPoints < pointCount)
 		m_thePointsAndTheirCellCodes.resize(m_numberOfProjectedPoints); //smaller --> should always be ok
 
-	if (progressCb)
+	if (progressCb && progressCb->textCanBeEdited())
+	{
 		progressCb->setInfo("Sorting cells...");
+	}
 
 	//we sort the 'cells' by ascending code order
-	std::sort(m_thePointsAndTheirCellCodes.begin(),m_thePointsAndTheirCellCodes.end(),IndexAndCode::codeComp);
+	SortAlgo(m_thePointsAndTheirCellCodes.begin(), m_thePointsAndTheirCellCodes.end(), IndexAndCode::codeComp);
 
 	//update the pre-computed 'number of cells per level of subdivision' array
 	updateCellCountTable();
@@ -380,22 +383,25 @@ int DgmOctree::genericBuild(GenericProgressCallback* progressCb)
 	//end of process notification
 	if (progressCb)
 	{
-		progressCb->update(100.0f);
-
-		char buffer[256];
-		if (m_numberOfProjectedPoints == pointCount)
+		if (progressCb->textCanBeEdited())
 		{
-			sprintf(buffer,"[Octree::build] Octree successfully built... %u points (ok)!",m_numberOfProjectedPoints);
-		}
-		else
-		{
-			if (m_numberOfProjectedPoints == 0)
-				sprintf(buffer,"[Octree::build] Warning : no point projected in the Octree!");
+			char buffer[256];
+			if (m_numberOfProjectedPoints == pointCount)
+			{
+				sprintf(buffer, "[Octree::build] Octree successfully built... %u points (ok)!", m_numberOfProjectedPoints);
+			}
 			else
-				sprintf(buffer,"[Octree::build] Warning: some points have been filtered out (%u/%u)",pointCount-m_numberOfProjectedPoints,pointCount);
+			{
+				if (m_numberOfProjectedPoints == 0)
+					sprintf(buffer, "[Octree::build] Warning : no point projected in the Octree!");
+				else
+					sprintf(buffer, "[Octree::build] Warning: some points have been filtered out (%u/%u)", pointCount - m_numberOfProjectedPoints, pointCount);
+			}
+			progressCb->setInfo(buffer);
 		}
 
-		progressCb->setInfo(buffer);
+		//DGM: the dialog may close itself once we set the progress to 100% (hiding the above information!)
+		progressCb->update(100.0f);
 		progressCb->stop();
 	}
 
@@ -1655,7 +1661,7 @@ unsigned DgmOctree::findNearestNeighborsStartingFromCell(	NearestNeighboursSearc
 	nNSS.alreadyVisitedNeighbourhoodSize = visitedCellDistance;
 
 	//we sort the eligible points
-	std::sort(nNSS.pointsInNeighbourhood.begin(),nNSS.pointsInNeighbourhood.begin()+eligiblePoints,PointDescriptor::distComp);
+	std::sort(nNSS.pointsInNeighbourhood.begin(), nNSS.pointsInNeighbourhood.begin() + eligiblePoints, PointDescriptor::distComp);
 
 	//we return the number of eligible points found
 	return eligiblePoints;
@@ -2372,7 +2378,9 @@ int DgmOctree::findNeighborsInASphereStartingFromCell(NearestNeighboursSpherical
 
 	//eventually (if requested) we sort the eligible points
 	if (sortValues && numberOfEligiblePoints > 0)
-		std::sort(nNSS.pointsInNeighbourhood.begin(),nNSS.pointsInNeighbourhood.begin()+numberOfEligiblePoints,PointDescriptor::distComp);
+	{
+		std::sort(nNSS.pointsInNeighbourhood.begin(), nNSS.pointsInNeighbourhood.begin() + numberOfEligiblePoints, PointDescriptor::distComp);
+	}
 
 	//return the number of eligible points
 	return numberOfEligiblePoints;
@@ -2812,51 +2820,51 @@ int DgmOctree::extractCCs(const cellCodesContainer& cellCodes, unsigned char lev
 		}
 	}
 
-    //we deduce the size of the grid that totally includes input cells
-    Tuple3i gridSize = indexMax - indexMin + Tuple3i(1,1,1);
+	//we deduce the size of the grid that totally includes input cells
+	Tuple3i gridSize = indexMax - indexMin + Tuple3i(1, 1, 1);
 
-    //we sort the cells
-    std::sort(ccCells.begin(),ccCells.end(),IndexAndCode::indexComp); //ascending index code order
+	//we sort the cells
+	SortAlgo(ccCells.begin(), ccCells.end(), IndexAndCode::indexComp); //ascending index code order
 
-    const int& di = gridSize.x;
-    const int& dj = gridSize.y;
-    const int& step = gridSize.z;
+	const int& di = gridSize.x;
+	const int& dj = gridSize.y;
+	const int& step = gridSize.z;
 
-    //relative neighbos positions (either 6 or 26 total - but we only use half of it)
-    unsigned char neighborsInCurrentSlice = 0, neighborsInPrecedingSlice = 0;
-    int currentSliceNeighborsShifts[4], precedingSliceNeighborsShifts[9]; //maximum size to simplify code...
+	//relative neighbos positions (either 6 or 26 total - but we only use half of it)
+	unsigned char neighborsInCurrentSlice = 0, neighborsInPrecedingSlice = 0;
+	int currentSliceNeighborsShifts[4], precedingSliceNeighborsShifts[9]; //maximum size to simplify code...
 
 	if (sixConnexity) //6-connexity
-    {
-        neighborsInCurrentSlice = 2;
-        currentSliceNeighborsShifts[0] = -(di+2);
-        currentSliceNeighborsShifts[1] = -1;
+	{
+		neighborsInCurrentSlice = 2;
+		currentSliceNeighborsShifts[0] = -(di + 2);
+		currentSliceNeighborsShifts[1] = -1;
 
-        neighborsInPrecedingSlice = 1;
-        precedingSliceNeighborsShifts[0] = 0;
-    }
-    else //26-connexity
-    {
-        neighborsInCurrentSlice = 4;
-        currentSliceNeighborsShifts[0] = -1-(di+2);
-        currentSliceNeighborsShifts[1] = -(di+2);
-        currentSliceNeighborsShifts[2] = 1-(di+2);
-        currentSliceNeighborsShifts[3] = -1;
+		neighborsInPrecedingSlice = 1;
+		precedingSliceNeighborsShifts[0] = 0;
+	}
+	else //26-connexity
+	{
+		neighborsInCurrentSlice = 4;
+		currentSliceNeighborsShifts[0] = -1 - (di + 2);
+		currentSliceNeighborsShifts[1] = -(di + 2);
+		currentSliceNeighborsShifts[2] = 1 - (di + 2);
+		currentSliceNeighborsShifts[3] = -1;
 
-        neighborsInPrecedingSlice = 9;
-        precedingSliceNeighborsShifts[0] = -1-(di+2);
-        precedingSliceNeighborsShifts[1] = -(di+2);
-        precedingSliceNeighborsShifts[2] = 1-(di+2);
-        precedingSliceNeighborsShifts[3] = -1;
-        precedingSliceNeighborsShifts[4] = 0;
-        precedingSliceNeighborsShifts[5] = 1;
-        precedingSliceNeighborsShifts[6] = -1+(di+2);
-        precedingSliceNeighborsShifts[7] = (di+2);
-        precedingSliceNeighborsShifts[8] = 1+(di+2);
-    }
+		neighborsInPrecedingSlice = 9;
+		precedingSliceNeighborsShifts[0] = -1 - (di + 2);
+		precedingSliceNeighborsShifts[1] = -(di + 2);
+		precedingSliceNeighborsShifts[2] = 1 - (di + 2);
+		precedingSliceNeighborsShifts[3] = -1;
+		precedingSliceNeighborsShifts[4] = 0;
+		precedingSliceNeighborsShifts[5] = 1;
+		precedingSliceNeighborsShifts[6] = -1 + (di + 2);
+		precedingSliceNeighborsShifts[7] = (di + 2);
+		precedingSliceNeighborsShifts[8] = 1 + (di + 2);
+	}
 
 	//shared structures (to avoid repeated allocations)
-    std::vector<int> neighboursVal, neighboursMin;
+	std::vector<int> neighboursVal, neighboursMin;
 	try
 	{
 		neighboursVal.reserve(neighborsInCurrentSlice+neighborsInPrecedingSlice);
@@ -2965,7 +2973,7 @@ int DgmOctree::extractCCs(const cellCodesContainer& cellCodes, unsigned char lev
 				else //more than 1 neighbor?
 				{
 					//we get the smallest label
-					std::sort(neighboursVal.begin(),neighboursVal.end());
+					SortAlgo(neighboursVal.begin(), neighboursVal.end());
 					int smallestLabel = neighboursVal[0];
 
 					//if they are not the same
@@ -2999,7 +3007,7 @@ int DgmOctree::extractCCs(const cellCodesContainer& cellCodes, unsigned char lev
 						}
 
 						//get the smallest one
-						std::sort(neighboursMin.begin(),neighboursMin.end());
+						SortAlgo(neighboursMin.begin(), neighboursMin.end());
 						smallestLabel = neighboursMin.front();
 
 						//update the equivalence table by the way
@@ -3112,7 +3120,7 @@ int DgmOctree::extractCCs(const cellCodesContainer& cellCodes, unsigned char lev
 			progressCb->update(0);
 			progressCb->start();
 		}
-		NormalizedProgress nprogress(progressCb,static_cast<unsigned>(numberOfCells));
+		NormalizedProgress nprogress(progressCb, static_cast<unsigned>(numberOfCells));
 
 		ReferenceCloud Y(m_theAssociatedCloud);
 		for (size_t i=0; i<numberOfCells; i++)
@@ -3146,10 +3154,10 @@ int DgmOctree::extractCCs(const cellCodesContainer& cellCodes, unsigned char lev
 
 DgmOctree::octreeCell::octreeCell(const DgmOctree* _parentOctree)
 	: parentOctree(_parentOctree)
-	, level(0)
 	, truncatedCode(0)
 	, index(0)
 	, points(0)
+	, level(0)
 {
 	if (parentOctree && parentOctree->m_theAssociatedCloud)
 	{
@@ -3230,7 +3238,10 @@ void LaunchOctreeCellFunc_MT(const octreeCellDesc& desc)
 		//TODO: display a message to make clear that the cancel order has been acknowledged!
 		if (s_progressCb_MT)
 		{
-			s_progressCb_MT->setInfo("Cancelling...");
+			if (s_progressCb_MT->textCanBeEdited())
+			{
+				s_progressCb_MT->setInfo("Cancelling...");
+			}
 			QApplication::processEvents();
 		}
 

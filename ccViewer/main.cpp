@@ -19,7 +19,7 @@
 
 //Qt
 #include <QApplication>
-
+#include <QGLFormat>
 #ifdef Q_OS_MAC
 #include <QDir>
 #include <QFileOpenEvent>
@@ -33,12 +33,10 @@
 #include <ccTimer.h>
 #include <ccNormalVectors.h>
 #include <ccColorScalesManager.h>
+#include <ccMaterial.h>
 
 //qCC_io
 #include <FileIOFilter.h>
-
-//Qt
-#include <QGLFormat>
 
 #ifdef USE_VLD
 //VLD
@@ -62,6 +60,7 @@ public:
 		// Mac OS X apps don't show icons in menus
 		setAttribute( Qt::AA_DontShowIconsInMenus );
 #endif
+		connect(this, &ccApplication::aboutToQuit, [=](){ ccMaterial::ReleaseTextures(); });
 	}
 
 #ifdef Q_OS_MAC
@@ -121,14 +120,19 @@ int main(int argc, char *argv[])
 
 	ccApplication a(argc, argv);
 	
-	//Force 'english' local so as to get a consistent behavior everywhere
-	QLocale::setDefault(QLocale::English);
+	//Locale management
+	{
+		//Force 'english' locale so as to get a consistent behavior everywhere
+		QLocale locale = QLocale(QLocale::English);
+		locale.setNumberOptions(QLocale::c().numberOptions());
+		QLocale::setDefault(locale);
 
-	// We reset the numeric locale.
-	// See http://qt-project.org/doc/qt-5/qcoreapplication.html#locale-settings
-	QLocale locale = QLocale::system();
-	locale.setNumberOptions( QLocale::c().numberOptions() );
-	QLocale::setDefault( locale );
+#ifdef Q_OS_UNIX
+		//We reset the numeric locale for POSIX functions
+		//See http://qt-project.org/doc/qt-5/qcoreapplication.html#locale-settings
+		setlocale(LC_NUMERIC, "C");
+#endif
+	}
 
 #ifdef USE_VLD
 	VLDEnable();
