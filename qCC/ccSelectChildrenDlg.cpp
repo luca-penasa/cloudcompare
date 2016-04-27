@@ -34,7 +34,7 @@ ccSelectChildrenDlg::ccSelectChildrenDlg(QWidget* parent/*=0*/)
 	typeStrictCheckBox->setChecked(s_lastTypeStrictState);
 	nameCheckBox->setChecked(s_lastNameState);
 	nameLineEdit->setText(s_lastName);
-    checkBoxRegex->setChecked(s_lastUseRegex);
+	checkBoxRegex->setChecked(s_lastUseRegex);
 
 	connect(buttonBox, SIGNAL(accepted()), this, SLOT(onAccept()));
 }
@@ -55,7 +55,7 @@ void ccSelectChildrenDlg::onAccept()
 	s_lastTypeState = typeCheckBox->isChecked();
 	s_lastTypeStrictState = typeCheckBox->isChecked();
 	s_lastType = getSelectedType();
-    s_lastUseRegex = getNameIsRegex();
+	s_lastUseRegex = getNameIsRegex();
 
 }
 
@@ -78,20 +78,20 @@ QString ccSelectChildrenDlg::getSelectedName()
 
 bool ccSelectChildrenDlg::getStrictMatchState() const
 {
-    return typeStrictCheckBox->isChecked();
+	return typeStrictCheckBox->isChecked();
 }
 
 bool ccSelectChildrenDlg::getTypeIsUsed() const
 {
-    return typeCheckBox->isChecked();
+	return typeCheckBox->isChecked();
 }
 
 bool ccSelectChildrenDlg::getNameIsRegex() const
 {
-    return checkBoxRegex->isChecked();
+	return checkBoxRegex->isChecked();
 }
 
 bool ccSelectChildrenDlg::getNameMatchIsUsed() const
 {
-    return nameCheckBox->isChecked();
+	return nameCheckBox->isChecked();
 }
