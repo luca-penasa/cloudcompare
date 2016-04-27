@@ -46,6 +46,9 @@ public:
 	//! Returns the state of the strict type checkbox
 	bool getStrictMatchState();
 
+    //! if the name must be considerd as regex
+    bool getNameIsRegex() const;
+
 protected slots:
 
 	//! Called when the dialog is accepted
