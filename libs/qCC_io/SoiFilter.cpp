@@ -1,14 +1,14 @@
 //##########################################################################
 //#                                                                        #
-//#                            CLOUDCOMPARE                                #
+//#                              CLOUDCOMPARE                              #
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU General Public License as published by  #
-//#  the Free Software Foundation; version 2 of the License.               #
+//#  the Free Software Foundation; version 2 or later of the License.      #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
 //#          COPYRIGHT: EDF R&D / TELECOM ParisTech (ENST-TSI)             #
@@ -81,11 +81,9 @@ CC_FILE_ERROR SoiFilter::loadFile(QString filename, ccHObject& container, LoadPa
 
 	//Progress dialog
 	ccProgressDialog pdlg(false, parameters.parentWidget); //cancel is not supported
-	pdlg.setMethodTitle("Open SOI file");
-	char buffer[256];
-	sprintf(buffer,"%u scans / %u points\n",nbScansTotal,nbPointsTotal);
-	CCLib::NormalizedProgress nprogress(&pdlg,nbPointsTotal);
-	pdlg.setInfo(buffer);
+	CCLib::NormalizedProgress nprogress(&pdlg, nbPointsTotal);
+	pdlg.setMethodTitle(QObject::tr("Open SOI file"));
+	pdlg.setInfo(QObject::tr("%1 scans / %2 points").arg(nbScansTotal).arg(nbPointsTotal));
 	pdlg.start();
 
 	//Scan by scan

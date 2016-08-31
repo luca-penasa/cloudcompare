@@ -1,14 +1,14 @@
 //##########################################################################
 //#                                                                        #
-//#                            CLOUDCOMPARE                                #
+//#                              CLOUDCOMPARE                              #
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU General Public License as published by  #
-//#  the Free Software Foundation; version 2 of the License.               #
+//#  the Free Software Foundation; version 2 or later of the License.      #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
 //#          COPYRIGHT: EDF R&D / TELECOM ParisTech (ENST-TSI)             #
@@ -19,42 +19,27 @@
 
 //Local
 #include "ccIncludeGL.h"
-#include "ccLog.h"
 
 //Objects handled by factory
-#include "ccPointCloud.h"
-#include "ccMesh.h"
 #include "ccSubMesh.h"
 #include "ccMeshGroup.h"
-#include "ccPolyline.h"
 #include "ccFacet.h"
 #include "ccMaterialSet.h"
-#include "ccAdvancedTypes.h"
 #include "ccImage.h"
 #include "ccGBLSensor.h"
 #include "ccCameraSensor.h"
 #include "cc2DLabel.h"
 #include "cc2DViewportLabel.h"
-#include "cc2DViewportObject.h"
 #include "ccPlane.h"
 #include "ccSphere.h"
 #include "ccTorus.h"
 #include "ccCylinder.h"
 #include "ccBox.h"
-#include "ccCone.h"
 #include "ccDish.h"
 #include "ccExtru.h"
 #include "ccQuadric.h"
-#include "ccIndexedTransformationBuffer.h"
 #include "ccCustomObject.h"
 #include "ccExternalFactory.h"
-
-//CCLib
-#include <CCShareable.h>
-
-//System
-#include <stdint.h>
-#include <assert.h>
 
 //Qt
 #include <QIcon>
@@ -583,25 +568,32 @@ bool ccHObject::isBranchEnabled() const
 	return true;
 }
 
-void ccHObject::drawBB(const ccColor::Rgb& col)
+void ccHObject::drawBB(CC_DRAW_CONTEXT& context, const ccColor::Rgb& col)
 {
 	switch (m_selectionBehavior)
 	{
 	case SELECTION_AA_BBOX:
-		getDisplayBB_recursive(true,m_currentDisplay).draw(col);
+		getDisplayBB_recursive(true, m_currentDisplay).draw(context, col);
 		break;
 	
 	case SELECTION_FIT_BBOX:
 		{
+			//get the set of OpenGL functions (version 2.1)
+			QOpenGLFunctions_2_1 *glFunc = context.glFunctions<QOpenGLFunctions_2_1>();
+			assert( glFunc != nullptr );
+			
+			if ( glFunc == nullptr )
+				break;
+			
 			ccGLMatrix trans;
 			ccBBox box = getOwnFitBB(trans);
 			if (box.isValid())
 			{
-				glMatrixMode(GL_MODELVIEW);
-				glPushMatrix();
-				glMultMatrixf(trans.data());
-				box.draw(col);
-				glPopMatrix();
+				glFunc->glMatrixMode(GL_MODELVIEW);
+				glFunc->glPushMatrix();
+				glFunc->glMultMatrixf(trans.data());
+				box.draw(context, col);
+				glFunc->glPopMatrix();
 			}
 		}
 		break;
@@ -616,62 +608,65 @@ void ccHObject::drawBB(const ccColor::Rgb& col)
 
 void ccHObject::drawNameIn3D(CC_DRAW_CONTEXT& context)
 {
-	if (!context._win)
+	if (!context.display)
 		return;
 
 	//we display it in the 2D layer in fact!
 	ccBBox bBox = getOwnBB();
-	if (bBox.isValid())
-	{
-		ccGLMatrix trans;
-		getAbsoluteGLTransformation(trans);
+	if (!bBox.isValid())
+		return;
+	
+	ccGLMatrix trans;
+	getAbsoluteGLTransformation(trans);
 
-		ccGLCameraParameters camera;
-		context._win->getGLCameraParameters(camera);
+	ccGLCameraParameters camera;
+	context.display->getGLCameraParameters(camera);
 
-		CCVector3 C = bBox.getCenter();
-		CCVector3d Q2D;
-		camera.project(C, Q2D);
+	CCVector3 C = bBox.getCenter();
+	CCVector3d Q2D;
+	camera.project(C, Q2D);
 
-		QFont font = context._win->getTextDisplayFont(); //takes rendering zoom into account!
-		context._win->displayText(	getName(),
+	QFont font = context.display->getTextDisplayFont(); //takes rendering zoom into account!
+	context.display->displayText(	getName(),
 									static_cast<int>(Q2D.x),
 									static_cast<int>(Q2D.y),
 									ccGenericGLDisplay::ALIGN_HMIDDLE | ccGenericGLDisplay::ALIGN_VMIDDLE,
 									0.75f,
 									0,
 									&font);
-	}
 }
 
 void ccHObject::draw(CC_DRAW_CONTEXT& context)
 {
 	if (!isEnabled())
 		return;
+	
+	//get the set of OpenGL functions (version 2.1)
+	QOpenGLFunctions_2_1 *glFunc = context.glFunctions<QOpenGLFunctions_2_1>();
+	assert( glFunc != nullptr );
+	
+	if ( glFunc == nullptr )
+		return;
 
 	//are we currently drawing objects in 2D or 3D?
 	bool draw3D = MACRO_Draw3D(context);
 	
 	//the entity must be either visible or selected, and of course it should be displayed in this context
-	bool drawInThisContext = ((m_visible || m_selected) && m_currentDisplay == context._win);
-
-	//no need to display anything but clouds and meshes in "element picking mode"
-	drawInThisContext &= (	( !MACRO_DrawPointNames(context)	|| isKindOf(CC_TYPES::POINT_CLOUD) ) || 
-							( !MACRO_DrawTriangleNames(context)	|| isKindOf(CC_TYPES::MESH) ));
+	bool drawInThisContext = ((m_visible || m_selected) && m_currentDisplay == context.display);
 
 	if (draw3D)
 	{
 		//apply 3D 'temporary' transformation (for display only)
 		if (m_glTransEnabled)
 		{
-			glMatrixMode(GL_MODELVIEW);
-			glPushMatrix();
-			glMultMatrixf(m_glTrans.data());
+			glFunc->glMatrixMode(GL_MODELVIEW);
+			glFunc->glPushMatrix();
+			glFunc->glMultMatrixf(m_glTrans.data());
 		}
 
-		if (	context.decimateCloudOnMove						//LOD for clouds is enabled?
-			&&	context.currentLODLevel >= context.minLODLevel	//and we are currently rendering higher levels?
-			)
+		//LOD for clouds is enabled?
+		if (	context.decimateCloudOnMove
+			&&	context.currentLODLevel > 0)
 		{
 			//only for real clouds
 			drawInThisContext &= isA(CC_TYPES::POINT_CLOUD);
@@ -685,12 +680,25 @@ void ccHObject::draw(CC_DRAW_CONTEXT& context)
 			(  m_selected || !MACRO_SkipUnselected(context) ))
 		{
 			//apply default color (in case of)
-			ccGL::Color3v(context.pointsDefaultCol.rgb);
+			ccGL::Color3v(glFunc, context.pointsDefaultCol.rgb);
+
+			//enable clipping planes (if any)
+			bool useClipPlanes = (draw3D && !m_clipPlanes.empty());
+			if (useClipPlanes)
+			{
+				toggleClipPlanes(context, true);
+			}
 
 			drawMeOnly(context);
 
+			//disable clipping planes (if any)
+			if (useClipPlanes)
+			{
+				toggleClipPlanes(context, false);
+			}
+
 			//draw name in 3D (we display it in the 2D foreground layer in fact!)
-			if (m_showNameIn3D && MACRO_Draw2D(context) && MACRO_Foreground(context) && !MACRO_DrawNames(context))
+			if (m_showNameIn3D && MACRO_Draw2D(context) && MACRO_Foreground(context) && !MACRO_DrawEntityNames(context))
 				drawNameIn3D(context);
 		}
 	}
@@ -700,13 +708,13 @@ void ccHObject::draw(CC_DRAW_CONTEXT& context)
 		(*it)->draw(context);
 
 	//if the entity is currently selected, we draw its bounding-box
-	if (m_selected && draw3D && drawInThisContext && !MACRO_DrawNames(context) && context.currentLODLevel == 0)
+	if (m_selected && draw3D && drawInThisContext && !MACRO_DrawEntityNames(context) && context.currentLODLevel == 0)
 	{
-		drawBB(context.bbDefaultCol);
+		drawBB(context, context.bbDefaultCol);
 	}
 
 	if (draw3D && m_glTransEnabled)
-		glPopMatrix();
+		glFunc->glPopMatrix();
 }
 
 void ccHObject::applyGLTransformation(const ccGLMatrix& trans)
@@ -904,25 +912,10 @@ bool ccHObject::toFile(QFile& out) const
 	return true;
 }
 
-bool ccHObject::fromFile(QFile& in, short dataVersion, int flags, bool omitChildren)
+bool ccHObject::fromFile(QFile& in, short dataVersion, int flags)
 {
-	assert(in.isOpen() && (in.openMode() & QIODevice::ReadOnly));
-
-	//read 'ccObject' header
-	if (!ccObject::fromFile(in, dataVersion, flags))
+	if (!fromFileNoChildren(in, dataVersion, flags))
 		return false;
-
-#ifdef _DEBUG
-	char buffer[1024];
-	strcpy(buffer, qPrintable(getName()));
-#endif
-
-	//read own data
-	if (!fromFile_MeOnly(in, dataVersion, flags))
-		return false;
-
-	if (omitChildren)
-		return true;
 
 	//(serializable) child count (dataVersion>=20)
 	uint32_t serializableCount = 0;
@@ -946,7 +939,7 @@ bool ccHObject::fromFile(QFile& in, short dataVersion, int flags, bool omitChild
 			//store current position
 			size_t originalFilePos = in.pos();
 			//we need to load the custom object as plain ccCustomHobject
-			child->fromFile(in, dataVersion, flags, true);
+			child->fromFileNoChildren(in, dataVersion, flags);
 			//go back to original position
 			in.seek(originalFilePos);
 			//get custom object name and plugin name
@@ -1003,6 +996,18 @@ bool ccHObject::fromFile(QFile& in, short dataVersion, int flags, bool omitChild
 	}
 
 	return true;
+}
+
+bool ccHObject::fromFileNoChildren(QFile& in, short dataVersion, int flags)
+{
+	assert(in.isOpen() && (in.openMode() & QIODevice::ReadOnly));
+
+	//read 'ccObject' header
+	if (!ccObject::fromFile(in, dataVersion, flags))
+		return false;
+
+	//read own data
+	return fromFile_MeOnly(in, dataVersion, flags);
 }
 
 bool ccHObject::toFile_MeOnly(QFile& out) const

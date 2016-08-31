@@ -1,14 +1,14 @@
 //##########################################################################
 //#                                                                        #
-//#                            CLOUDCOMPARE                                #
+//#                              CLOUDCOMPARE                              #
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU General Public License as published by  #
-//#  the Free Software Foundation; version 2 of the License.               #
+//#  the Free Software Foundation; version 2 or later of the License.      #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
 //#          COPYRIGHT: EDF R&D / TELECOM ParisTech (ENST-TSI)             #
@@ -103,7 +103,7 @@ public:
 	
 	DrawMeOnlyVisitor(const ccBBox& box) : m_drawCellBBox(box) {}
 
-	void visit(ccKdTree::BaseNode* node)
+	void visit(CC_DRAW_CONTEXT& context, ccKdTree::BaseNode* node)
 	{
 		if (!node)
 			return;
@@ -114,18 +114,18 @@ public:
 			//visit left child
 			PointCoordinateType oldBBPos = m_drawCellBBox.maxCorner().u[trueNode->splitDim];
 			m_drawCellBBox.maxCorner().u[trueNode->splitDim] = trueNode->splitValue;
-			visit(trueNode->leftChild);
+			visit(context, trueNode->leftChild);
 			m_drawCellBBox.maxCorner().u[trueNode->splitDim] = oldBBPos;  //restore old limit
 
 			//then visit right child
 			oldBBPos = m_drawCellBBox.minCorner().u[trueNode->splitDim];
 			m_drawCellBBox.minCorner().u[trueNode->splitDim] = trueNode->splitValue;
-			visit(trueNode->rightChild);
+			visit(context, trueNode->rightChild);
 			m_drawCellBBox.minCorner().u[trueNode->splitDim] = oldBBPos; //restore old limit
 		}
 		else //if (node->isLeaf())
 		{
-			m_drawCellBBox.draw(ccColor::green);
+			m_drawCellBBox.draw(context, ccColor::green);
 		}
 	}
 
@@ -139,23 +139,30 @@ void ccKdTree::drawMeOnly(CC_DRAW_CONTEXT& context)
 	if (!m_associatedGenericCloud || !m_root)
 		return;
 
-	if (MACRO_Draw3D(context))
+	if (!MACRO_Draw3D(context))
+		return;
+	
+	//get the set of OpenGL functions (version 2.1)
+	QOpenGLFunctions_2_1 *glFunc = context.glFunctions<QOpenGLFunctions_2_1>();
+	assert( glFunc != nullptr );
+	
+	if ( glFunc == nullptr )
+		return;
+	
+	bool pushName = MACRO_DrawEntityNames(context);
+
+	if (pushName)
 	{
-		bool pushName = MACRO_DrawEntityNames(context);
-
-		if (pushName)
-		{
-			//not fast at all!
-			if (MACRO_DrawFastNamesOnly(context))
-				return;
-			glPushName(getUniqueIDForDisplay());
-		}
-
-		DrawMeOnlyVisitor(m_associatedGenericCloud->getOwnBB()).visit(m_root);
-
-		if (pushName)
-			glPopName();
+		//not fast at all!
+		if (MACRO_DrawFastNamesOnly(context))
+			return;
+		glFunc->glPushName(getUniqueIDForDisplay());
 	}
+
+	DrawMeOnlyVisitor(m_associatedGenericCloud->getOwnBB()).visit(context, m_root);
+
+	if (pushName)
+		glFunc->glPopName();
 }
 
 bool ccKdTree::convertCellIndexToSF()

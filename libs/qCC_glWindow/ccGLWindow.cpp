@@ -1,24 +1,21 @@
 //##########################################################################
 //#                                                                        #
-//#                            CLOUDCOMPARE                                #
+//#                              CLOUDCOMPARE                              #
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU General Public License as published by  #
-//#  the Free Software Foundation; version 2 of the License.               #
+//#  the Free Software Foundation; version 2 or later of the License.      #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
 //#          COPYRIGHT: EDF R&D / TELECOM ParisTech (ENST-TSI)             #
 //#                                                                        #
 //##########################################################################
 
-#include <GL/glew.h>
-
 //CCLib
-#include <CCConst.h>
 #include <CCPlatform.h>
 
 //qCC
@@ -27,228 +24,38 @@
 #include "ccRenderingTools.h"
 
 //qCC_db
-#include <ccLog.h>
-#include <ccHObject.h>
 #include <ccHObjectCaster.h>
-#include <ccBBox.h>
 #include <cc2DLabel.h>
 #include <ccGenericPointCloud.h>
-#include <ccGenericMesh.h>
-#include <ccTimer.h>
 #include <ccSphere.h> //for the pivot symbol
 #include <ccPolyline.h>
 #include <ccPointCloud.h>
 #include <ccColorRampShader.h>
 #include <ccClipBox.h>
-#include <ccMesh.h>
 #include <ccSubMesh.h>
 
 //CCFbo
-#include <ccGlew.h>
 #include <ccShader.h>
 #include <ccGlFilter.h>
 #include <ccFrameBufferObject.h>
-#include <ccFBOUtils.h>
 
 //Qt
-#include <QtGui>
-#include <QWheelEvent>
-#include <QSettings>
 #include <QApplication>
-#include <QSharedPointer>
-#include <QTimer>
-#include <QEventLoop>
-#include <QTouchEvent>
+#include <QDir>
 #include <QLayout>
 #include <QMessageBox>
+#include <QMimeData>
+#include <QMouseEvent>
 #include <QPushButton>
+#include <QSettings>
+#ifdef CC_GL_WINDOW_USE_QWINDOW
+#include <QOpenGLPaintDevice>
+#endif
 
 //Oculus
 #ifdef CC_OCULUS_SUPPORT
-#include <OVR_CAPI.h>
-#include <OVR_CAPI_GL.h>
-#include <Extras/OVR_Math.h>
 
-//Oculus SDK 'session'
-struct OculusHMD
-{
-	OculusHMD()
-		: session(0)
-		, fbo(0)
-		, textureSet(0)
-		, lastOVRPos(0, 0, 0)
-		, hasLastOVRPos(false)
-		//, winWasMaximized(false)
-		//, winPreviousSize(0,0)
-	{
-		textureSize.w = textureSize.h = 0;
-	}
-
-	~OculusHMD()
-	{
-		stop(true);
-	}
-
-	void setSesion(ovrSession s)
-	{
-		if (session && session != s)
-		{
-			//auto-stop
-			stop(false);
-		}
-		
-		session = s;
-		if (session)
-		{
-			ovrHmdDesc hmdDesc    = ovr_GetHmdDesc(session);
-			eyeRenderDesc[0]      = ovr_GetRenderDesc(session, ovrEye_Left, hmdDesc.DefaultEyeFov[0]);
-			eyeRenderDesc[1]      = ovr_GetRenderDesc(session, ovrEye_Right, hmdDesc.DefaultEyeFov[1]);
-			hmdToEyeViewOffset[0] = eyeRenderDesc[0].HmdToEyeViewOffset;
-			hmdToEyeViewOffset[1] = eyeRenderDesc[1].HmdToEyeViewOffset;
-		}
-	}
-
-	bool initTextureSet()
-	{
-		if (!session)
-		{
-			assert(false);
-			return false;
-		}
-		
-		ovrHmdDesc hmdDesc = ovr_GetHmdDesc(session);
-		ovrSizei recommendedTex0Size = ovr_GetFovTextureSize(session, ovrEye_Left, hmdDesc.DefaultEyeFov[0], 1.0f);
-		ovrSizei recommendedTex1Size = ovr_GetFovTextureSize(session, ovrEye_Right, hmdDesc.DefaultEyeFov[1], 1.0f);
-
-		//determine the rendering FOV and allocate the required ovrSwapTextureSet (see https://developer.oculus.com/documentation/pcsdk/latest/concepts/dg-render/)
-		ovrSizei bufferSize;
-		{
-			bufferSize.w  = recommendedTex0Size.w + recommendedTex1Size.w;
-			bufferSize.h = std::max(recommendedTex0Size.h, recommendedTex1Size.h);
-		}
-
-		if (	!textureSet
-			||	!fbo
-			||	textureSize.w != bufferSize.w
-			||	textureSize.h != bufferSize.h )
-		{
-			destroyTextureSet();
-			
-			if (!ovr_CreateSwapTextureSetGL(session,
-											GL_SRGB8_ALPHA8,
-											bufferSize.w,
-											bufferSize.h,
-											&textureSet) == ovrSuccess)
-			{
-				return false;
-			}
-
-			assert(!fbo);
-			fbo = new ccFrameBufferObject;
-			if (!fbo->init(	static_cast<unsigned>(bufferSize.w),
-							static_cast<unsigned>(bufferSize.h) ))
-			{
-				destroyTextureSet();
-				return false;
-			}
-
-			//assert(textureSet->TextureCount <= 4);
-			//for (int i=0; i<textureSet->TextureCount; ++i)
-			//{
-			//	GLuint texID = ((ovrGLTexture*)&textureSet->Textures[i])->OGL.TexId;
-
-			//	glBindTexture(GL_TEXTURE_2D, texID);
-			//	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
-			//	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
-			//	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR/*GL_LINEAR_MIPMAP_LINEAR*/);
-			//	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-			//	if (false) //TODO: test if 'GLE_EXT_texture_filter_anisotropic' is present
-			//	{
-   //     			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAX_ANISOTROPY_EXT, 1);
-			//	}
-			//	glBindTexture(GL_TEXTURE_2D, 0);
-			//}
-
-			textureSize = bufferSize;
-		}
-
-		// Initialize our single full screen Fov layer.
-		layer.Header.Type      = ovrLayerType_EyeFov;
-		layer.Header.Flags     = ovrLayerFlag_TextureOriginAtBottomLeft;
-		layer.ColorTexture[0]  = textureSet;
-		layer.ColorTexture[1]  = textureSet;
-		layer.Fov[0]           = eyeRenderDesc[0].Fov;
-		layer.Fov[1]           = eyeRenderDesc[1].Fov;
-		layer.Viewport[0].Pos.x = 0;
-		layer.Viewport[0].Pos.y = 0;
-		layer.Viewport[0].Size  = recommendedTex0Size;
-		layer.Viewport[1].Pos.x = recommendedTex0Size.w;
-		layer.Viewport[1].Pos.y = 0;
-		layer.Viewport[1].Size  = recommendedTex1Size;
-
-		return true;
-	}
-
-	void stop(bool autoShutdown = true)
-	{
-		if (session)
-		{ 
-			//destroy the textures (if any)
-			destroyTextureSet();
-
-			//then destroy the session
-			ovr_Destroy(session);
-			session = 0;
-		}
-
-		if (autoShutdown)
-		{
-			ovr_Shutdown();
-		}
-	}
-
-	//! Destroy the textures (if any)
-	void destroyTextureSet()
-	{
-		if (fbo)
-		{
-			delete fbo;
-			fbo = 0;
-		}
-		
-		if (textureSet)
-		{
-			ovr_DestroySwapTextureSet(session, textureSet);
-			textureSet = 0;
-		}
-		textureSize.w = textureSize.h = 0;
-	}
-
-	//! Session handle
-	ovrSession session;
-
-	//! Dedicated FBO
-	ccFrameBufferObject* fbo;
-
-	//! Texture(s)
-	ovrSwapTextureSet* textureSet;
-	ovrSizei textureSize;
-
-	//stereo pair rendering parameters
-	ovrEyeRenderDesc eyeRenderDesc[2];
-	ovrVector3f      hmdToEyeViewOffset[2];
-	ovrLayerEyeFov   layer;
-
-	//! Last sensor position
-	CCVector3d lastOVRPos;
-	//! Whether a position has been already recorded or not
-	bool hasLastOVRPos;
-
-	//previous window state
-	//bool winWasMaximized;
-	//QSize winPreviousSize;
-
-};
+#include "oculus/ccOculus.h"
 static OculusHMD s_oculus;
 
 #endif //CC_OCULUS_SUPPORT
@@ -258,23 +65,18 @@ static OculusHMD s_oculus;
 #include <vld.h>
 #endif
 
-//System
-#include <string.h>
-#include <math.h>
-#include <algorithm>
-
 //Min and max zoom ratio (relative)
 const float CC_GL_MAX_ZOOM_RATIO = 1.0e6f;
 const float CC_GL_MIN_ZOOM_RATIO = 1.0e-6f;
 
 //Vaious overlay elements dimensions
-const double CC_DISPLAYED_PIVOT_RADIUS_PERCENT  = 0.8; //percentage of the smallest screen dimension
-const double CC_DISPLAYED_CUSTOM_LIGHT_LENGTH   = 10.0;
+const double CC_DISPLAYED_PIVOT_RADIUS_PERCENT = 0.8; //percentage of the smallest screen dimension
+const double CC_DISPLAYED_CUSTOM_LIGHT_LENGTH = 10.0;
 const float  CC_DISPLAYED_TRIHEDRON_AXES_LENGTH = 25.0f;
-const float  CC_DISPLAYED_CENTER_CROSS_LENGTH   = 10.0f;
+const float  CC_DISPLAYED_CENTER_CROSS_LENGTH = 10.0f;
 
 //Hot zone (interactors) triggering area
-const int CC_HOT_ZONE_TRIGGER_WIDTH  = 270;
+const int CC_HOT_ZONE_TRIGGER_WIDTH = 270;
 const int CC_HOT_ZONE_TRIGGER_HEIGHT = 100;
 
 //Max click duration for enabling picking mode (in ms)
@@ -293,36 +95,38 @@ ccGLWindow::INTERACTION_FLAGS ccGLWindow::TRANSFORM_ENTITIES() { ccGLWindow::INT
 
 /*** Persistent settings ***/
 
-static const char c_ps_groupName[]			= "ccGLWindow";
-static const char c_ps_perspectiveView[]	= "perspectiveView";
-static const char c_ps_objectMode[]			= "objectCenteredView";
-static const char c_ps_sunLight[]			= "sunLightEnabled";
-static const char c_ps_customLight[]		= "customLightEnabled";
-static const char c_ps_pivotVisibility[]	= "pivotVisibility";
-static const char c_ps_stereoGlassType[]	= "stereoGlassType";
+static const char c_ps_groupName[] = "ccGLWindow";
+static const char c_ps_perspectiveView[] = "perspectiveView";
+static const char c_ps_objectMode[] = "objectCenteredView";
+static const char c_ps_sunLight[] = "sunLightEnabled";
+static const char c_ps_customLight[] = "customLightEnabled";
+static const char c_ps_pivotVisibility[] = "pivotVisibility";
+static const char c_ps_stereoGlassType[] = "stereoGlassType";
 
 //Unique GL window ID
 static int s_GlWindowNumber = 0;
 
-//On some versions of Qt, QGLWidget::renderText seem to need glColorf instead of glColorub!
+//On some versions of Qt, QGLWidget::renderText seems to need glColorf instead of glColorub!
 // See https://bugreports.qt-project.org/browse/QTBUG-6217
-inline static void glColor3ubv_safe(const unsigned char* rgb)
+template<class QOpenGLFunctions> inline static void glColor3ubv_safe(QOpenGLFunctions* glFunc, const unsigned char* rgb)
 {
+	assert(glFunc);
 	//glColor3ubv(rgb);
-	glColor3f(	rgb[0] / 255.0f,
-				rgb[1] / 255.0f,
-				rgb[2] / 255.0f );
+	glFunc->glColor3f(	rgb[0] / 255.0f,
+						rgb[1] / 255.0f,
+						rgb[2] / 255.0f);
 }
-inline static void glColor4ubv_safe(const unsigned char* rgb)
+template<class QOpenGLFunctions> inline static void glColor4ubv_safe(QOpenGLFunctions* glFunc, const unsigned char* rgb)
 {
+	assert(glFunc);
 	//glColor4ubv(rgb);
-	glColor4f(	rgb[0] / 255.0f,
-				rgb[1] / 255.0f,
-				rgb[2] / 255.0f,
-				rgb[3] / 255.0f );
+	glFunc->glColor4f(	rgb[0] / 255.0f,
+						rgb[1] / 255.0f,
+						rgb[2] / 255.0f,
+						rgb[3] / 255.0f);
 }
 
-void safeRemoveFBO(ccFrameBufferObject* &fbo)
+void ccGLWindow::removeFBOSafe(ccFrameBufferObject* &fbo)
 {
 	//we "disconnect" the current FBO to avoid wrong display/errors
 	//if QT tries to redraw window during object destruction
@@ -334,8 +138,12 @@ void safeRemoveFBO(ccFrameBufferObject* &fbo)
 	}
 }
 
-bool initFBOSafe(ccFrameBufferObject* &fbo, int w, int h)
+bool ccGLWindow::initFBOSafe(ccFrameBufferObject* &fbo, int w, int h)
 {
+	const qreal retinaScale = devicePixelRatio();
+	w *= retinaScale;
+	h *= retinaScale;
+
 	if (fbo && fbo->width() == w && fbo->height() == h)
 	{
 		//nothing to do
@@ -352,9 +160,9 @@ bool initFBOSafe(ccFrameBufferObject* &fbo, int w, int h)
 		_fbo = new ccFrameBufferObject();
 	}
 
-	if (	!_fbo->init(w,h)
-		||	!_fbo->initColor(GL_RGBA, GL_RGBA, GL_FLOAT)
-		||	!_fbo->initDepth(GL_CLAMP_TO_BORDER, GL_DEPTH_COMPONENT32, GL_NEAREST, GL_TEXTURE_2D))
+	if (	!_fbo->init(w, h)
+		||	!_fbo->initColor()
+		||	!_fbo->initDepth())
 	{
 		delete _fbo;
 		_fbo = 0;
@@ -365,26 +173,26 @@ bool initFBOSafe(ccFrameBufferObject* &fbo, int w, int h)
 	return true;
 }
 
-ccGLWindow::ccGLWindow(	QWidget *parent,
-						const QGLFormat& format/*=QGLFormat::defaultFormat()*/,
-						QGLWidget* shareWidget/*=0*/,
+ccGLWindow::ccGLWindow(	QSurfaceFormat* format/*=0*/,
+						ccGLWindowParent* parent/*=0*/,
 						bool silentInitialization/*=false*/)
-	: QGLWidget(format,parent,shareWidget)
-#ifdef THREADED_GL_WIDGET
-	, m_renderingThread(new RenderingThread(this))
-	, m_format(format)
-	, m_shareWidget(shareWidget)
-	, m_resized(1)
+	: ccGLWindowParent(parent)
+#ifdef CC_GL_WINDOW_USE_QWINDOW
+	, m_context(0)
+	, m_device(new QOpenGLPaintDevice)
+	, m_parentWidget(0)
 #endif
 	, m_uniqueID(++s_GlWindowNumber) //GL window unique ID
 	, m_initialized(false)
 	, m_trihedronGLList(GL_INVALID_LIST_ID)
 	, m_pivotGLList(GL_INVALID_LIST_ID)
-	, m_lastMousePos(-1,-1)
-	, m_lastMouseOrientation(1,0,0)
-	, m_currentMouseOrientation(1,0,0)
+	, m_lastMousePos(-1, -1)
+	, m_lastMouseOrientation(1, 0, 0)
+	, m_currentMouseOrientation(1, 0, 0)
 	, m_validModelviewMatrix(false)
 	, m_validProjectionMatrix(false)
+	, m_cameraToBBCenterDist(0)
+	, m_bbHalfDiag(0)
 	, m_LODEnabled(true)
 	, m_LODAutoDisable(false)
 	, m_shouldBeRefreshed(false)
@@ -400,6 +208,7 @@ ccGLWindow::ccGLWindow(	QWidget *parent,
 	, m_clickableItemsVisible(false)
 	, m_activeShader(0)
 	, m_shadersEnabled(false)
+	, m_activeFbo(0)
 	, m_fbo(0)
 	, m_fbo2(0)
 	, m_alwaysUseFBO(false)
@@ -410,7 +219,11 @@ ccGLWindow::ccGLWindow(	QWidget *parent,
 	, m_glFiltersEnabled(false)
 	, m_winDBRoot(0)
 	, m_globalDBRoot(0) //external DB
+#ifdef CC_GL_WINDOW_USE_QWINDOW
+	, m_font(QFont())
+#else
 	, m_font(font())
+#endif
 	, m_pivotVisibility(PIVOT_SHOW_ON_MOVE)
 	, m_pivotSymbolShown(false)
 	, m_allowRectangularEntityPicking(true)
@@ -427,9 +240,25 @@ ccGLWindow::ccGLWindow(	QWidget *parent,
 	, m_scheduledFullRedrawTime(0)
 	, m_stereoModeEnabled(false)
 	, m_formerParent(0)
+	, m_exclusiveFullscreen(false)
 	, m_showDebugTraces(false)
 	, m_pickRadius(DefaultPickRadius)
+	, m_glExtFuncSupported(false)
+	, m_autoRefresh(false)
 {
+	//start internal timer
+	m_timer.start();
+
+#ifdef CC_GL_WINDOW_USE_QWINDOW
+	setSurfaceType(QWindow::OpenGLSurface);
+
+	m_format = format ? *format : requestedFormat();
+#else
+	if (format)
+	{
+		setFormat(*format);
+	}
+#endif
 	//GL window title
 	setWindowTitle(QString("3D View %1").arg(m_uniqueID));
 
@@ -439,7 +268,7 @@ ccGLWindow::ccGLWindow(	QWidget *parent,
 	//lights
 	m_sunLightEnabled = true;
 	m_sunLightPos[0] = 0;
-	m_sunLightPos[1] = 1;
+	m_sunLightPos[1] = 0;
 	m_sunLightPos[2] = 1;
 	m_sunLightPos[3] = 0;
 
@@ -451,6 +280,7 @@ ccGLWindow::ccGLWindow(	QWidget *parent,
 
 	//matrices
 	m_viewportParams.viewMat.toIdentity();
+	m_viewportParams.cameraCenter.z = -1.0; //don't position the camera on the pivot by default!
 	m_viewMatd.toIdentity();
 	m_projMatd.toIdentity();
 
@@ -458,23 +288,25 @@ ccGLWindow::ccGLWindow(	QWidget *parent,
 	setPickingMode(DEFAULT_PICKING);
 	setInteractionMode(TRANSFORM_CAMERA());
 
+#ifndef CC_GL_WINDOW_USE_QWINDOW
 	//drag & drop handling
 	setAcceptDrops(true);
+#endif
 
 	//auto-load previous perspective settings
 	{
 		QSettings settings;
 		settings.beginGroup(c_ps_groupName);
-		
+
 		//load parameters
-		bool perspectiveView	= settings.value(c_ps_perspectiveView,	false								).toBool();
+		bool perspectiveView = settings.value(c_ps_perspectiveView, false).toBool();
 		//DGM: we force object-centered view by default now, as the viewer-based perspective is too dependent
 		//on what is displayed (so restoring this parameter at next startup is rarely a good idea)
-		bool objectCenteredView	= /*settings.value(c_ps_objectMode,		true								).toBool()*/true;
-		m_sunLightEnabled		= settings.value(c_ps_sunLight,			true								).toBool();
-		m_customLightEnabled	= settings.value(c_ps_customLight,		false								).toBool();
-		int pivotVisibility		= settings.value(c_ps_pivotVisibility,	PIVOT_SHOW_ON_MOVE					).toInt();
-		int glassType			= settings.value(c_ps_stereoGlassType,	ccGLWindow::StereoParams::RED_BLUE	).toInt();
+		bool objectCenteredView = /*settings.value(c_ps_objectMode,		true								).toBool()*/true;
+		m_sunLightEnabled = settings.value(c_ps_sunLight, true).toBool();
+		m_customLightEnabled = settings.value(c_ps_customLight, false).toBool();
+		int pivotVisibility = settings.value(c_ps_pivotVisibility, PIVOT_SHOW_ON_MOVE).toInt();
+		int glassType = settings.value(c_ps_stereoGlassType, ccGLWindow::StereoParams::RED_BLUE).toInt();
 
 		settings.endGroup();
 
@@ -491,7 +323,7 @@ ccGLWindow::ccGLWindow(	QWidget *parent,
 		}
 
 		//pivot visibility
-		switch(pivotVisibility)
+		switch (pivotVisibility)
 		{
 		case PIVOT_HIDE:
 			setPivotVisibility(PIVOT_HIDE);
@@ -507,42 +339,29 @@ ccGLWindow::ccGLWindow(	QWidget *parent,
 		//apply saved parameters
 		setPerspectiveState(perspectiveView, objectCenteredView);
 		if (m_customLightEnabled)
-			displayNewMessage("Warning: custom light is ON",ccGLWindow::LOWER_LEFT_MESSAGE,false,2,CUSTOM_LIGHT_STATE_MESSAGE);
+			displayNewMessage("Warning: custom light is ON", ccGLWindow::LOWER_LEFT_MESSAGE, false, 2, CUSTOM_LIGHT_STATE_MESSAGE);
 		if (!m_sunLightEnabled)
-			displayNewMessage("Warning: sun light is OFF",ccGLWindow::LOWER_LEFT_MESSAGE,false,2,SUN_LIGHT_STATE_MESSAGE);
+			displayNewMessage("Warning: sun light is OFF", ccGLWindow::LOWER_LEFT_MESSAGE, false, 2, SUN_LIGHT_STATE_MESSAGE);
 	}
 
 	//singal/slot connections
-	connect(this,				SIGNAL(itemPickedFast(ccHObject*,int,int,int)),	this, SLOT(onItemPickedFast(ccHObject*,int,int,int)), Qt::DirectConnection);
-	connect(&m_scheduleTimer,	SIGNAL(timeout()),								this, SLOT(checkScheduledRedraw()));
+	connect(this, SIGNAL(itemPickedFast(ccHObject*, int, int, int)), this, SLOT(onItemPickedFast(ccHObject*, int, int, int)), Qt::DirectConnection);
+	connect(&m_scheduleTimer, SIGNAL(timeout()), this, SLOT(checkScheduledRedraw()));
+	connect(&m_autoRefreshTimer, SIGNAL(timeout()), this, SLOT(update()));
 
-#ifdef THREADED_GL_WIDGET
-	setAutoBufferSwap(false);
-	//if (m_renderingThread)
-	//	m_renderingThread->start();
-	//else
-	//	assert(false);
-#endif
-
+#ifndef CC_GL_WINDOW_USE_QWINDOW
+	setAcceptDrops(true);
 	setAttribute(Qt::WA_AcceptTouchEvents, true);
+	setAttribute(Qt::WA_OpaquePaintEvent, true);
+#endif
 }
 
 ccGLWindow::~ccGLWindow()
 {
 	cancelScheduledRedraw();
 
-	//Oculus session is still active? Simply disable the stereo mode
-	//if (s_ovrSession)
-	//{
-	//	disableStereoMode();
-	//}
-
-#ifdef THREADED_GL_WIDGET
-	if (m_renderingThread)
-		m_renderingThread->stop();
-	else
-		assert(false);
-#endif
+	//disable the stereo mode (mainly to release the Oculus FBO ;)
+	disableStereoMode();
 
 	//we must unlink entities currently linked to this window
 	if (m_globalDBRoot)
@@ -553,10 +372,6 @@ ccGLWindow::~ccGLWindow()
 	{
 		m_winDBRoot->removeFromDisplay_recursive(this);
 	}
-
-#ifndef THREADED_GL_WIDGET
-	uninitializeGL();
-#endif
 
 	if (m_winDBRoot)
 		delete m_winDBRoot;
@@ -580,6 +395,77 @@ ccGLWindow::~ccGLWindow()
 		delete m_fbo;
 	if (m_fbo2)
 		delete m_fbo2;
+
+#ifdef CC_GL_WINDOW_USE_QWINDOW
+	if (m_context)
+		m_context->doneCurrent();
+
+	if (m_device)
+		delete m_device;
+#endif
+}
+
+#ifdef CC_GL_WINDOW_USE_QWINDOW
+
+void ccGLWindow::setParentWidget(QWidget* widget)
+{
+	m_parentWidget = widget;
+
+	if (widget)
+	{
+		//drag & drop handling
+		widget->setAcceptDrops(true);
+		widget->setAttribute(Qt::WA_AcceptTouchEvents, true);
+		widget->setAttribute(Qt::WA_OpaquePaintEvent, true);
+	}
+}
+
+#endif
+
+void ccGLWindow::makeCurrent()
+{
+#ifdef CC_GL_WINDOW_USE_QWINDOW
+	if (m_context)
+	{
+		m_context->makeCurrent(this);
+	}
+#else
+	QOpenGLWidget::makeCurrent();
+#endif
+
+	if (m_activeFbo)
+	{
+		m_activeFbo->start();
+	}
+}
+
+bool ccGLWindow::bindFBO(ccFrameBufferObject* fbo)
+{
+	if (fbo) //bind
+	{
+		if (fbo->start())
+		{
+			m_activeFbo = fbo;
+			return true;
+		}
+		else
+		{
+			//failed to start the FBO?!
+			m_activeFbo = 0;
+			return false;
+
+		}
+	}
+	else //unbind
+	{
+		m_activeFbo = 0;
+
+		assert(m_glExtFuncSupported);
+		//we automatically enable the QOpenGLWidget's default FBO
+		m_glExtFunc.glBindFramebuffer(GL_FRAMEBUFFER_EXT, defaultQtFBO());
+
+		return true;
+	}
 }
 
 void ccGLWindow::setInteractionMode(INTERACTION_FLAGS flags)
@@ -587,7 +473,14 @@ void ccGLWindow::setInteractionMode(INTERACTION_FLAGS flags)
 	m_interactionFlags = flags;
 
 	//we need to explicitely enable 'mouse tracking' to track the mouse when no button is clicked
+#ifdef CC_GL_WINDOW_USE_QWINDOW
+	if (m_parentWidget)
+	{
+		m_parentWidget->setMouseTracking(flags & (INTERACT_CLICKABLE_ITEMS | INTERACT_SIG_MOUSE_MOVED));
+	}
+#else
 	setMouseTracking(flags & (INTERACT_CLICKABLE_ITEMS | INTERACT_SIG_MOUSE_MOVED));
+#endif
 
 	if ((flags & INTERACT_CLICKABLE_ITEMS) == 0)
 	{
@@ -600,29 +493,24 @@ const ccGui::ParamStruct& ccGLWindow::getDisplayParameters() const
 {
 	return m_overridenDisplayParametersEnabled ? m_overridenDisplayParameters : ccGui::Parameters();
 }
-	
-static void GLDebugCallback(GLenum source, GLenum type, GLuint id, GLenum severity, GLsizei length, const GLchar* message, GLvoid* userParam)
-{
-	ccGLWindow* win = reinterpret_cast<ccGLWindow*>(userParam);
-	assert(win);
-	if (!win)
-		return;
 
+void ccGLWindow::handleLoggedMessage(const QOpenGLDebugMessage& message)
+{
 	//Decode severity
 	QString sevStr;
-	switch (severity)
+	switch (message.severity())
 	{
-	case GL_DEBUG_SEVERITY_HIGH:
+	case QOpenGLDebugMessage::HighSeverity:
 		sevStr = "high";
 		break;
-	case GL_DEBUG_SEVERITY_MEDIUM:
+	case QOpenGLDebugMessage::MediumSeverity:
 		sevStr = "medium";
 		break;
-	case GL_DEBUG_SEVERITY_LOW:
+	case QOpenGLDebugMessage::LowSeverity:
 		sevStr = "low";
 		return; //don't care about them! they flood the console in Debug mode :(
 		break;
-	case GL_DEBUG_SEVERITY_NOTIFICATION:
+	case QOpenGLDebugMessage::NotificationSeverity:
 	default:
 		sevStr = "notification";
 		break;
@@ -630,105 +518,114 @@ static void GLDebugCallback(GLenum source, GLenum type, GLuint id, GLenum severi
 
 	//Decode source
 	QString sourceStr;
-	switch (source)
+	switch (message.source())
 	{
-	case GL_DEBUG_SOURCE_API:
+	case QOpenGLDebugMessage::APISource:
 		sourceStr = "API";
 		break;
-	case GL_DEBUG_SOURCE_WINDOW_SYSTEM:
+	case QOpenGLDebugMessage::WindowSystemSource:
 		sourceStr = "window system";
 		break;
-	case GL_DEBUG_SOURCE_SHADER_COMPILER:
+	case QOpenGLDebugMessage::ShaderCompilerSource:
 		sourceStr = "shader compiler";
 		break;
-	case GL_DEBUG_SOURCE_THIRD_PARTY:
+	case QOpenGLDebugMessage::ThirdPartySource:
 		sourceStr = "third party";
 		break;
-	case GL_DEBUG_SOURCE_APPLICATION:
+	case QOpenGLDebugMessage::ApplicationSource:
 		sourceStr = "application";
 		break;
-	case GL_DEBUG_SOURCE_OTHER:
+	case QOpenGLDebugMessage::OtherSource:
 	default:
-			sourceStr = "other";
-			break;
+		sourceStr = "other";
+		break;
 	}
 
 	//Decode type
 	QString typeStr;
-	switch (type)
+	switch (message.type())
 	{
-	case GL_DEBUG_TYPE_ERROR:
+	case QOpenGLDebugMessage::ErrorType:
 		typeStr = "error";
 		break;
-	case GL_DEBUG_TYPE_DEPRECATED_BEHAVIOR:
+	case QOpenGLDebugMessage::DeprecatedBehaviorType:
 		typeStr = "deprecated behavior";
 		break;
-	case GL_DEBUG_TYPE_UNDEFINED_BEHAVIOR:
+	case QOpenGLDebugMessage::UndefinedBehaviorType:
 		typeStr = "undefined behavior";
 		break;
-	case GL_DEBUG_TYPE_PORTABILITY:
+	case QOpenGLDebugMessage::PortabilityType:
 		typeStr = "portability";
 		break;
-	case GL_DEBUG_TYPE_PERFORMANCE:
+	case QOpenGLDebugMessage::PerformanceType:
 		typeStr = "performance";
 		break;
-	case GL_DEBUG_TYPE_OTHER:
+	case QOpenGLDebugMessage::OtherType:
 	default:
 		typeStr = "other";
 		break;
-	case GL_DEBUG_TYPE_MARKER:
+	case QOpenGLDebugMessage::MarkerType:
 		typeStr = "marker";
-			break;
+		break;
 	}
 
-	QString msg = QString("[OpenGL][Win %0]").arg(win->getUniqueID());
+	QString msg = QString("[OpenGL][Win %0]").arg(getUniqueID());
 	msg += "[source: " + sourceStr + "]";
 	msg += "[type: " + typeStr + "]";
 	msg += "[severity: " + sevStr + "]";
 	msg += " ";
-	msg += message;
+	msg += message.message();
 
-	if (severity != GL_DEBUG_SEVERITY_NOTIFICATION)
+	if (message.severity() != QOpenGLDebugMessage::NotificationSeverity)
 		ccLog::Warning(msg);
 	else
 		ccLog::Print(msg);
 }
 
-void ccGLWindow::initializeGL()
+bool ccGLWindow::initialize()
 {
-#ifdef THREADED_GL_WIDGET
-	//do nothing
-}
-
-void ccGLWindow::initialize()
-{
-	if (m_initialized)
-		return;
-
-	//create context from inside thread
-	QGLContext* glContext = new QGLContext(m_format, this);
-
-	//share context with another QGLWidget
-	if (m_shareWidget != NULL)
-		glContext->create(m_shareWidget->context());
-	setContext(glContext);
-
-	//make sure new context is current
-	makeCurrent();
+#ifdef CC_GL_WINDOW_USE_QWINDOW
+	bool firstTime = false;
+	if (!m_context)
+	{
+		m_context = new QOpenGLContext(this);
+		m_context->setFormat(m_format);
+		m_context->setShareContext(QOpenGLContext::globalShareContext());
+		if (!m_context->create())
+		{
+			ccLog::Error("Failed to create the OpenGL context");
+			return false;
+		}
+		firstTime = true;
+	}
+	else if (!m_context->isValid())
+	{
+		return false;
+	}
+	m_context->makeCurrent(this);
 #endif
 
-	//initializeGL can be called again when switching to exclusive full screen!
+	ccQOpenGLFunctions* glFunc = functions();
+	assert(glFunc);
+
+	//initialize can be called again when switching to exclusive full screen!
 	if (!m_initialized)
 	{
+		if (!glFunc->initializeOpenGLFunctions()) //DGM: seems to be necessary at least with Qt 5.4
+		{
+			assert(false);
+			return false;
+		}
+
 		//we init the model view and projection matrices with identity
 		m_viewMatd.toIdentity();
 		m_projMatd.toIdentity();
 
 		//we init the OpenGL ones with the same values
-		glMatrixMode(GL_MODELVIEW);
-		glLoadIdentity();
-		glMatrixMode(GL_PROJECTION);
-		glLoadIdentity();
+		glFunc->glMatrixMode(GL_MODELVIEW);
+		glFunc->glLoadIdentity();
+		glFunc->glMatrixMode(GL_PROJECTION);
+		glFunc->glLoadIdentity();
 
 		//we emit the 'baseViewMatChanged' signal
 		emit baseViewMatChanged(m_viewportParams.viewMat);
@@ -737,31 +634,33 @@ void ccGLWindow::initialize()
 		invalidateViewport();
 		invalidateVisualization();
 
-		//we initialize GLEW
-		InitGLEW();
+		//FBO support (TODO: catch error?)
+		m_glExtFuncSupported = m_glExtFunc.initializeOpenGLFunctions();
 
 		//OpenGL version
-		const char* vendorName = reinterpret_cast<const char*>(glGetString(GL_VENDOR));
+		const char* vendorName = reinterpret_cast<const char*>(glFunc->glGetString(GL_VENDOR));
 		if (!m_silentInitialization)
 		{
-			ccLog::Print("[3D View %i] GL version: %s",m_uniqueID,glGetString(GL_VERSION));
-			ccLog::Print("[3D View %i] Graphic card manufacturer: %s",m_uniqueID,vendorName);
+			ccLog::Print("[3D View %i] Graphics card manufacturer: %s", m_uniqueID, vendorName);
+			ccLog::Print("[3D View %i] Renderer: %s", m_uniqueID, glFunc->glGetString(GL_RENDERER));
+			ccLog::Print("[3D View %i] GL version: %s", m_uniqueID, glFunc->glGetString(GL_VERSION));
+			ccLog::Print("[3D View %i] GLSL Version: %s", m_uniqueID, glFunc->glGetString(GL_SHADING_LANGUAGE_VERSION));
 		}
 
 		ccGui::ParamStruct params = getDisplayParameters();
 
 		//VBO support
-		if (ccFBOUtils::CheckVBOAvailability())
+		if (context()->hasExtension(QByteArrayLiteral("GL_ARB_vertex_buffer_object")))
 		{
 			if (params.useVBOs && (!vendorName || QString(vendorName).toUpper().startsWith("ATI")))
 			{
 				if (!m_silentInitialization)
-					ccLog::Warning("[3D View %i] VBO support has been disabled as it may not work on %s cards!\nYou can manually activate it in the display settings (at your own risk!)",m_uniqueID,vendorName);
+					ccLog::Warning("[3D View %i] VBO support has been disabled as it may not work on %s cards!\nYou can manually activate it in the display settings (at your own risk!)", m_uniqueID, vendorName);
 				params.useVBOs = false;
 			}
 			else if (!m_silentInitialization)
 			{
-				ccLog::Print("[3D View %i] VBOs available",m_uniqueID);
+				ccLog::Print("[3D View %i] VBOs available", m_uniqueID);
 			}
 		}
 		else
@@ -770,28 +669,31 @@ void ccGLWindow::initialize()
 		}
 
 		//Shaders and other OpenGL extensions
-		m_shadersEnabled = ccFBOUtils::CheckShadersAvailability();
+		m_shadersEnabled =	context()->hasExtension(QByteArrayLiteral("GL_ARB_shading_language_100"))
+						&&	context()->hasExtension(QByteArrayLiteral("GL_ARB_shader_objects"))
+						&&	context()->hasExtension(QByteArrayLiteral("GL_ARB_vertex_shader"))
+						&&	context()->hasExtension(QByteArrayLiteral("GL_ARB_fragment_shader"));
 		if (!m_shadersEnabled)
 		{
 			//if no shader, no GL filter!
 			if (!m_silentInitialization)
-				ccLog::Warning("[3D View %i] Shaders and GL filters unavailable",m_uniqueID);
+				ccLog::Warning("[3D View %i] Shaders and GL filters unavailable", m_uniqueID);
 		}
 		else
 		{
 			if (!m_silentInitialization)
-				ccLog::Print("[3D View %i] Shaders available",m_uniqueID);
+				ccLog::Print("[3D View %i] Shaders available", m_uniqueID);
 
-			m_glFiltersEnabled = ccFBOUtils::CheckFBOAvailability();
+			m_glFiltersEnabled = context()->hasExtension(QByteArrayLiteral("GL_EXT_framebuffer_object"));
 			if (m_glFiltersEnabled)
 			{
 				if (!m_silentInitialization)
-					ccLog::Print("[3D View %i] GL filters available",m_uniqueID);
+					ccLog::Print("[3D View %i] GL filters available", m_uniqueID);
 				m_alwaysUseFBO = true;
 			}
 			else if (!m_silentInitialization)
 			{
-				ccLog::Warning("[3D View %i] GL filters unavailable (FBO not supported)",m_uniqueID);
+				ccLog::Warning("[3D View %i] GL filters unavailable (FBO not supported)", m_uniqueID);
 			}
 
 			//color ramp shader
@@ -801,20 +703,20 @@ void ccGLWindow::initialize()
 				params.colorScaleShaderSupported = false;
 
 				GLint maxBytes = 0;
-				glGetIntegerv(GL_MAX_FRAGMENT_UNIFORM_COMPONENTS,&maxBytes);
+				glFunc->glGetIntegerv(GL_MAX_FRAGMENT_UNIFORM_COMPONENTS, &maxBytes);
 
 				const GLint minRequiredBytes = ccColorRampShader::MinRequiredBytes();
 				if (maxBytes < minRequiredBytes)
 				{
 					if (!m_silentInitialization)
-						ccLog::Warning("[3D View %i] Not enough memory on shader side to use color ramp shader! (max=%i/%i bytes)",m_uniqueID,maxBytes,minRequiredBytes);
+						ccLog::Warning("[3D View %i] Not enough memory on shader side to use color ramp shader! (max=%i/%i bytes)", m_uniqueID, maxBytes, minRequiredBytes);
 				}
 				else
 				{
 					ccColorRampShader* colorRampShader = new ccColorRampShader();
 					QString shadersPath = ccGLWindow::getShadersPath();
 					QString error;
-					if (!colorRampShader->loadProgram(QString(),shadersPath+QString("/ColorRamp/color_ramp.frag"),error))
+					if (!colorRampShader->loadProgram(QString(), shadersPath + QString("/ColorRamp/color_ramp.frag"), error))
 					{
 						if (!m_silentInitialization)
 							ccLog::Warning(QString("[3D View %1] Failed to load color ramp shader: '%2'").arg(m_uniqueID).arg(error));
@@ -824,7 +726,7 @@ void ccGLWindow::initialize()
 					else
 					{
 						if (!m_silentInitialization)
-							ccLog::Print("[3D View %i] Color ramp shader loaded successfully",m_uniqueID);
+							ccLog::Print("[3D View %i] Color ramp shader loaded successfully", m_uniqueID);
 						m_colorRampShader = colorRampShader;
 						params.colorScaleShaderSupported = true;
 
@@ -835,7 +737,9 @@ void ccGLWindow::initialize()
 							if (!vendorName || QString(vendorName).toUpper().startsWith("ATI") || QString(vendorName).toUpper().startsWith("VMWARE"))
 							{
 								if (!m_silentInitialization)
-									ccLog::Warning("[3D View %i] Color ramp shader will remain disabled as it may not work on %s cards!\nYou can manually activate it in the display settings (at your own risk!)",m_uniqueID,vendorName);
+								{
+									ccLog::Warning("[3D View %i] Color ramp shader will remain disabled as it may not work on %s cards!\nYou can manually activate it in the display settings (at your own risk!)", m_uniqueID, vendorName);
+								}
 								shouldUseShader = false;
 							}
 							params.colorScaleUseShader = shouldUseShader;
@@ -843,38 +747,42 @@ void ccGLWindow::initialize()
 					}
 				}
 			}
+
+			//stereo mode
+			if (!m_silentInitialization)
+			{
+				GLboolean isStereoEnabled = 0;
+				glFunc->glGetBooleanv(GL_STEREO, &isStereoEnabled);
+				ccLog::Print(QString("[3D View %1] Stereo mode: %2").arg(m_uniqueID).arg(isStereoEnabled ? "supported" : "not supported"));
+			}
 		}
 
 
-	#ifdef _DEBUG
-	#if !defined(_MSC_VER) || _MSC_VER > 1600
+#ifdef QT_DEBUG
 		//KHR extension (debug)
-		if (ccFBOUtils::CheckExtension("GL_KHR_debug"))
+		if (context()->hasExtension(QByteArrayLiteral("GL_KHR_debug")))
 		{
 			if (!m_silentInitialization)
-				ccLog::Print("[3D View %i] GL KHR (debug) extension available",m_uniqueID);
+				ccLog::Print("[3D View %i] GL KHR (debug) extension available", m_uniqueID);
 
-			glEnable(GL_DEBUG_OUTPUT);
-			glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
-	
-			//int value = 0;
-			//glGetIntegerv(GL_CONTEXT_FLAGS, &value);
-			//if ((value & GL_CONTEXT_FLAG_DEBUG_BIT) == 0)
-			//{
-			//	ccLog::Warning("[3D View %i] But GL_CONTEXT_FLAG_DEBUG_BIT is not set!");
-			//}
+			QOpenGLDebugLogger* logger = new QOpenGLDebugLogger(this);
+			logger->initialize();
 
-			glDebugMessageControl(GL_DONT_CARE,GL_DONT_CARE,GL_DONT_CARE,0,NULL,GL_TRUE);
-			//glDebugMessageControl(GL_DONT_CARE,GL_DEBUG_TYPE_OTHER,GL_DONT_CARE,0,NULL,GL_FALSE); //deactivate 'other' messages
-			glDebugMessageCallback(&GLDebugCallback, this);
+			connect(logger, SIGNAL(messageLogged(const QOpenGLDebugMessage&)), this, SLOT(handleLoggedMessage(const QOpenGLDebugMessage&)));
+			logger->enableMessages();
+			logger->disableMessages(QOpenGLDebugMessage::AnySource,
+									QOpenGLDebugMessage::DeprecatedBehaviorType
+									| QOpenGLDebugMessage::PortabilityType
+									| QOpenGLDebugMessage::PerformanceType
+									| QOpenGLDebugMessage::OtherType);
+			logger->startLogging(QOpenGLDebugLogger::SynchronousLogging);
 		}
-	#endif
-	#endif
+#endif
 
 		//apply (potentially) updated parameters;
-		setDisplayParameters(params,hasOverridenDisplayParameters());
+		setDisplayParameters(params, hasOverridenDisplayParameters());
 
-	#if 0
+#if 0
 		//OpenGL 3.3+ rendering shader
 		if ( QGLFormat::openGLVersionFlags() & QGLFormat::OpenGL_Version_3_3 )
 		{
@@ -900,10 +808,7 @@ void ccGLWindow::initialize()
 				setDisplayParameters(params,hasOverridenDisplayParameters());
 			}
 		}
-	#endif
-		
-		//start internal timer
-		m_timer.start();
+#endif
 
 		if (!m_silentInitialization)
 		{
@@ -914,40 +819,45 @@ void ccGLWindow::initialize()
 	}
 
 	//transparency off by default
-	glDisable(GL_BLEND);
-	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+	glFunc->glDisable(GL_BLEND);
+	glFunc->glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
 	//no global ambient
-	glLightModelfv(GL_LIGHT_MODEL_AMBIENT,ccColor::night.rgba);
+	glFunc->glLightModelfv(GL_LIGHT_MODEL_AMBIENT, ccColor::night.rgba);
 
-	ccGLUtils::CatchGLError("ccGLWindow::initializeGL");
+	logGLError("ccGLWindow::initialize");
 
+#ifdef CC_GL_WINDOW_USE_QWINDOW
+	if (firstTime)
+	{
+		resizeGL(width(), height());
+	}
+#endif
+
+	return true;
 }
 
 void ccGLWindow::uninitializeGL()
 {
 	if (!m_initialized)
+	{
 		return;
+	}
 
+	assert(!m_captureMode.enabled);
 	makeCurrent();
 
-	//release textures
-	{
-		for (QMap< QString, unsigned >::iterator it = m_materialTextures.begin(); it != m_materialTextures.end(); ++it)
-		{
-			deleteTexture(it.value());
-		}
-		m_materialTextures.clear();
-	}
+	ccQOpenGLFunctions* glFunc = functions();
+	assert(glFunc);
 
 	if (m_trihedronGLList != GL_INVALID_LIST_ID)
 	{
-		glDeleteLists(m_trihedronGLList, 1);
+		glFunc->glDeleteLists(m_trihedronGLList, 1);
 		m_trihedronGLList = GL_INVALID_LIST_ID;
 	}
 	if (m_pivotGLList != GL_INVALID_LIST_ID)
 	{
-		glDeleteLists(m_pivotGLList, 1);
+		glFunc->glDeleteLists(m_pivotGLList, 1);
 		m_pivotGLList = GL_INVALID_LIST_ID;
 	}
 
@@ -958,7 +868,7 @@ bool ccGLWindow::event(QEvent* evt)
 {
 	switch (evt->type())
 	{
-		//Gesture start/stop
+	//Gesture start/stop
 	case QEvent::TouchBegin:
 	case QEvent::TouchEnd:
 	{
@@ -967,9 +877,33 @@ bool ccGLWindow::event(QEvent* evt)
 		m_touchInProgress = (evt->type() == QEvent::TouchBegin);
 		m_touchBaseDist = 0;
 		ccLog::PrintDebug(QString("Touch event %1").arg(m_touchInProgress ? "begins" : "ends"));
-		return true;
 	}
-	break;
+	return true;
+
+	case QEvent::Close:
+	{
+		if (m_unclosable)
+		{
+			evt->ignore();
+		}
+		else
+		{
+			evt->accept();
+		}
+	}
+	return true;
+
+	case QEvent::DragEnter:
+	{
+		dragEnterEvent(static_cast<QDragEnterEvent*>(evt));
+	}
+	return true;
+
+	case QEvent::Drop:
+	{
+		dropEvent(static_cast<QDropEvent*>(evt));
+	}
+	return true;
 
 	case QEvent::TouchUpdate:
 	{
@@ -984,7 +918,7 @@ bool ccGLWindow::event(QEvent* evt)
 				qreal dist = sqrt(D.x()*D.x() + D.y()*D.y());
 				if (m_touchBaseDist != 0)
 				{
-					float zoomFactor = dist/m_touchBaseDist;
+					float zoomFactor = dist / m_touchBaseDist;
 					updateZoom(zoomFactor);
 				}
 				m_touchBaseDist = dist;
@@ -994,171 +928,104 @@ bool ccGLWindow::event(QEvent* evt)
 		}
 		ccLog::PrintDebug(QString("Touch update (%1 points)").arg(static_cast<QTouchEvent*>(evt)->touchPoints().size()));
 	}
+	break;
 
-#ifdef THREADED_GL_WIDGET
-	case QEvent::Show:
-		if (m_renderingThread)
-			m_renderingThread->redraw();
-		break;
-
-	case QEvent::ParentChange: //The context will be changed, need to reinit OpenGL
+#ifdef CC_GL_WINDOW_USE_QWINDOW
+	case QEvent::Resize:
 	{
-		//wait for thread to finish current work
-		if (m_renderingThread)
-		{
-			m_renderingThread->stop();
-			bool ret = QGLWidget::event(evt);
-
-			//notify thread of re-init context
-			m_initialized = false;
-			m_renderingThread->start();
-
-			return ret;
-		}
+		QSize newSize = static_cast<QResizeEvent*>(evt)->size();
+		resizeGL(newSize.width(), newSize.height());
+		evt->accept();
 	}
+	return true;
+
+	case QEvent::Expose:
+	{
+		if (isExposed())
+		{
+			requestUpdate();
+		}
+		evt->accept();
+	}
+	return true;
+
+	case QEvent::UpdateRequest:
+	case QEvent::Show:
+	case QEvent::Paint:
+	{
+		requestUpdate();
+		evt->accept();
+	}
+	return true;
+
 #endif
 
 	default:
-		break;
-	}
-
-	return QGLWidget::event(evt);
-}
-
-#ifdef THREADED_GL_WIDGET
-void ccGLWindow::resizeEvent(QResizeEvent *evt)
-{
-	m_resized.store(1);
-	//notify thread of resize event
-	if (m_renderingThread)
-		m_renderingThread->redraw();
-	else
-		assert(false);
-}
-
-ccGLWindow::RenderingThread::RenderingThread(ccGLWindow* win)
-	: QThread(win)
-	, m_window(win)
-	, m_abort(0)
-	, m_pendingRedraw(0)
-{}
-
-void ccGLWindow::RenderingThread::redraw()
-{
-	m_pendingRedraw.store(1);
-	m_waitCondition.wakeOne();
-}
-
-void ccGLWindow::RenderingThread::stop()
-{
-	m_abort.store(1);
-	m_pendingRedraw.store(0);
-	m_waitCondition.wakeOne();
-	wait(5*60*1000); ///wait max 5 s.
-}
-
-void ccGLWindow::RenderingThread::run()
-{
-	if (!m_window)
 	{
-		assert(false);
-		return;
+		//ccLog::Print("Unhandled event: %i", evt->type());
 	}
-	m_abort.store(0);
-
-	while (true)
-	{
-		if (m_pendingRedraw.load() == 0)
-		{
-			m_window->m_mutex.lock();
-			m_waitCondition.wait(&m_window->m_mutex);
-			m_window->m_mutex.unlock();
-		
-			if (m_abort.load() != 0)
-			{
-				//we should stop the rendering loop!
-				break;
-			}
-		}
-
-		if (!m_window->m_initialized)
-		{
-			m_window->initialize();
-		}
-
-		if (m_window->m_resized.load() != 0)
-		{
-			m_window->makeCurrent();
-			m_window->resizeGL2();
-			m_window->doneCurrent();
-		}
-
-		if (m_pendingRedraw.load() != 0)
-		{
-			m_pendingRedraw.store(0);
-			m_window->makeCurrent();
-			m_window->paint();
-			m_window->swapBuffers();
-			m_window->doneCurrent();
-		}
+	break;
+	
 	}
-	m_window->uninitializeGL();
-}
 
+#ifdef _DEBUG
+	QEvent::Type evtType = evt->type();
 #endif
+	return ccGLWindowParent::event(evt);
+}
 
 void ccGLWindow::setGLViewport(const QRect& rect)
 {
 	m_glViewport = rect;
 
-	makeCurrent();
-	glViewport(rect.x(), rect.y(), rect.width(), rect.height());
+	if (context() && context()->isValid())
+	{
+		makeCurrent();
+
+		const qreal retinaScale = devicePixelRatio();
+		functions()->glViewport(rect.x() * retinaScale, rect.y() * retinaScale, rect.width() * retinaScale, rect.height() * retinaScale);
+	}
 }
 
 void ccGLWindow::resizeGL(int w, int h)
 {
-#ifdef THREADED_GL_WIDGET
-	//do nothing more
-}
-
-void ccGLWindow::resizeGL2()
-{
-	int w = width();
-	int h = height();
-#endif
-
 	//update OpenGL viewport
 	setGLViewport(0, 0, w, h);
 
 	invalidateViewport();
 	invalidateVisualization();
 
-	//filters
-	if (m_fbo || m_alwaysUseFBO)
-		initFBO(width(), height());
-	if (m_activeGLFilter)
-		initGLFilter(width(), height());
-
-	//pivot symbol is dependent on the screen size!
-	if (m_pivotGLList != GL_INVALID_LIST_ID)
+	if (m_initialized)
 	{
-		glDeleteLists(m_pivotGLList,1);
-		m_pivotGLList = GL_INVALID_LIST_ID;
+		//filters
+		if (m_fbo || m_alwaysUseFBO)
+			initFBO(w, h);
+		if (m_activeGLFilter)
+			initGLFilter(w, h, true);
+
+		//pivot symbol is dependent on the screen size!
+		if (m_pivotGLList != GL_INVALID_LIST_ID)
+		{
+			functions()->glDeleteLists(m_pivotGLList, 1);
+			m_pivotGLList = GL_INVALID_LIST_ID;
+		}
+
+		logGLError("ccGLWindow::resizeGL");
 	}
 
 	setLODEnabled(true, true);
 	m_currentLODState.level = 0;
 
-	displayNewMessage(QString("New size = %1 * %2 (px)").arg(width()).arg(height()),
+	displayNewMessage(	QString("New size = %1 * %2 (px)").arg(width()).arg(height()),
 						ccGLWindow::LOWER_LEFT_MESSAGE,
 						false,
 						2,
 						SCREEN_SIZE_MESSAGE);
 
-	ccGLUtils::CatchGLError("ccGLWindow::resizeGL");
-	
-#ifdef THREADED_GL_WIDGET
-	m_resized.store(0);
+#ifdef CC_GL_WINDOW_USE_QWINDOW
+	requestUpdate();
+#else
+	logGLError("ccGLWindow::resizeGL");
 #endif
 }
 
@@ -1199,10 +1066,10 @@ void ccGLWindow::startFrameRateTest()
 
 	connect(&s_frameRateTimer, SIGNAL(timeout()), this, SLOT(redraw()), Qt::QueuedConnection);
 
-	displayNewMessage(	"[Framerate test in progress]",
-						ccGLWindow::UPPER_CENTER_MESSAGE,
-						true,
-						3600);
+	displayNewMessage("[Framerate test in progress]",
+		ccGLWindow::UPPER_CENTER_MESSAGE,
+		true,
+		3600);
 
 	stopLODCycle();
 
@@ -1226,11 +1093,11 @@ void ccGLWindow::stopFrameRateTest()
 	m_viewportParams.viewMat = s_frameRateBackupMat;
 	invalidateVisualization();
 
-	displayNewMessage(QString(),ccGLWindow::UPPER_CENTER_MESSAGE); //clear message in the upper center area
+	displayNewMessage(QString(), ccGLWindow::UPPER_CENTER_MESSAGE); //clear message in the upper center area
 	if (s_frameRateElapsedTime_ms > 0)
 	{
-		QString message = QString("Framerate: %1 fps").arg((s_frameRateCurrentFrame*1.0e3)/s_frameRateElapsedTime_ms,0,'f',3);
-		displayNewMessage(message,ccGLWindow::LOWER_LEFT_MESSAGE,true);
+		QString message = QString("Framerate: %1 fps").arg((s_frameRateCurrentFrame*1.0e3) / s_frameRateElapsedTime_ms, 0, 'f', 3);
+		displayNewMessage(message, ccGLWindow::LOWER_LEFT_MESSAGE, true);
 		ccLog::Print(message);
 	}
 	else
@@ -1286,7 +1153,9 @@ struct HotZone
 		color[2] = 39;
 
 		if (win)
+		{
 			font = win->font();
+		}
 		font.setPointSize(12);
 		font.setBold(true);
 
@@ -1298,7 +1167,7 @@ struct HotZone
 		textHeight = std::max(psi_labelRect.height(), bbv_labelRect.height());
 		textHeight = std::max(fs_labelRect.height(), textHeight);
 		textHeight = (3 * textHeight) / 4; // --> factor: to recenter the baseline a little
-		yTextBottomLineShift = (iconSize()/2) + (textHeight/2);
+		yTextBottomLineShift = (iconSize() / 2) + (textHeight / 2);
 	}
 };
 QSharedPointer<HotZone> s_hotZone(0);
@@ -1306,23 +1175,26 @@ QSharedPointer<HotZone> s_hotZone(0);
 void ccGLWindow::drawClickableItems(int xStart0, int& yStart)
 {
 	if (	!m_clickableItemsVisible
-		&&	!m_bubbleViewModeEnabled )
+		&&	!m_bubbleViewModeEnabled)
 	{
 		//nothing to do
 		return;
 	}
 
+	ccQOpenGLFunctions* glFunc = functions();
+	assert(glFunc);
+
 	//we init the necessary parameters the first time we need them
 	if (!s_hotZone)
 		s_hotZone = QSharedPointer<HotZone>(new HotZone(this));
 	//"exit" icon
-	static const QPixmap c_exitIcon(":/CC/images/ccExit.png");
+	static const QImage c_exitIcon = QImage(":/CC/images/ccExit.png").mirrored();
 
-	int halfW = m_glViewport.width()/2;
-	int halfH = m_glViewport.height()/2;
+	int halfW = m_glViewport.width() / 2;
+	int halfH = m_glViewport.height() / 2;
 
-	glPushAttrib(GL_COLOR_BUFFER_BIT);
-	glEnable(GL_BLEND);
+	glFunc->glPushAttrib(GL_COLOR_BUFFER_BIT);
+	glFunc->glEnable(GL_BLEND);
 
 	bool fullScreenEnabled = exclusiveFullScreen();
 
@@ -1340,9 +1212,9 @@ void ccGLWindow::drawClickableItems(int xStart0, int& yStart)
 			fs_totalWidth = /*HotZone::margin() + */s_hotZone->fs_labelRect.width() + HotZone::margin() + HotZone::iconSize()/* + HotZone::margin()*/;
 
 		int totalWidth = std::max(psi_totalWidth, bbv_totalWidth);
-		    totalWidth = std::max(fs_totalWidth, totalWidth);
+		totalWidth = std::max(fs_totalWidth, totalWidth);
 
-		QPoint minAreaCorner(xStart0 + HotZone::margin(),              yStart + HotZone::margin() + std::min(0, s_hotZone->yTextBottomLineShift - s_hotZone->textHeight));
+		QPoint minAreaCorner(xStart0 + HotZone::margin(), yStart + HotZone::margin() + std::min(0, s_hotZone->yTextBottomLineShift - s_hotZone->textHeight));
 		QPoint maxAreaCorner(xStart0 + HotZone::margin() + totalWidth, yStart + HotZone::margin() + std::max(HotZone::iconSize(), s_hotZone->yTextBottomLineShift));
 		if (m_clickableItemsVisible && m_bubbleViewModeEnabled)
 		{
@@ -1353,53 +1225,53 @@ void ccGLWindow::drawClickableItems(int xStart0, int& yStart)
 			maxAreaCorner.setY(maxAreaCorner.y() + HotZone::iconSize() + HotZone::margin());
 		}
 
-		QRect areaRect(	minAreaCorner - QPoint(HotZone::margin(), HotZone::margin())/2,
-						maxAreaCorner + QPoint(HotZone::margin(), HotZone::margin())/2 );
+		QRect areaRect(minAreaCorner - QPoint(HotZone::margin(), HotZone::margin()) / 2,
+			maxAreaCorner + QPoint(HotZone::margin(), HotZone::margin()) / 2);
 
 		//draw rectangle
-		glColor4ub(ccColor::darkGrey.r, ccColor::darkGrey.g, ccColor::darkGrey.b, 210);
-		glBegin(GL_QUADS);
-		glVertex2i(-halfW+(areaRect.x()),					halfH-(areaRect.y())					);
-		glVertex2i(-halfW+(areaRect.x()+areaRect.width()),	halfH-(areaRect.y())					);
-		glVertex2i(-halfW+(areaRect.x()+areaRect.width()),	halfH-(areaRect.y()+areaRect.height())	);
-		glVertex2i(-halfW+(areaRect.x()),					halfH-(areaRect.y()+areaRect.height())	);
-		glEnd();
+		glFunc->glColor4ub(ccColor::darkGrey.r, ccColor::darkGrey.g, ccColor::darkGrey.b, 210);
+		glFunc->glBegin(GL_QUADS);
+		glFunc->glVertex2i(-halfW + (areaRect.x()), halfH - (areaRect.y()));
+		glFunc->glVertex2i(-halfW + (areaRect.x() + areaRect.width()), halfH - (areaRect.y()));
+		glFunc->glVertex2i(-halfW + (areaRect.x() + areaRect.width()), halfH - (areaRect.y() + areaRect.height()));
+		glFunc->glVertex2i(-halfW + (areaRect.x()), halfH - (areaRect.y() + areaRect.height()));
+		glFunc->glEnd();
 	}
 
 	if (m_clickableItemsVisible)
 	{
 		yStart += HotZone::margin();
 		int xStart = xStart0 + HotZone::margin();
-		
+
 		//label
-		glColor3ubv_safe(s_hotZone->color);
-		renderText(xStart,yStart + s_hotZone->yTextBottomLineShift,s_hotZone->psi_label,s_hotZone->font);
+		glColor3ubv_safe<ccQOpenGLFunctions>(glFunc, s_hotZone->color);
+		renderText(xStart, yStart + s_hotZone->yTextBottomLineShift, s_hotZone->psi_label, s_hotZone->font);
 
 		//icons
 		xStart += s_hotZone->psi_labelRect.width() + HotZone::margin();
 
 		//"minus" icon
 		{
-			static const QPixmap c_psi_minusPix(":/CC/images/ccMinus.png");
-			ccGLUtils::DisplayTexture2DPosition(bindTexture(c_psi_minusPix),-halfW+xStart,halfH-(yStart+HotZone::iconSize()),HotZone::iconSize(),HotZone::iconSize());
-			m_clickableItems.push_back(ClickableItem(ClickableItem::DECREASE_POINT_SIZE,QRect(xStart,yStart,HotZone::iconSize(),HotZone::iconSize())));
+			static const QImage c_psi_minusPix = QImage(":/CC/images/ccMinus.png").mirrored();
+			ccGLUtils::DisplayTexture2DPosition(c_psi_minusPix, -halfW + xStart, halfH - (yStart + HotZone::iconSize()), HotZone::iconSize(), HotZone::iconSize());
+			m_clickableItems.push_back(ClickableItem(ClickableItem::DECREASE_POINT_SIZE, QRect(xStart, yStart, HotZone::iconSize(), HotZone::iconSize())));
 			xStart += HotZone::iconSize();
 		}
 
 		//separator
 		{
-			glColor3ubv(s_hotZone->color);
-			glBegin(GL_POINTS);
-			glVertex2i(-halfW+xStart+HotZone::margin()/2,halfH-(yStart+HotZone::iconSize()/2));
-			glEnd();
+			glColor3ubv_safe<ccQOpenGLFunctions>(glFunc, s_hotZone->color);
+			glFunc->glBegin(GL_POINTS);
+			glFunc->glVertex2i(-halfW + xStart + HotZone::margin() / 2, halfH - (yStart + HotZone::iconSize() / 2));
+			glFunc->glEnd();
 			xStart += HotZone::margin();
 		}
 
 		//"plus" icon
 		{
-			static const QPixmap c_psi_plusPix(":/CC/images/ccPlus.png");
-			ccGLUtils::DisplayTexture2DPosition(bindTexture(c_psi_plusPix),-halfW+xStart,halfH-(yStart+HotZone::iconSize()),HotZone::iconSize(),HotZone::iconSize());
-			m_clickableItems.push_back(ClickableItem(ClickableItem::INCREASE_POINT_SIZE,QRect(xStart,yStart,HotZone::iconSize(),HotZone::iconSize())));
+			static const QImage c_psi_plusPix = QImage(":/CC/images/ccPlus.png").mirrored();
+			ccGLUtils::DisplayTexture2DPosition(c_psi_plusPix, -halfW + xStart, halfH - (yStart + HotZone::iconSize()), HotZone::iconSize(), HotZone::iconSize());
+			m_clickableItems.push_back(ClickableItem(ClickableItem::INCREASE_POINT_SIZE, QRect(xStart, yStart, HotZone::iconSize(), HotZone::iconSize())));
 			xStart += HotZone::iconSize();
 		}
 
@@ -1410,18 +1282,18 @@ void ccGLWindow::drawClickableItems(int xStart0, int& yStart)
 	{
 		yStart += HotZone::margin();
 		int xStart = xStart0 + HotZone::margin();
-		
+
 		//label
-		glColor3ubv_safe(s_hotZone->color);
-		renderText(xStart,yStart + s_hotZone->yTextBottomLineShift, s_hotZone->bbv_label, s_hotZone->font);
-		
+		glColor3ubv_safe<ccQOpenGLFunctions>(glFunc, s_hotZone->color);
+		renderText(xStart, yStart + s_hotZone->yTextBottomLineShift, s_hotZone->bbv_label, s_hotZone->font);
+
 		//icon
 		xStart += s_hotZone->bbv_labelRect.width() + HotZone::margin();
 
 		//"exit" icon
 		{
-			ccGLUtils::DisplayTexture2DPosition(bindTexture(c_exitIcon),-halfW+xStart,halfH-(yStart+HotZone::iconSize()),HotZone::iconSize(),HotZone::iconSize());
-			m_clickableItems.push_back(ClickableItem(ClickableItem::LEAVE_BUBBLE_VIEW_MODE,QRect(xStart,yStart,HotZone::iconSize(),HotZone::iconSize())));
+			ccGLUtils::DisplayTexture2DPosition(c_exitIcon, -halfW + xStart, halfH - (yStart + HotZone::iconSize()), HotZone::iconSize(), HotZone::iconSize());
+			m_clickableItems.push_back(ClickableItem(ClickableItem::LEAVE_BUBBLE_VIEW_MODE, QRect(xStart, yStart, HotZone::iconSize(), HotZone::iconSize())));
 			xStart += HotZone::iconSize();
 		}
 
@@ -1432,18 +1304,18 @@ void ccGLWindow::drawClickableItems(int xStart0, int& yStart)
 	{
 		yStart += HotZone::margin();
 		int xStart = xStart0 + HotZone::margin();
-		
+
 		//label
-		glColor3ubv_safe(s_hotZone->color);
-		renderText(xStart,yStart + s_hotZone->yTextBottomLineShift, s_hotZone->fs_label, s_hotZone->font);
-		
+		glColor3ubv_safe<ccQOpenGLFunctions>(glFunc, s_hotZone->color);
+		renderText(xStart, yStart + s_hotZone->yTextBottomLineShift, s_hotZone->fs_label, s_hotZone->font);
+
 		//icon
 		xStart += s_hotZone->fs_labelRect.width() + HotZone::margin();
 
 		//"full-screen" icon
 		{
-			ccGLUtils::DisplayTexture2DPosition(bindTexture(c_exitIcon),-halfW+xStart,halfH-(yStart+HotZone::iconSize()),HotZone::iconSize(),HotZone::iconSize());
-			m_clickableItems.push_back(ClickableItem(ClickableItem::LEAVE_FULLSCREEN_MODE,QRect(xStart,yStart,HotZone::iconSize(),HotZone::iconSize())));
+			ccGLUtils::DisplayTexture2DPosition(c_exitIcon, -halfW + xStart, halfH - (yStart + HotZone::iconSize()), HotZone::iconSize(), HotZone::iconSize());
+			m_clickableItems.push_back(ClickableItem(ClickableItem::LEAVE_FULLSCREEN_MODE, QRect(xStart, yStart, HotZone::iconSize(), HotZone::iconSize())));
 			xStart += HotZone::iconSize();
 		}
 
@@ -1452,7 +1324,7 @@ void ccGLWindow::drawClickableItems(int xStart0, int& yStart)
 
 	yStart += HotZone::margin();
 
-	glPopAttrib();
+	glFunc->glPopAttrib();
 }
 
 void ccGLWindow::toBeRefreshed()
@@ -1479,35 +1351,68 @@ void ccGLWindow::redraw(bool only2D/*=false*/, bool resetLOD/*=true*/)
 		m_LODPendingRefresh = false;
 		stopLODCycle();
 	}
-	
+
 	if (!only2D)
 	{
 		m_updateFBO = true;
 	}
 
-#ifdef THREADED_GL_WIDGET
-	if (m_renderingThread)
+	if (isVisible() && !m_autoRefresh)
 	{
-		m_renderingThread->redraw();
+		requestUpdate();
+	}
+}
+
+GLuint ccGLWindow::defaultQtFBO() const
+{
+#ifdef CC_GL_WINDOW_USE_QWINDOW
+	
+	return 0;
+
+#else
+
+	if (m_stereoModeEnabled && m_stereoParams.glassType == StereoParams::NVIDIA_VISION)
+	{
+		return 0;
 	}
 	else
 	{
-		assert(false);
+		return defaultFramebufferObject();
 	}
-#else
-	updateGL();
 #endif
+}
+
+void ccGLWindow::requestUpdate()
+{
+	if (!m_autoRefresh)
+	{
+		update();
+	}
 }
 
 void ccGLWindow::paintGL()
 {
-#ifdef THREADED_GL_WIDGET
-	//do nothing
-}
-
-void ccGLWindow::paint()
-{
+#ifdef CC_GL_WINDOW_USE_QWINDOW
+	if (!isExposed())
+	{
+		return;
+	}
+	if (!m_initialized && !initialize())
+	{
+		return;
+	}
+	assert(m_context);
+	makeCurrent();
 #endif
+
+	ccQOpenGLFunctions* glFunc = functions();
+	assert(glFunc);
+
+#ifdef CC_GL_WINDOW_USE_QWINDOW
+	const qreal retinaScale = devicePixelRatio();
+	glFunc->glViewport(m_glViewport.x() * retinaScale, m_glViewport.y() * retinaScale, m_glViewport.width() * retinaScale, m_glViewport.height() * retinaScale);
+#endif
+
 	qint64 startTime_ms = m_currentLODState.inProgress ? m_timer.elapsed() : 0;
 
 	if (m_scheduledFullRedrawTime != 0)
@@ -1526,35 +1431,31 @@ void ccGLWindow::paint()
 	//rendering parameters
 	RenderingParams renderingParams;
 	renderingParams.drawBackground = false;
-	renderingParams.draw3DPass     = false;
+	renderingParams.draw3DPass = false;
 	renderingParams.drawForeground = true;
 
 	//here are all the reasons for which we would like to update the main 3D layer
-	if (	!m_fbo
-		||	(m_alwaysUseFBO && m_updateFBO)
-		//||	(m_stereoModeEnabled && !m_stereoParams.isAnaglyph())
-		//||	m_activeGLFilter
-		||	m_captureMode.enabled
-		||	m_currentLODState.inProgress
+	if (!m_fbo ||
+		m_updateFBO ||
+		m_captureMode.enabled ||
+		m_currentLODState.inProgress
 		)
 	{
-		//we must update the FBO (or display without FBO
+		//we must update the FBO (or display without FBO)
 		renderingParams.drawBackground = true;
-		renderingParams.draw3DPass     = true;
+		renderingParams.draw3DPass = true;
 	}
 
 	//other rendering options
-	renderingParams.useFBO =	!m_stereoModeEnabled
-							||	m_stereoParams.isAnaglyph()
-							||	m_activeGLFilter
-							||	m_LODEnabled;
+	renderingParams.useFBO = (m_fbo != 0);
+
 	renderingParams.draw3DCross = getDisplayParameters().displayCross;
 	renderingParams.passCount = m_stereoModeEnabled ? 2 : 1;
 
 	//clean the outdated messages
 	{
 		std::list<MessageToDisplay>::iterator it = m_messagesToDisplay.begin();
-		int currentTime_sec = ccTimer::Sec();
+		qint64 currentTime_sec = m_timer.elapsed() / 1000;
 		//ccLog::PrintDebug(QString("[paintGL] Current time: %1 s.").arg(currentTime_sec));
 
 		while (it != m_messagesToDisplay.end())
@@ -1576,6 +1477,13 @@ void ccGLWindow::paint()
 	{
 		fullRenderingPass(CONTEXT, renderingParams);
 	}
+
+#ifdef CC_GL_WINDOW_USE_QWINDOW
+	if (!m_stereoModeEnabled || m_stereoParams.glassType != StereoParams::OCULUS)
+	{
+		m_context->swapBuffers(this);
+	}
+#endif
 
 	m_shouldBeRefreshed = false;
 
@@ -1606,13 +1514,10 @@ void ccGLWindow::paint()
 		else
 		{
 			//rotate base view matrix
-			glMatrixMode(GL_MODELVIEW);
-			glPushMatrix();
-			glLoadMatrixd(m_viewportParams.viewMat.data());
-			glRotated(360.0/FRAMERATE_TEST_MIN_FRAMES, 0.0, 1.0, 0.0);
-			glGetDoublev(GL_MODELVIEW_MATRIX, m_viewportParams.viewMat.data());
+			ccGLMatrixd rotMat;
+			rotMat.initFromParameters(2 * M_PI / FRAMERATE_TEST_MIN_FRAMES, CCVector3d(0, 1, 0), CCVector3d(0, 0, 0));
+			m_viewportParams.viewMat = rotMat * m_viewportParams.viewMat;
 			invalidateVisualization();
-			glPopMatrix();
 		}
 	}
 	else
@@ -1625,18 +1530,12 @@ void ccGLWindow::paint()
 				qint64 displayTime_ms = m_timer.elapsed() - startTime_ms;
 				//we try to refresh LOD levels at a regular pace
 				qint64 baseLODRefreshTime_ms = 50;
-				if (CONTEXT.currentLODStartIndex == 0)
-				{
-					baseLODRefreshTime_ms = 250;
-					if (m_currentLODState.level > CONTEXT.minLODLevel)
-						baseLODRefreshTime_ms /= (m_currentLODState.level - CONTEXT.minLODLevel+1);
-				}
 
 				m_LODPendingRefresh = true;
 				m_LODPendingIgnore = false;
 
 				ccLog::PrintDebug(QString("[QPaintGL] New LOD pass scheduled with timer"));
-				QTimer::singleShot(std::max<int>(baseLODRefreshTime_ms-displayTime_ms,0), this, SLOT(renderNextLODLevel()));
+				QTimer::singleShot(std::max<int>(baseLODRefreshTime_ms - displayTime_ms, 0), this, SLOT(renderNextLODLevel()));
 			}
 		}
 		else
@@ -1644,17 +1543,6 @@ void ccGLWindow::paint()
 			//just in case
 			m_LODPendingRefresh = false;
 		}
-
-#ifdef CC_OCULUS_SUPPORT
-		if (!m_LODPendingRefresh)
-		{
-			if (m_stereoModeEnabled && m_stereoParams.glassType == StereoParams::OCULUS && s_oculus.session)
-			{
-				//auto-redraw
-				QTimer::singleShot(0, this, SLOT(updateGL()));
-			}
-		}
-#endif //CC_OCULUS_SUPPORT
 	}
 }
 
@@ -1666,7 +1554,7 @@ void ccGLWindow::renderNextLODLevel()
 	{
 		ccLog::PrintDebug(QString("[renderNextLODLevel] Confirmed"));
 		QApplication::processEvents();
-		updateGL();
+		requestUpdate();
 	}
 	else
 	{
@@ -1676,21 +1564,24 @@ void ccGLWindow::renderNextLODLevel()
 
 void ccGLWindow::drawBackground(CC_DRAW_CONTEXT& CONTEXT, RenderingParams& renderingParams)
 {
+	ccQOpenGLFunctions* glFunc = functions();
+	assert(glFunc);
+
 	/****************************************/
 	/****  PASS: 2D/BACKGROUND/NO LIGHT  ****/
 	/****************************************/
-	glPointSize(m_viewportParams.defaultPointSize);
-	glLineWidth(m_viewportParams.defaultLineWidth);
-	glDisable(GL_DEPTH_TEST);
+	glFunc->glPointSize(m_viewportParams.defaultPointSize);
+	glFunc->glLineWidth(m_viewportParams.defaultLineWidth);
+	glFunc->glDisable(GL_DEPTH_TEST);
 
-	CONTEXT.flags = CC_DRAW_2D;
+	CONTEXT.drawingFlags = CC_DRAW_2D;
 	if (m_interactionFlags & INTERACT_TRANSFORM_ENTITIES)
 	{
-		CONTEXT.flags |= CC_VIRTUAL_TRANS_ENABLED;
+		CONTEXT.drawingFlags |= CC_VIRTUAL_TRANS_ENABLED;
 	}
 
 	setStandardOrthoCenter();
-	
+
 	//clear background
 	{
 		GLbitfield clearMask = GL_NONE;
@@ -1705,27 +1596,25 @@ void ccGLWindow::drawBackground(CC_DRAW_CONTEXT& CONTEXT, RenderingParams& rende
 			if (displayParams.drawBackgroundGradient)
 			{
 				//draw the default gradient color background
-				int w = m_glViewport.width()/2 + 1;
-				int h = m_glViewport.height()/2 + 1;
+				int w = m_glViewport.width() / 2 + 1;
+				int h = m_glViewport.height() / 2 + 1;
 
 				const ccColor::Rgbub& bkgCol = getDisplayParameters().backgroundCol;
 				const ccColor::Rgbub& frgCol = getDisplayParameters().textDefaultCol;
 
 				//Gradient "texture" drawing
-				glBegin(GL_QUADS);
+				glFunc->glBegin(GL_QUADS);
 				{
 					//we use the default background color for gradient start
-					glColor3ubv(bkgCol.rgb);
-					glVertex2i(-w,h);
-					glVertex2i(w,h);
+					glColor3ubv_safe<ccQOpenGLFunctions>(glFunc, bkgCol.rgb);
+					glFunc->glVertex2i(-w, h);
+					glFunc->glVertex2i(w, h);
 					//and the inverse of the text color for gradient stop
-					glColor3ub(	255 - frgCol.r,
-								255 - frgCol.g,
-								255 - frgCol.b );
-					glVertex2i(w,-h);
-					glVertex2i(-w,-h);
+					glFunc->glColor3ub(255 - frgCol.r, 255 - frgCol.g, 255 - frgCol.b);
+					glFunc->glVertex2i(w, -h);
+					glFunc->glVertex2i(-w, -h);
 				}
-				glEnd();
+				glFunc->glEnd();
 			}
 			else
 			{
@@ -1734,12 +1623,12 @@ void ccGLWindow::drawBackground(CC_DRAW_CONTEXT& CONTEXT, RenderingParams& rende
 				ccColor::Rgbaf backgroundColor(	bkgCol.r / 255.0f,
 												bkgCol.g / 255.0f,
 												bkgCol.b / 255.0f,
-												1.0f );
-				
-				glClearColor(	backgroundColor.r,
-								backgroundColor.g,
-								backgroundColor.b,
-								backgroundColor.a );
+												1.0f);
+
+				glFunc->glClearColor(	backgroundColor.r,
+										backgroundColor.g,
+										backgroundColor.b,
+										backgroundColor.a);
 
 				clearMask |= GL_COLOR_BUFFER_BIT;
 			}
@@ -1748,7 +1637,7 @@ void ccGLWindow::drawBackground(CC_DRAW_CONTEXT& CONTEXT, RenderingParams& rende
 		//we clear the background
 		if (clearMask != GL_NONE)
 		{
-			glClear(clearMask);
+			glFunc->glClear(clearMask);
 		}
 	}
 
@@ -1763,10 +1652,10 @@ void ccGLWindow::drawBackground(CC_DRAW_CONTEXT& CONTEXT, RenderingParams& rende
 			m_winDBRoot->draw(CONTEXT);
 	}
 
-	ccGLUtils::CatchGLError("ccGLWindow::drawBackground");
+	logGLError("ccGLWindow::drawBackground");
 }
 
-void ccGLWindow::fullRenderingPass(CC_DRAW_CONTEXT& context, RenderingParams& renderingParams)
+void ccGLWindow::fullRenderingPass(CC_DRAW_CONTEXT& CONTEXT, RenderingParams& renderingParams)
 {
 	//visual traces
 	QStringList diagStrings;
@@ -1779,6 +1668,9 @@ void ccGLWindow::fullRenderingPass(CC_DRAW_CONTEXT& context, RenderingParams& re
 		diagStrings << QString("LOD %1 (level %2)").arg(m_currentLODState.inProgress ? "ON" : "OFF").arg(m_currentLODState.level);
 	}
 
+	ccQOpenGLFunctions* glFunc = functions();
+	assert(glFunc);
+
 	//backup the current viewport
 	QRect originViewport = m_glViewport;
 	bool modifiedViewport = false;
@@ -1786,15 +1678,19 @@ void ccGLWindow::fullRenderingPass(CC_DRAW_CONTEXT& context, RenderingParams& re
 	ccFrameBufferObject* currentFBO = renderingParams.useFBO ? m_fbo : 0;
 	if (m_stereoModeEnabled)
 	{
-		if (m_stereoParams.glassType == StereoParams::NVIDIA_VISION && renderingParams.passIndex == 1)
+		if (m_stereoParams.glassType == StereoParams::NVIDIA_VISION)
 		{
-			currentFBO = m_fbo2;
+			if (renderingParams.useFBO && renderingParams.passIndex == 1)
+			{
+				currentFBO = m_fbo2;
+			}
 		}
 #ifdef CC_OCULUS_SUPPORT
 		else if (m_stereoParams.glassType == StereoParams::OCULUS && s_oculus.session)
 		{
 			renderingParams.useFBO = true;
-			renderingParams.drawBackground = renderingParams.draw3DPass = true;
+			renderingParams.drawBackground = (CONTEXT.currentLODLevel == 0);
+			renderingParams.draw3DPass = true;
 			currentFBO = s_oculus.fbo;
 
 			if (renderingParams.passIndex == 0)
@@ -1805,23 +1701,9 @@ void ccGLWindow::fullRenderingPass(CC_DRAW_CONTEXT& context, RenderingParams& re
 				ovrTrackingState hmdState = ovr_GetTrackingState(s_oculus.session, displayMidpointSeconds, ovrTrue);
 				if (hmdState.StatusFlags & (ovrStatus_OrientationTracked | ovrStatus_PositionTracked)) 
 				{
-					//convert Oculus pose (quaternion + translation) to ccGLMatrix
-					//ovrPosef pose = hmdState.HeadPose.ThePose;
-					//double q[4] = { pose.Orientation.w, pose.Orientation.x, pose.Orientation.y, pose.Orientation.z };
-					//ccGLMatrixd rot = ccGLMatrixd::FromQuaternion(q).inverse();
-					//setBaseViewMat(rot);
-
-					//CCVector3d ovrPos(pose.Position.x, pose.Position.y, pose.Position.z);
-					//if (s_oculus.hasLastOVRPos)
-					//{
-					//	CCVector3d d = ovrPos - s_oculus.lastOVRPos;
-					//	moveCamera(d.x, d.y, d.z);
-					//}
-					//s_oculus.lastOVRPos = ovrPos;
-					s_oculus.hasLastOVRPos = true;
-
 					//compute the eye positions
 					ovr_CalcEyePoses(hmdState.HeadPose.ThePose, s_oculus.hmdToEyeViewOffset, s_oculus.layer.RenderPose);
+					s_oculus.hasLastOVRPos = true;
 				}
 				else
 				{
@@ -1829,23 +1711,29 @@ void ccGLWindow::fullRenderingPass(CC_DRAW_CONTEXT& context, RenderingParams& re
 				}
 
 				//Increment to use next texture, just before writing
-				s_oculus.textureSet->CurrentIndex = (s_oculus.textureSet->CurrentIndex + 1) % s_oculus.textureSet->TextureCount;
+				int currentIndex = 0;
+				ovr_GetTextureSwapChainCurrentIndex(s_oculus.session, s_oculus.textureSwapChain, &currentIndex);
 
-				GLuint texID = ((ovrGLTexture*)&s_oculus.textureSet->Textures[s_oculus.textureSet->CurrentIndex])->OGL.TexId;
-				s_oculus.fbo->attachColor(texID);
+				unsigned int colorTexID = 0;
+				ovr_GetTextureSwapChainBufferGL(s_oculus.session, s_oculus.textureSwapChain, currentIndex, &colorTexID);
+				s_oculus.fbo->attachColor(colorTexID);
+
+				GLuint depthTexID = s_oculus.depthTextures[currentIndex];
+				s_oculus.fbo->attachDepth(depthTexID);
 			}
 
 			//set the right viewport
 			{
-				s_oculus.fbo->start();
+				bindFBO(s_oculus.fbo);
+
 				//s_oculus.fbo->setDrawBuffer(renderingParams.passIndex);
-				glEnable(GL_FRAMEBUFFER_SRGB);
 				const ovrRecti& vp = s_oculus.layer.Viewport[renderingParams.passIndex];
 				setGLViewport(vp.Pos.x, vp.Pos.y, vp.Size.w, vp.Size.h);
-				context.glW = vp.Size.w;
-				context.glH = vp.Size.h;
+				CONTEXT.glW = vp.Size.w;
+				CONTEXT.glH = vp.Size.h;
 				modifiedViewport = true;
-				s_oculus.fbo->stop();
+
+				bindFBO(0);
 			}
 		}
 #endif //CC_OCULUS_SUPPORT
@@ -1853,28 +1741,45 @@ void ccGLWindow::fullRenderingPass(CC_DRAW_CONTEXT& context, RenderingParams& re
 
 	//if a FBO is activated
 	if (	currentFBO
-		&&	renderingParams.useFBO
-		&&	(renderingParams.drawBackground || renderingParams.draw3DPass) )
+		&&	renderingParams.useFBO)
 	{
-		currentFBO->start();
-		renderingParams.drawBackground = renderingParams.draw3DPass = true; //DGM: we must update the FBO completely!
-		ccGLUtils::CatchGLError("ccGLWindow::fullRenderingPass (FBO start)");
-	
-		if (m_showDebugTraces)
+		if (renderingParams.drawBackground || renderingParams.draw3DPass)
 		{
-			diagStrings << "FBO updated";
+			bindFBO(currentFBO);
+			logGLError("ccGLWindow::fullRenderingPass (FBO start)");
+
+			if (!m_currentLODState.inProgress || m_currentLODState.level == 0)
+			{
+				renderingParams.drawBackground = renderingParams.draw3DPass = true; //DGM: we must update the FBO completely!
+			}
+			else
+			{
+				renderingParams.drawBackground = false;
+				assert(renderingParams.draw3DPass);
+			}
+
+			if (m_showDebugTraces)
+			{
+				diagStrings << "FBO updated";
+			}
 		}
 	}
 	else if (!m_captureMode.enabled) //capture mode doesn't use double buffering by default!
 	{
-		if (m_stereoModeEnabled && m_stereoParams.glassType == StereoParams::NVIDIA_VISION)
+		GLboolean isStereoEnabled = 0;
+		glFunc->glGetBooleanv(GL_STEREO, &isStereoEnabled);
+		//ccLog::Warning(QString("[fullRenderingPass:%0][NO FBO] Stereo test: %1").arg(renderingParams.passIndex).arg(isStereoEnabled));
+
+		if (isStereoEnabled)
 		{
-			//select back left or back right buffer
-			glDrawBuffer(renderingParams.passIndex == 0 ? GL_BACK_LEFT : GL_BACK_RIGHT);
-		}
-		else
-		{
-			glDrawBuffer(GL_BACK);
+			if (m_stereoModeEnabled && m_stereoParams.glassType == StereoParams::NVIDIA_VISION)
+			{
+				glFunc->glDrawBuffer(renderingParams.passIndex == 0 ? GL_BACK_LEFT : GL_BACK_RIGHT);
+			}
+			else
+			{
+				glFunc->glDrawBuffer(GL_BACK);
+			}
 		}
 	}
 
@@ -1902,8 +1807,8 @@ void ccGLWindow::fullRenderingPass(CC_DRAW_CONTEXT& context, RenderingParams& re
 			renderingParams.clearDepthLayer = false;
 			renderingParams.clearColorLayer = false;
 		}
-	
-		drawBackground(context, renderingParams);
+
+		drawBackground(CONTEXT, renderingParams);
 	}
 
 	/*********************/
@@ -1919,76 +1824,97 @@ void ccGLWindow::fullRenderingPass(CC_DRAW_CONTEXT& context, RenderingParams& re
 		if (m_stereoModeEnabled && m_stereoParams.isAnaglyph())
 		{
 			//change color filter
+			static GLboolean RED[3]  = { GL_TRUE, GL_FALSE, GL_FALSE };
+			static GLboolean BLUE[3] = { GL_FALSE, GL_FALSE, GL_TRUE };
+			static GLboolean CYAN[3] = { GL_FALSE, GL_TRUE, GL_TRUE };
+			const GLboolean* RGB = 0;
 			switch (m_stereoParams.glassType)
 			{
 			case StereoParams::RED_BLUE:
-				if (renderingParams.passIndex == 0)
-					glColorMask(GL_TRUE, GL_FALSE, GL_FALSE, GL_TRUE);
-				else
-					glColorMask(GL_FALSE, GL_FALSE, GL_TRUE, GL_TRUE);
+				RGB = (renderingParams.passIndex == 0 ? RED : BLUE);
+				break;
+			
+			case StereoParams::BLUE_RED:
+				RGB = (renderingParams.passIndex == 0 ? BLUE : RED);
 				break;
 
 			case StereoParams::RED_CYAN:
-				if (renderingParams.passIndex == 0)
-					glColorMask(GL_TRUE, GL_FALSE, GL_FALSE, GL_TRUE);
-				else
-					glColorMask(GL_FALSE, GL_TRUE, GL_TRUE, GL_TRUE);
+				RGB = (renderingParams.passIndex == 0 ? RED : CYAN);
+				break;
+
+			case StereoParams::CYAN_RED:
+				RGB = (renderingParams.passIndex == 0 ? CYAN : RED);
 				break;
 
 			default:
 				assert(false);
-			} 
+			}
+
+			if (RGB)
+			{
+				glFunc->glColorMask(RGB[0], RGB[1], RGB[2], GL_TRUE);
+			}
 		}
 
-		draw3D(context, renderingParams);
+		draw3D(CONTEXT, renderingParams);
 
 		if (m_stereoModeEnabled && m_stereoParams.isAnaglyph())
 		{
 			//restore default color mask
-			glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+			glFunc->glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
 		}
 	}
 
 	//display traces
 	if (!diagStrings.isEmpty())
 	{
-		int x = width()/2 * static_cast<int>(renderingParams.passIndex+1) - 100;
+		int x = width() / 2 - 100;
 		int y = 0;
 
+		if (m_stereoModeEnabled && m_stereoParams.glassType != StereoParams::OCULUS)
+		{
+			if (renderingParams.passIndex == 1)
+				x += width() / 2;
+		}
+
 		setStandardOrthoCorner();
-		glPushAttrib(GL_DEPTH_BUFFER_BIT);
-		glDisable(GL_DEPTH_TEST);
+		glFunc->glPushAttrib(GL_DEPTH_BUFFER_BIT);
+		glFunc->glDisable(GL_DEPTH_TEST);
 
-		glColor3ubv(ccColor::black.rgba);
-		glBegin(GL_QUADS);
-		glVertex2i(x,m_glViewport.height()-y);
-		glVertex2i(x,m_glViewport.height()-(y+100));
-		glVertex2i(x+200,m_glViewport.height()-(y+100));
-		glVertex2i(x+200,m_glViewport.height()-y);
-		glEnd();
+		//draw black background
+		{
+			int heigth = (diagStrings.size() + 1) * 10;
+			glColor3ubv_safe<ccQOpenGLFunctions>(glFunc, ccColor::black.rgba);
+			glFunc->glBegin(GL_QUADS);
+			glFunc->glVertex2i(x, m_glViewport.height() - y);
+			glFunc->glVertex2i(x, m_glViewport.height() - (y + heigth));
+			glFunc->glVertex2i(x + 200, m_glViewport.height() - (y + heigth));
+			glFunc->glVertex2i(x + 200, m_glViewport.height() - y);
+			glFunc->glEnd();
+		}
 
-		glColor3ubv_safe(ccColor::yellow.rgba);
-		for (int i=0; i<diagStrings.size(); ++i)
+		glColor3ubv_safe<ccQOpenGLFunctions>(glFunc, ccColor::yellow.rgba);
+		for (int i = 0; i < diagStrings.size(); ++i)
 		{
 			QString str = diagStrings[i];
-			renderText(x+10, y+10, str);
+			renderText(x + 10, y + 10, str);
 			y += 10;
 		}
 
-		glPopAttrib();
+		glFunc->glPopAttrib();
 	}
 
 	//restore viewport if necessary
 	if (modifiedViewport)
 	{
 		setGLViewport(originViewport);
-		context.glW = m_glViewport.width();
-		context.glH = m_glViewport.height();
+		CONTEXT.glW = originViewport.width();
+		CONTEXT.glH = originViewport.height();
 		modifiedViewport = false;
 	}
 
-	bool skipRendering = (m_stereoModeEnabled && m_stereoParams.glassType == StereoParams::OCULUS && renderingParams.passIndex == 0);
-	glFlush();
+	bool oculusMode = (m_stereoModeEnabled && m_stereoParams.glassType == StereoParams::OCULUS);
+	glFunc->glFlush();
 
 	//process and/or display the FBO (if any)
 	if (currentFBO && renderingParams.useFBO)
@@ -1996,15 +1922,15 @@ void ccGLWindow::fullRenderingPass(CC_DRAW_CONTEXT& context, RenderingParams& re
 		//we disable fbo (if any)
 		if (renderingParams.drawBackground || renderingParams.draw3DPass)
 		{
-			currentFBO->stop();
-			ccGLUtils::CatchGLError("ccGLWindow::fullRenderingPass (FBO stop)");
+			logGLError("ccGLWindow::fullRenderingPass (FBO stop)");
+			bindFBO(0);
 			m_updateFBO = false;
 		}
 
-		if (!skipRendering)
+		if (!oculusMode)
 		{
 			GLuint screenTex = 0;
-			if (m_activeGLFilter)
+			if (m_activeGLFilter && (!m_stereoModeEnabled || m_stereoParams.glassType != StereoParams::OCULUS)) //not supported with Oculus right now!
 			{
 				//we apply the GL filter
 				GLuint depthTex = currentFBO->getDepthTexture();
@@ -2017,10 +1943,10 @@ void ccGLWindow::fullRenderingPass(CC_DRAW_CONTEXT& context, RenderingParams& re
 					parameters.zNear = m_viewportParams.zNear;
 					parameters.zoom = m_viewportParams.perspectiveView ? computePerspectiveZoom() : m_viewportParams.zoom; //TODO: doesn't work well with EDL in perspective mode!
 				}
-
 				//apply shader
-				m_activeGLFilter->shade(depthTex, colorTex, parameters); 
-				ccGLUtils::CatchGLError("ccGLWindow::paintGL/glFilter shade");
+				m_activeGLFilter->shade(depthTex, colorTex, parameters);
+				logGLError("ccGLWindow::paintGL/glFilter shade");
+				bindFBO(0); //in case the active filter has used a FBOs!
 
 				//if capture mode is ON: we only want to capture it, not to display it
 				if (!m_captureMode.enabled)
@@ -2037,102 +1963,81 @@ void ccGLWindow::fullRenderingPass(CC_DRAW_CONTEXT& context, RenderingParams& re
 			}
 
 			//we display the FBO texture fullscreen (if any)
-			if (glIsTexture(screenTex))
+			if (glFunc->glIsTexture(screenTex))
 			{
-				setStandardOrthoCenter();
-			
-				glPushAttrib(GL_DEPTH_BUFFER_BIT);
-				glDisable(GL_DEPTH_TEST);
+				setStandardOrthoCorner();
 
+				glFunc->glPushAttrib(GL_DEPTH_BUFFER_BIT);
+				glFunc->glDisable(GL_DEPTH_TEST);
+
+				//select back left or back right buffer
 				//DGM: as we couldn't call it before (because of the FBO) we have to do it now!
-				if (m_stereoModeEnabled && m_stereoParams.glassType == StereoParams::NVIDIA_VISION)
+				GLboolean isStereoEnabled = 0;
+				glFunc->glGetBooleanv(GL_STEREO, &isStereoEnabled);
+				//ccLog::Warning(QString("[fullRenderingPass:%0][FBO] Stereo test: %1").arg(renderingParams.passIndex).arg(isStereoEnabled));
+				if (isStereoEnabled)
 				{
-					//select back left or back right buffer
-					glDrawBuffer(renderingParams.passIndex == 0 ? GL_BACK_LEFT : GL_BACK_RIGHT);
-				}
-				else
-				{
-					glDrawBuffer(GL_BACK);
+					if (m_stereoModeEnabled && m_stereoParams.glassType == StereoParams::NVIDIA_VISION)
+					{
+						glFunc->glDrawBuffer(renderingParams.passIndex == 0 ? GL_BACK_LEFT : GL_BACK_RIGHT);
+					}
+					else
+					{
+						glFunc->glDrawBuffer(GL_BACK);
+					}
 				}
 
-				ccGLUtils::DisplayTexture2D(screenTex, m_glViewport.width(), m_glViewport.height());
+				ccGLUtils::DisplayTexture2DPosition(screenTex, 0, 0, m_glViewport.width(), m_glViewport.height());
 
-				glPopAttrib();
+				//warning: we must set the original FBO texture as default
+				glFunc->glBindTexture(GL_TEXTURE_2D, this->defaultQtFBO());
+
+				glFunc->glPopAttrib();
 
 				//we don't need the depth info anymore!
-				//glClear(GL_DEPTH_BUFFER_BIT);
+				//glFunc->glClear(GL_DEPTH_BUFFER_BIT);
 			}
 		}
 	}
-
+	
 #ifdef CC_OCULUS_SUPPORT
-	if (	m_stereoModeEnabled
-			&&	m_stereoParams.glassType == StereoParams::OCULUS
-			&&	s_oculus.session)
+	if (oculusMode && s_oculus.session && renderingParams.passIndex == 1)
 	{
-		glDisable(GL_FRAMEBUFFER_SRGB);
-
-		if (renderingParams.passIndex == 1)
-		{
-			// Submit frame with one layer we have.
-			ovrLayerHeader* layers = &s_oculus.layer.Header;
-			ovrResult result = ovr_SubmitFrame(s_oculus.session, 0, nullptr, &layers, 1);
-			bool success = (result == ovrSuccess);
-			if (!success)
-			{
-				int temp = 0;
-				//DGM: what can we do?
-			}
-		}
+		ovr_CommitTextureSwapChain(s_oculus.session, s_oculus.textureSwapChain);
+		
+		// Submit frame
+		ovrLayerHeader* layers = &s_oculus.layer.Header;
+		//glFunc->glEnable(GL_FRAMEBUFFER_SRGB);
+		ovrResult result = ovr_SubmitFrame(s_oculus.session, 0, nullptr, &layers, 1);
+		//glFunc->glDisable(GL_FRAMEBUFFER_SRGB);
 	}
 #endif //CC_OCULUS_SUPPORT
 
 	/******************/
 	/*** FOREGROUND ***/
 	/******************/
-	if (renderingParams.drawForeground && !skipRendering)
+	if (renderingParams.drawForeground && !oculusMode)
 	{
-		drawForeground(context, renderingParams);
+		drawForeground(CONTEXT, renderingParams);
 	}
 
-	glFlush();
+	glFunc->glFlush();
 }
-
-#ifdef CC_OCULUS_SUPPORT
-
-static ccGLMatrixd FromOVRMat(const OVR::Matrix4f& ovrMat)
-{
-	ccGLMatrixd ccMat;
-	double* data = ccMat.data();
-	data[0] = ovrMat.M[0][0]; data[4] = ovrMat.M[0][1]; data[ 8] = ovrMat.M[0][2]; data[12] = ovrMat.M[0][3];
-	data[1] = ovrMat.M[1][0]; data[5] = ovrMat.M[1][1];	data[ 9] = ovrMat.M[1][2]; data[13] = ovrMat.M[1][3];
-	data[2] = ovrMat.M[2][0]; data[6] = ovrMat.M[2][1];	data[10] = ovrMat.M[2][2]; data[14] = ovrMat.M[2][3];
-	data[3] = ovrMat.M[3][0]; data[7] = ovrMat.M[3][1];	data[11] = ovrMat.M[3][2]; data[15] = ovrMat.M[3][3];
-
-	return ccMat;
-}
-
-static OVR::Matrix4f ToOVRMat(const ccGLMatrixd& ccMat)
-{
-	const double* M = ccMat.data();
-	return OVR::Matrix4f(	M[0], M[4], M[ 8], M[12],
-							M[1], M[5], M[ 9], M[13],
-							M[2], M[6], M[10], M[14],
-							M[3], M[7], M[11], M[15]);
-}
-#endif
 
 void ccGLWindow::draw3D(CC_DRAW_CONTEXT& CONTEXT, RenderingParams& renderingParams)
 {
-	glPointSize(m_viewportParams.defaultPointSize);
-	glLineWidth(m_viewportParams.defaultLineWidth);
+	ccQOpenGLFunctions* glFunc = functions();
+	assert(glFunc);
 
-	glEnable(GL_DEPTH_TEST);
+	glFunc->glPointSize(m_viewportParams.defaultPointSize);
+	glFunc->glLineWidth(m_viewportParams.defaultLineWidth);
 
-	CONTEXT.flags = CC_DRAW_3D | CC_DRAW_FOREGROUND;
+	glFunc->glEnable(GL_DEPTH_TEST);
+
+	CONTEXT.drawingFlags = CC_DRAW_3D | CC_DRAW_FOREGROUND;
 	if (m_interactionFlags & INTERACT_TRANSFORM_ENTITIES)
 	{
-		CONTEXT.flags |= CC_VIRTUAL_TRANS_ENABLED;
+		CONTEXT.drawingFlags |= CC_VIRTUAL_TRANS_ENABLED;
 	}
 
 	setStandardOrthoCenter();
@@ -2142,7 +2047,7 @@ void ccGLWindow::draw3D(CC_DRAW_CONTEXT& CONTEXT, RenderingParams& renderingPara
 		&&	m_currentLODState.level == 0
 		&&	!m_captureMode.enabled
 		&&	!m_viewportParams.perspectiveView
-		&&	(!renderingParams.useFBO || !m_activeGLFilter) )
+		&&	(!renderingParams.useFBO || !m_activeGLFilter))
 	{
 		drawCross();
 	}
@@ -2152,33 +2057,19 @@ void ccGLWindow::draw3D(CC_DRAW_CONTEXT& CONTEXT, RenderingParams& renderingPara
 	/****************************************/
 	if (m_customLightEnabled || m_sunLightEnabled)
 	{
-		CONTEXT.flags |= CC_LIGHT_ENABLED;
+		CONTEXT.drawingFlags |= CC_LIGHT_ENABLED;
 
 		//we enable absolute sun light (if activated)
 		if (m_sunLightEnabled)
 		{
 			glEnableSunLight();
 		}
-
-		//we enable relative custom light (if activated)
-		if (m_customLightEnabled)
-		{
-			glEnableCustomLight();
-		
-			if (	!m_captureMode.enabled
-				&&	m_currentLODState.level == 0
-				&&	(!m_stereoModeEnabled || !m_stereoParams.isAnaglyph()) )
-			{
-				//we display it as a litle 3D star
-				drawCustomLight();
-			}
-		}
 	}
 
 	//we activate the current shader (if any)
 	if (m_activeShader)
 	{
-		m_activeShader->start();
+		m_activeShader->bind();
 	}
 
 	//color ramp shader for fast dynamic color ramp lookup-up
@@ -2194,9 +2085,12 @@ void ccGLWindow::draw3D(CC_DRAW_CONTEXT& CONTEXT, RenderingParams& renderingPara
 	}
 
 	//LOD
-	if (isLODEnabled() && !s_frameRateTestInProgress)
+	if (	isLODEnabled()
+		&&	!s_frameRateTestInProgress
+		&&	(!m_stereoModeEnabled || m_stereoParams.glassType != StereoParams::OCULUS)
+		)
 	{
-		CONTEXT.flags |= CC_LOD_ACTIVATED;
+		CONTEXT.drawingFlags |= CC_LOD_ACTIVATED;
 
 		//LOD rendering level (for clouds only)
 		if (CONTEXT.decimateCloudOnMove)
@@ -2204,7 +2098,6 @@ void ccGLWindow::draw3D(CC_DRAW_CONTEXT& CONTEXT, RenderingParams& renderingPara
 			//ccLog::Print(QString("[LOD] Rendering level %1").arg(m_currentLODState.level));
 			m_currentLODState.inProgress = true;
 			CONTEXT.currentLODLevel = m_currentLODState.level;
-			CONTEXT.currentLODStartIndex = m_currentLODState.startIndex;
 			CONTEXT.higherLODLevelsAvailable = false;
 			CONTEXT.moreLODPointsAvailable = false;
 		}
@@ -2216,78 +2109,43 @@ void ccGLWindow::draw3D(CC_DRAW_CONTEXT& CONTEXT, RenderingParams& renderingPara
 	//setup camera projection (DGM: AFTER THE LIGHTS)
 	if (m_stereoModeEnabled)
 	{
+		CONTEXT.stereoPassIndex = renderingParams.passIndex;
+
 #ifdef CC_OCULUS_SUPPORT
 
 		if (m_stereoParams.glassType == StereoParams::OCULUS && s_oculus.session)
 		{
-#define FOLLOW_OCULUS_DOC
-#ifdef FOLLOW_OCULUS_DOC
-			// Get view and projection matrices for the Rift camera
-			const CCVector3d& C = m_viewportParams.cameraCenter;
-			OVR::Vector3f originPos(static_cast<float>(C.x),
-									static_cast<float>(C.y),
-									static_cast<float>(C.z) );
+			//we use the standard modelview matrix
+			modelViewMat = getModelViewMatrix();
 
-			OVR::Matrix4f originRot = ToOVRMat(m_viewportParams.viewMat);
-
-			OVR::Vector3f pos = originPos;
-			OVR::Matrix4f rot = originRot;
 			if (s_oculus.hasLastOVRPos)
 			{
-				pos = originPos + originRot.Transform(s_oculus.layer.RenderPose[renderingParams.passIndex].Position);
+				s_oculus.layer.RenderPose[renderingParams.passIndex].Position;
 				OVR::Quatf q(s_oculus.layer.RenderPose[renderingParams.passIndex].Orientation);
-				OVR::Matrix4f sensorRot(q);
-#ifdef _DEBUG
+#ifdef QT_DEBUG
 				float hmdYaw, hmdPitch, hmdRoll;
 				q.GetEulerAngles<OVR::Axis::Axis_Y, OVR::Axis::Axis_X, OVR::Axis::Axis_Z>(&hmdYaw, &hmdPitch, &hmdRoll);
 				hmdYaw = OVR::RadToDegree(hmdYaw);
 				hmdPitch = OVR::RadToDegree(hmdPitch);
 				hmdRoll = OVR::RadToDegree(hmdRoll);
 #endif
-				rot = originRot * sensorRot;
-			}
+				OVR::Matrix4f sensorRot(q);
 
-			OVR::Vector3f finalUp      = rot.Transform(OVR::Vector3f(0, 1, 0));
-			OVR::Vector3f finalForward = rot.Transform(OVR::Vector3f(0, 0, -1));
-			OVR::Matrix4f view         = OVR::Matrix4f::LookAtRH(pos, pos + finalForward, finalUp);
-			modelViewMat = FromOVRMat(view);
-#else
-			//modelview
-			ccGLMatrixd trueViewMat = m_viewportParams.viewMat;
-			CCVector3d cameraCenter = getRealCameraCenter();
-			if (s_oculus.hasLastOVRPos)
-			{
+				ccGLMatrixd sensorMat = FromOVRMat(sensorRot);
 				const ovrVector3f& P = s_oculus.layer.RenderPose[renderingParams.passIndex].Position;
-				cameraCenter += trueViewMat * CCVector3d(P.x, P.y, P.z);
-				
-				m_viewportParams.viewMat = m_viewportParams.viewMat * FromOVRMat(OVR::Matrix4f(s_oculus.layer.RenderPose[renderingParams.passIndex].Orientation));
+				sensorMat.setTranslation(sensorMat.getTranslationAsVec3D() + CCVector3d(P.x, P.y, P.z));
+
+				modelViewMat = sensorMat.inverse() * modelViewMat;
 			}
-			modelViewMat = computeModelViewMatrix( cameraCenter );
-			m_viewportParams.viewMat = trueViewMat;
-#endif //not FOLLOW_OCULUS_DOC
 
-#if 1
-//#ifdef FOLLOW_OCULUS_DOC
-			OVR::Matrix4f proj = ovrMatrix4f_Projection(s_oculus.layer.Fov[renderingParams.passIndex], 0.2f, 1000.0f, ovrProjection_RightHanded | ovrProjection_ClipRangeOpenGL);
-			//proj.Invert();
+			//projection matrix
+			m_viewportParams.zNear = 0.001;
+			m_viewportParams.zFar = 1000.0;
+			OVR::Matrix4f proj = ovrMatrix4f_Projection(s_oculus.layer.Fov[renderingParams.passIndex],
+														static_cast<float>(m_viewportParams.zNear),
+														static_cast<float>(m_viewportParams.zFar),
+														ovrProjection_ClipRangeOpenGL);
 			projectionMat = FromOVRMat(proj);
-#else
-			//projection
-			double eyeOffset = renderingParams.passIndex == 0 ? -1.0 : 1.0;
-			//DGM FIME: we need to set the eye separation factor correctly!
-			//m_stereoParams.eyeSepFactor = 
-			projectionMat = computeProjectionMatrix(	cameraCenter, 
-														m_viewportParams.zNear,
-														m_viewportParams.zFar,
-														true,
-														&eyeOffset );
-
-			//apply the eye shift
-			ccGLMatrixd eyeShiftMatrix; //identity by default
-			const ovrVector3f& E = s_oculus.hmdToEyeViewOffset[renderingParams.passIndex];
-			eyeShiftMatrix.setTranslation(CCVector3d(E.x, E.y, E.z));
-			projectionMat = projectionMat * eyeShiftMatrix;
-#endif //not FOLLOW_OCULUS_DOC
 		}
 		else
 #endif //CC_OCULUS_SUPPORT
@@ -2299,15 +2157,13 @@ void ccGLWindow::draw3D(CC_DRAW_CONTEXT& CONTEXT, RenderingParams& renderingPara
 			double eyeOffset = renderingParams.passIndex == 0 ? -1.0 : 1.0;
 
 			//update the projection matrix
-			double zNear, zFar;
 			projectionMat = computeProjectionMatrix
-			(
+				(
 				getRealCameraCenter(),
-				zNear,
-				zFar,
 				false,
+				0,
 				&eyeOffset
-			); //eyeOffset will be scaled
+				); //eyeOffset will be scaled
 
 			//apply the eye shift
 			ccGLMatrixd eyeShiftMatrix; //identity by default
@@ -2323,13 +2179,28 @@ void ccGLWindow::draw3D(CC_DRAW_CONTEXT& CONTEXT, RenderingParams& renderingPara
 
 	//setup the projection matrix
 	{
-		glMatrixMode(GL_PROJECTION);
-		glLoadMatrixd(projectionMat.data());
+		glFunc->glMatrixMode(GL_PROJECTION);
+		glFunc->glLoadMatrixd(projectionMat.data());
 	}
 	//setup the default view matrix
 	{
-		glMatrixMode(GL_MODELVIEW);
-		glLoadMatrixd(modelViewMat.data());
+		glFunc->glMatrixMode(GL_MODELVIEW);
+		glFunc->glLoadMatrixd(modelViewMat.data());
+	}
+
+	//we enable relative custom light (if activated)
+	if (m_customLightEnabled)
+	{
+		//DGM: warning, must be enabled/displayed AFTER the 3D MV and MP matrices have been set!)
+		glEnableCustomLight();
+
+		if (!m_captureMode.enabled
+			&&	m_currentLODState.level == 0
+			&& (!m_stereoModeEnabled || !m_stereoParams.isAnaglyph()))
+		{
+			//we display it as a litle 3D star
+			drawCustomLight();
+		}
 	}
 
 	//we draw 3D entities
@@ -2355,25 +2226,20 @@ void ccGLWindow::draw3D(CC_DRAW_CONTEXT& CONTEXT, RenderingParams& renderingPara
 	}
 
 	//update LOD information
-	renderingParams.nextLODState = LODState();
-	if (m_currentLODState.inProgress)
+	if (renderingParams.passIndex == 0) //only the first pass is meaningful
+										//(the second one is just a duplicate of the first)
 	{
-		if (CONTEXT.moreLODPointsAvailable || CONTEXT.higherLODLevelsAvailable)
+		renderingParams.nextLODState = LODState();
+		if (m_currentLODState.inProgress)
 		{
-			renderingParams.nextLODState = m_currentLODState;
-			
-			//we skip the lowest levels (they should have already been drawn anyway)
-			if (m_currentLODState.level == 0)
+			if (CONTEXT.moreLODPointsAvailable || CONTEXT.higherLODLevelsAvailable)
 			{
-				renderingParams.nextLODState.level = CONTEXT.minLODLevel;
-				renderingParams.nextLODState.startIndex = 0;
-			}
-			else
-			{
+				renderingParams.nextLODState = m_currentLODState;
+
 				if (CONTEXT.moreLODPointsAvailable)
 				{
 					//either we increase the start index
-					renderingParams.nextLODState.startIndex += MAX_POINT_COUNT_PER_LOD_RENDER_PASS;
+					//renderingParams.nextLODState.startIndex += MAX_POINT_COUNT_PER_LOD_RENDER_PASS;
 				}
 				else
 				{
@@ -2382,10 +2248,10 @@ void ccGLWindow::draw3D(CC_DRAW_CONTEXT& CONTEXT, RenderingParams& renderingPara
 					renderingParams.nextLODState.startIndex = 0;
 				}
 			}
-		}
-		else
-		{
-			//no more geometry to display
+			else
+			{
+				//no more geometry to display
+			}
 		}
 	}
 
@@ -2396,7 +2262,7 @@ void ccGLWindow::draw3D(CC_DRAW_CONTEXT& CONTEXT, RenderingParams& renderingPara
 	//we disable shader (if any)
 	if (m_activeShader)
 	{
-		m_activeShader->stop();
+		m_activeShader->release();
 	}
 
 	//we disable lights
@@ -2409,21 +2275,24 @@ void ccGLWindow::draw3D(CC_DRAW_CONTEXT& CONTEXT, RenderingParams& renderingPara
 		glDisableSunLight();
 	}
 
-	ccGLUtils::CatchGLError("ccGLWindow::draw3D");
+	logGLError("ccGLWindow::draw3D");
 }
 
 void ccGLWindow::drawForeground(CC_DRAW_CONTEXT& CONTEXT, RenderingParams& renderingParams)
 {
+	ccQOpenGLFunctions* glFunc = functions();
+	assert(glFunc);
+
 	/****************************************/
 	/****  PASS: 2D/FOREGROUND/NO LIGHT  ****/
 	/****************************************/
 	setStandardOrthoCenter();
-	glDisable(GL_DEPTH_TEST);
+	glFunc->glDisable(GL_DEPTH_TEST);
 
-	CONTEXT.flags = CC_DRAW_2D | CC_DRAW_FOREGROUND;
+	CONTEXT.drawingFlags = CC_DRAW_2D | CC_DRAW_FOREGROUND;
 	if (m_interactionFlags & INTERACT_TRANSFORM_ENTITIES)
 	{
-		CONTEXT.flags |= CC_VIRTUAL_TRANS_ENABLED;
+		CONTEXT.drawingFlags |= CC_VIRTUAL_TRANS_ENABLED;
 	}
 
 	//we draw 2D entities
@@ -2464,28 +2333,28 @@ void ccGLWindow::drawForeground(CC_DRAW_CONTEXT& CONTEXT, RenderingParams& rende
 			showGLFilterRibbon &= !exclusiveFullScreen(); //we hide it in fullscreen mode!
 			if (showGLFilterRibbon)
 			{
-				float w = m_glViewport.width()/2.0f;
-				float h = m_glViewport.height()/2.0f;
+				float w = m_glViewport.width() / 2.0f;
+				float h = m_glViewport.height() / 2.0f;
 				int borderHeight = getGlFilterBannerHeight();
 
-				glPushAttrib(GL_COLOR_BUFFER_BIT);
-				glEnable(GL_BLEND);
+				glFunc->glPushAttrib(GL_COLOR_BUFFER_BIT);
+				glFunc->glEnable(GL_BLEND);
 
-				glColor4f(1.0f,1.0f,0.0f,0.6f);
-				glBegin(GL_QUADS);
-				glVertex2f( w,h);
-				glVertex2f(-w,h);
-				glVertex2f(-w,h-static_cast<float>(borderHeight));
-				glVertex2f( w,h-static_cast<float>(borderHeight));
-				glEnd();
+				glFunc->glColor4f(1.0f, 1.0f, 0.0f, 0.6f);
+				glFunc->glBegin(GL_QUADS);
+				glFunc->glVertex2f(w, h);
+				glFunc->glVertex2f(-w, h);
+				glFunc->glVertex2f(-w, h - static_cast<float>(borderHeight));
+				glFunc->glVertex2f(w, h - static_cast<float>(borderHeight));
+				glFunc->glEnd();
 
-				glPopAttrib();
+				glFunc->glPopAttrib();
 
-				glColor3ubv_safe(ccColor::black.rgba);
+				glColor3ubv_safe<ccQOpenGLFunctions>(glFunc, ccColor::black.rgba);
 				renderText(	10,
-							borderHeight-CC_GL_FILTER_BANNER_MARGIN-CC_GL_FILTER_BANNER_MARGIN/2,
+							borderHeight - CC_GL_FILTER_BANNER_MARGIN - CC_GL_FILTER_BANNER_MARGIN / 2,
 							QString("[GL filter] ") + m_activeGLFilter->getDescription()
-							/*,m_font*/ ); //we ignore the custom font size
+							/*,m_font*/); //we ignore the custom font size
 
 				yStart += borderHeight;
 			}
@@ -2493,9 +2362,9 @@ void ccGLWindow::drawForeground(CC_DRAW_CONTEXT& CONTEXT, RenderingParams& rende
 			//current messages (if valid)
 			if (!m_messagesToDisplay.empty())
 			{
-				glColor3ubv_safe(textCol.rgb);
+				glColor3ubv_safe<ccQOpenGLFunctions>(glFunc, textCol.rgb);
 
-				int ll_currentHeight = m_glViewport.height()-10; //lower left
+				int ll_currentHeight = m_glViewport.height() - 10; //lower left
 				int uc_currentHeight = 10; //upper center
 
 				for (std::list<MessageToDisplay>::iterator it = m_messagesToDisplay.begin(); it != m_messagesToDisplay.end(); ++it)
@@ -2503,35 +2372,35 @@ void ccGLWindow::drawForeground(CC_DRAW_CONTEXT& CONTEXT, RenderingParams& rende
 					switch (it->position)
 					{
 					case LOWER_LEFT_MESSAGE:
-						{
-							renderText(10, ll_currentHeight, it->message, m_font);
-							int messageHeight = QFontMetrics(m_font).height();
-							ll_currentHeight -= (messageHeight*5)/4; //add a 25% margin
-						}
-						break;
+					{
+						renderText(10, ll_currentHeight, it->message, m_font);
+						int messageHeight = QFontMetrics(m_font).height();
+						ll_currentHeight -= (messageHeight * 5) / 4; //add a 25% margin
+					}
+					break;
 					case UPPER_CENTER_MESSAGE:
+					{
+						QRect rect = QFontMetrics(m_font).boundingRect(it->message);
+						//take the GL filter banner into account!
+						int x = (m_glViewport.width() - rect.width()) / 2;
+						int y = uc_currentHeight + rect.height();
+						if (showGLFilterRibbon)
 						{
-							QRect rect = QFontMetrics(m_font).boundingRect(it->message);
-							//take the GL filter banner into account!
-							int x = (m_glViewport.width() - rect.width())/2;
-							int y = uc_currentHeight+rect.height();
-							if (showGLFilterRibbon)
-							{
-								y += getGlFilterBannerHeight();
-							}
-							renderText(x, y, it->message,m_font);
-							uc_currentHeight += (rect.height()*5)/4; //add a 25% margin
+							y += getGlFilterBannerHeight();
 						}
-						break;
+						renderText(x, y, it->message, m_font);
+						uc_currentHeight += (rect.height() * 5) / 4; //add a 25% margin
+					}
+					break;
 					case SCREEN_CENTER_MESSAGE:
-						{
-							QFont newFont(m_font); //no need to take zoom into account!
-							newFont.setPointSize(12);
-							QRect rect = QFontMetrics(newFont).boundingRect(it->message);
-							//only one message supported in the screen center (for the moment ;)
-							renderText((m_glViewport.width() - rect.width())/2, (m_glViewport.height()-rect.height())/2, it->message,newFont);
-						}
-						break;
+					{
+						QFont newFont(m_font); //no need to take zoom into account!
+						newFont.setPointSize(12);
+						QRect rect = QFontMetrics(newFont).boundingRect(it->message);
+						//only one message supported in the screen center (for the moment ;)
+						renderText((m_glViewport.width() - rect.width()) / 2, (m_glViewport.height() - rect.height()) / 2, it->message, newFont);
+					}
+					break;
 					}
 				}
 			}
@@ -2553,38 +2422,38 @@ void ccGLWindow::drawForeground(CC_DRAW_CONTEXT& CONTEXT, RenderingParams& rende
 				int x = margin;
 				yStart += margin;
 
-				static const float radius = static_cast<float>(lodIconSize/2) - lodPartsRadius;
-				static const float alpha = static_cast<float>((2*M_PI)/lodIconParts);
-				int cx = x + lodIconSize/2 - m_glViewport.width()/2;
-				int cy = m_glViewport.height()/2 - (yStart+lodIconSize/2);
+				static const float radius = static_cast<float>(lodIconSize / 2) - lodPartsRadius;
+				static const float alpha = static_cast<float>((2 * M_PI) / lodIconParts);
+				int cx = x + lodIconSize / 2 - m_glViewport.width() / 2;
+				int cy = m_glViewport.height() / 2 - (yStart + lodIconSize / 2);
 
-				glPushAttrib(GL_POINT_BIT | GL_DEPTH_BUFFER_BIT);
-				glPointSize(lodPartsRadius);
-				glEnable(GL_POINT_SMOOTH);
-				glDisable(GL_DEPTH_TEST);
+				glFunc->glPushAttrib(GL_POINT_BIT | GL_DEPTH_BUFFER_BIT);
+				glFunc->glPointSize(lodPartsRadius);
+				glFunc->glEnable(GL_POINT_SMOOTH);
+				glFunc->glDisable(GL_DEPTH_TEST);
 
 				//draw spinning circles
-				glBegin(GL_POINTS);
-				for (unsigned i=0; i<lodIconParts; ++i)
+				glFunc->glBegin(GL_POINTS);
+				for (unsigned i = 0; i < lodIconParts; ++i)
 				{
-					float intensity = static_cast<float>((i + renderingParams.nextLODState.progressIndicator) % lodIconParts) / (lodIconParts-1);
+					float intensity = static_cast<float>((i + renderingParams.nextLODState.progressIndicator) % lodIconParts) / (lodIconParts - 1);
 					intensity /= ccColor::MAX;
-					float col[3] = { textCol.rgb[0] * intensity,
-									 textCol.rgb[1] * intensity,
-									 textCol.rgb[2] * intensity };
-					glColor3fv(col);
-					glVertex3f(cx+radius*cos(i*alpha), static_cast<float>(cy)+radius*sin(i*alpha), 0);
+					float col[3] = {	textCol.rgb[0] * intensity,
+										textCol.rgb[1] * intensity,
+										textCol.rgb[2] * intensity };
+					glFunc->glColor3fv(col);
+					glFunc->glVertex3f(cx + radius*cos(i*alpha), static_cast<float>(cy)+radius*sin(i*alpha), 0);
 				}
-				glEnd();
+				glFunc->glEnd();
 
-				glPopAttrib();
+				glFunc->glPopAttrib();
 
 				yStart += lodIconSize + margin;
 			}
 		}
 	}
 
-	ccGLUtils::CatchGLError("ccGLWindow::drawForeground");
+	logGLError("ccGLWindow::drawForeground");
 }
 
 void ccGLWindow::stopLODCycle()
@@ -2624,9 +2493,9 @@ void ccGLWindow::dropEvent(QDropEvent *event)
 	if (mimeData && mimeData->hasFormat("text/uri-list"))
 	{
 		QByteArray data = mimeData->data("text/uri-list");
-		QStringList fileNames = QUrl::fromPercentEncoding(data).split(QRegExp("\\n+"),QString::SkipEmptyParts);
+		QStringList fileNames = QUrl::fromPercentEncoding(data).split(QRegExp("\\n+"), QString::SkipEmptyParts);
 
-		for (int i=0; i<fileNames.size(); ++i)
+		for (int i = 0; i < fileNames.size(); ++i)
 		{
 			fileNames[i] = fileNames[i].trimmed();
 #if defined(CC_WINDOWS)
@@ -2635,7 +2504,7 @@ void ccGLWindow::dropEvent(QDropEvent *event)
 			fileNames[i].remove("file://");
 #endif
 			//fileNames[i] = QUrl(fileNames[i].trimmed()).toLocalFile(); //toLocalFile removes the end of filenames sometimes!
-#ifdef _DEBUG
+#ifdef QT_DEBUG
 			ccLog::Print(QString("File dropped: %1").arg(fileNames[i]));
 #endif
 		}
@@ -2682,26 +2551,6 @@ bool ccGLWindow::getPerspectiveState(bool& objectCentered) const
 	return m_viewportParams.perspectiveView;
 }
 
-void ccGLWindow::closeEvent(QCloseEvent *event)
-{
-	if (m_unclosable)
-	{
-		event->ignore();
-	}
-	else
-	{
-#ifdef THREADED_GL_WIDGET
-		if (m_renderingThread)
-		{
-			m_renderingThread->stop();
-			QGLWidget::closeEvent(event);
-		}
-#else
-		event->accept();
-#endif
-	}
-}
-
 void ccGLWindow::setUnclosable(bool state)
 {
 	m_unclosable = state;
@@ -2722,7 +2571,7 @@ void ccGLWindow::addToOwnDB(ccHObject* obj, bool noDependency/*=true*/)
 
 	if (m_winDBRoot)
 	{
-		m_winDBRoot->addChild(obj,noDependency ? ccHObject::DP_NONE : ccHObject::DP_PARENT_OF_OTHER);
+		m_winDBRoot->addChild(obj, noDependency ? ccHObject::DP_NONE : ccHObject::DP_PARENT_OF_OTHER);
 		obj->setDisplay(this);
 	}
 	else
@@ -2772,7 +2621,7 @@ void ccGLWindow::updateConstellationCenterAndZoom(const ccBBox* aBox/*=0*/)
 
 	if (bbDiag < ZERO_TOLERANCE)
 	{
-		ccLog::Warning("[ccGLWindow] Entity/DB has a null bounding-box! Can't zoom in..."); 
+		ccLog::Warning("[ccGLWindow] Entity/DB has a null bounding-box! Can't zoom in...");
 		return;
 	}
 
@@ -2785,7 +2634,7 @@ void ccGLWindow::updateConstellationCenterAndZoom(const ccBBox* aBox/*=0*/)
 	//we set the pivot point on the box center
 	CCVector3d P = CCVector3d::fromArray(zoomedBox.getCenter().u);
 	setPivotPoint(P);
-	
+
 	CCVector3d cameraPos = P;
 	if (m_viewportParams.perspectiveView) //camera is on the pivot in ortho mode
 	{
@@ -2794,7 +2643,7 @@ void ccGLWindow::updateConstellationCenterAndZoom(const ccBBox* aBox/*=0*/)
 		assert(currentFov_deg > ZERO_TOLERANCE);
 		double d = bbDiag / tan(currentFov_deg * CC_DEG_TO_RAD);
 
-		CCVector3d cameraDir(0,0,-1);
+		CCVector3d cameraDir(0, 0, -1);
 		if (!m_viewportParams.objectCenteredView)
 			cameraDir = getCurrentViewDir();
 
@@ -2947,30 +2796,33 @@ ccHObject* ccGLWindow::getSceneDB()
 
 void ccGLWindow::drawCross()
 {
+	ccQOpenGLFunctions* glFunc = functions();
+	assert(glFunc);
+	
 	//cross OpenGL drawing
-	ccGL::Color3v(ccColor::lightGrey.rgba);
-	glBegin(GL_LINES);
-	glVertex3f(0.0,-CC_DISPLAYED_CENTER_CROSS_LENGTH,0.0);
-	glVertex3f(0.0,CC_DISPLAYED_CENTER_CROSS_LENGTH,0.0);
-	glVertex3f(-CC_DISPLAYED_CENTER_CROSS_LENGTH,0.0,0.0);
-	glVertex3f(CC_DISPLAYED_CENTER_CROSS_LENGTH,0.0,0.0);
-	glEnd();
+	glColor3ubv_safe<ccQOpenGLFunctions>(glFunc, ccColor::lightGrey.rgba);
+	glFunc->glBegin(GL_LINES);
+	glFunc->glVertex3f(0.0, -CC_DISPLAYED_CENTER_CROSS_LENGTH, 0.0);
+	glFunc->glVertex3f(0.0, CC_DISPLAYED_CENTER_CROSS_LENGTH, 0.0);
+	glFunc->glVertex3f(-CC_DISPLAYED_CENTER_CROSS_LENGTH, 0.0, 0.0);
+	glFunc->glVertex3f(CC_DISPLAYED_CENTER_CROSS_LENGTH, 0.0, 0.0);
+	glFunc->glEnd();
 }
 
 float RoundScale(float equivalentWidth)
 {
 	//we compute the scale granularity (to avoid width values with a lot of decimals)
-	int k = int(floor(log(static_cast<float>(equivalentWidth))/log(10.0f)));
-	float granularity = pow(10.0f,static_cast<float>(k))/2;
+	int k = int(floor(log(static_cast<float>(equivalentWidth)) / log(10.0f)));
+	float granularity = pow(10.0f, static_cast<float>(k)) / 2;
 	//we choose the value closest to equivalentWidth with the right granularity
-	return floor(std::max(equivalentWidth/granularity,1.0f))*granularity;
+	return floor(std::max(equivalentWidth / granularity, 1.0f))*granularity;
 }
 
 void ccGLWindow::drawScale(const ccColor::Rgbub& color)
 {
 	assert(!m_viewportParams.perspectiveView); //a scale is only valid in ortho. mode!
 
-	float scaleMaxW = static_cast<float>(m_glViewport.width()) / 4; //25% of screen width
+	float scaleMaxW = m_glViewport.width() / 4.0f; //25% of screen width
 	if (m_captureMode.enabled)
 	{
 		//DGM: we have to fall back to the case 'render zoom = 1' (otherwise we might not get the exact same aspect)
@@ -2999,76 +2851,82 @@ void ccGLWindow::drawScale(const ccColor::Rgbub& color)
 	}
 	float trihedronLength = CC_DISPLAYED_TRIHEDRON_AXES_LENGTH * m_captureMode.zoomFactor;
 	float dW = 2.0f * trihedronLength + 20.0f;
-	float dH = std::max<float>(fm.height() * 1.25f,trihedronLength + 5.0f);
+	float dH = std::max<float>(fm.height() * 1.25f, trihedronLength + 5.0f);
 	float w = m_glViewport.width() / 2.0f - dW;
 	float h = m_glViewport.height() / 2.0f - dH;
 	float tick = 3 * m_captureMode.zoomFactor;
 
+	ccQOpenGLFunctions* glFunc = functions();
+	assert(glFunc);
+
 	//scale OpenGL drawing
-	glColor3ubv(color.rgb);
-	glBegin(GL_LINES);
-	glVertex3f(w-scaleW_pix,-h,0.0);
-	glVertex3f(w,-h,0.0);
-	glVertex3f(w-scaleW_pix,-h-tick,0.0);
-	glVertex3f(w-scaleW_pix,-h+tick,0.0);
-	glVertex3f(w,-h+tick,0.0);
-	glVertex3f(w,-h-tick,0.0);
-	glEnd();
+	glColor3ubv_safe<ccQOpenGLFunctions>(glFunc, color.rgb);
+	glFunc->glBegin(GL_LINES);
+	glFunc->glVertex3f(w - scaleW_pix, -h, 0.0);
+	glFunc->glVertex3f(w, -h, 0.0);
+	glFunc->glVertex3f(w - scaleW_pix, -h - tick, 0.0);
+	glFunc->glVertex3f(w - scaleW_pix, -h + tick, 0.0);
+	glFunc->glVertex3f(w, -h + tick, 0.0);
+	glFunc->glVertex3f(w, -h - tick, 0.0);
+	glFunc->glEnd();
 
 	QString text = QString::number(equivalentWidth);
-	glColor3ubv_safe(color.rgb);
-	renderText(m_glViewport.width()-static_cast<int>(scaleW_pix/2+dW)-fm.width(text)/2, m_glViewport.height()-static_cast<int>(dH/2)+fm.height()/3, text, font);
+	glColor3ubv_safe<ccQOpenGLFunctions>(glFunc, color.rgb);
+	renderText(m_glViewport.width() - static_cast<int>(scaleW_pix / 2 + dW) - fm.width(text) / 2, m_glViewport.height() - static_cast<int>(dH / 2) + fm.height() / 3, text, font);
 }
 
 void ccGLWindow::drawTrihedron()
 {
+	ccQOpenGLFunctions* glFunc = functions();
+	assert(glFunc);
+
 	float trihedronLength = CC_DISPLAYED_TRIHEDRON_AXES_LENGTH * m_captureMode.zoomFactor;
 
-	float w = m_glViewport.width()/2.0f - trihedronLength - 10.0f;
-	float h = m_glViewport.height()/2.0f - trihedronLength - 5.0f;
+	float w = m_glViewport.width() / 2.0f - trihedronLength - 10.0f;
+	float h = m_glViewport.height() / 2.0f - trihedronLength - 5.0f;
 
-	glMatrixMode(GL_MODELVIEW);
-	glPushMatrix();
-	glTranslatef(w, -h, 0);
-	glMultMatrixd(m_viewportParams.viewMat.data());
+	glFunc->glMatrixMode(GL_MODELVIEW);
+	glFunc->glPushMatrix();
+	glFunc->glTranslatef(w, -h, 0);
+	glFunc->glMultMatrixd(m_viewportParams.viewMat.data());
 
 	//on first call, compile the GL list once and for all
 	if (m_trihedronGLList == GL_INVALID_LIST_ID)
 	{
-		m_trihedronGLList = glGenLists(1);
-		glNewList(m_trihedronGLList, GL_COMPILE);
+		m_trihedronGLList = glFunc->glGenLists(1);
+		glFunc->glNewList(m_trihedronGLList, GL_COMPILE);
 
-		glPushAttrib(GL_LINE_BIT | GL_DEPTH_BUFFER_BIT);
-		glEnable(GL_LINE_SMOOTH);
-		glLineWidth(2.0f);
-		glClear(GL_DEPTH_BUFFER_BIT); //DGM: the trihedron is displayed in the foreground but still in 3D!
-		glEnable(GL_DEPTH_TEST);
+		glFunc->glPushAttrib(GL_LINE_BIT | GL_DEPTH_BUFFER_BIT);
+		glFunc->glEnable(GL_LINE_SMOOTH);
+		glFunc->glLineWidth(2.0f);
+		glFunc->glClear(GL_DEPTH_BUFFER_BIT); //DGM: the trihedron is displayed in the foreground but still in 3D!
+		glFunc->glEnable(GL_DEPTH_TEST);
 
 		//trihedron OpenGL drawing
-		glBegin(GL_LINES);
-		glColor3f(1.0f,0.0f,0.0f);
-		glVertex3f(0.0f,0.0f,0.0f);
-		glVertex3f(CC_DISPLAYED_TRIHEDRON_AXES_LENGTH,0.0f,0.0f);
-		glColor3f(0.0f,1.0f,0.0f);
-		glVertex3f(0.0f,0.0f,0.0f);
-		glVertex3f(0.0f,CC_DISPLAYED_TRIHEDRON_AXES_LENGTH,0.0f);
-		glColor3f(0.0f,0.7f,1.0f);
-		glVertex3f(0.0f,0.0f,0.0f);
-		glVertex3f(0.0f,0.0f,CC_DISPLAYED_TRIHEDRON_AXES_LENGTH);
-		glEnd();
+		glFunc->glBegin(GL_LINES);
+		glFunc->glColor3f(1.0f, 0.0f, 0.0f);
+		glFunc->glVertex3f(0.0f, 0.0f, 0.0f);
+		glFunc->glVertex3f(CC_DISPLAYED_TRIHEDRON_AXES_LENGTH, 0.0f, 0.0f);
+		glFunc->glColor3f(0.0f, 1.0f, 0.0f);
+		glFunc->glVertex3f(0.0f, 0.0f, 0.0f);
+		glFunc->glVertex3f(0.0f, CC_DISPLAYED_TRIHEDRON_AXES_LENGTH, 0.0f);
+		glFunc->glColor3f(0.0f, 0.7f, 1.0f);
+		glFunc->glVertex3f(0.0f, 0.0f, 0.0f);
+		glFunc->glVertex3f(0.0f, 0.0f, CC_DISPLAYED_TRIHEDRON_AXES_LENGTH);
+		glFunc->glEnd();
 
-		glPopAttrib(); //GL_LINE_BIT | GL_DEPTH_BUFFER_BIT
+		glFunc->glPopAttrib(); //GL_LINE_BIT | GL_DEPTH_BUFFER_BIT
 
-		glEndList();
+		glFunc->glEndList();
 	}
 	else if (m_captureMode.enabled)
 	{
-		glScalef(m_captureMode.zoomFactor,m_captureMode.zoomFactor,m_captureMode.zoomFactor);
+		glFunc->glScalef(m_captureMode.zoomFactor, m_captureMode.zoomFactor, m_captureMode.zoomFactor);
 	}
 
-	glCallList(m_trihedronGLList);
+	glFunc->glCallList(m_trihedronGLList);
 
-	glPopMatrix();
+	glFunc->glPopMatrix();
 }
 
 CCVector3d ccGLWindow::getRealCameraCenter() const
@@ -3086,7 +2944,7 @@ CCVector3d ccGLWindow::getRealCameraCenter() const
 
 	return CCVector3d(	m_viewportParams.cameraCenter.x,
 						m_viewportParams.cameraCenter.y,
-						box.isValid() ? box.getCenter().z : 0 );
+						box.isValid() ? box.getCenter().z : 0);
 }
 
 void ccGLWindow::getVisibleObjectsBB(ccBBox& box) const
@@ -3115,11 +2973,10 @@ void ccGLWindow::invalidateViewport()
 	m_updateFBO = true;
 }
 
-
-ccGLMatrixd ccGLWindow::computeProjectionMatrix(const CCVector3d& cameraCenter, double& zNear, double& zFar, bool withGLfeatures, double* eyeOffset/*=0*/) const
+ccGLMatrixd ccGLWindow::computeProjectionMatrix(const CCVector3d& cameraCenter, bool withGLfeatures, ProjectionMetrics* metrics/*=0*/, double* eyeOffset/*=0*/) const
 {
 	double bbHalfDiag = 1.0;
-	CCVector3d bbCenter(0,0,0);
+	CCVector3d bbCenter(0, 0, 0);
 
 	//compute center of visible objects constellation
 	if (m_globalDBRoot || m_winDBRoot)
@@ -3136,36 +2993,42 @@ ccGLMatrixd ccGLWindow::computeProjectionMatrix(const CCVector3d& cameraCenter, 
 		}
 	}
 
-	//virtual pivot point (i.e. to handle viewer-based mode smoothly)
-	CCVector3d pivotPoint = (m_viewportParams.objectCenteredView ? m_viewportParams.pivotPoint : bbCenter);
+	if (metrics)
+	{
+		metrics->bbHalfDiag = bbHalfDiag;
+		metrics->cameraToBBCenterDist = (cameraCenter - bbCenter).normd();
+	}
 
-	//distance between camera and pivot point
-	//warning: it's important to get the 'real' center (i.e. with z=bbCenter.z in ortho. view)
+	//virtual pivot point (i.e. to handle viewer-based mode smoothly)
+	CCVector3d pivotPoint = (m_viewportParams.objectCenteredView ? m_viewportParams.pivotPoint : cameraCenter);
+
+	//distance between the camera center and the pivot point
+	//warning: in orthographic mode it's important to get the 'real' camera center
+	//(i.e. with z == bbCenter(z) and not z == anything)
 	//otherwise we (sometimes largely) overestimate the distance between the camera center
 	//and the displayed objects if the camera has been shifted in the Z direction (e.g. after
 	//switching from perspective to ortho. view).
 	//While the user won't see the difference this has a great influence on GL filters
-	//(as normalized depth map values depends on it)
+	//(as normalized depth map values depend on it)
 	double CP = (cameraCenter - pivotPoint).norm();
-		
-	//distance between pivot point and DB farthest point
+
+	//distance between the pivot point and DB farthest point
 	double MP = (bbCenter - pivotPoint).norm() + bbHalfDiag;
 
-	//pivot symbol should always be (potentially) visible in object-based mode
-	if (withGLfeatures && m_pivotSymbolShown && m_viewportParams.objectCenteredView && m_pivotVisibility != PIVOT_HIDE)
-	//if (m_viewportParams.objectCenteredView)
+	//pivot symbol should always be visible in object-based mode (if enabled)
+	if (m_pivotSymbolShown && m_pivotVisibility != PIVOT_HIDE && withGLfeatures && m_viewportParams.objectCenteredView)
 	{
 		double pivotActualRadius = CC_DISPLAYED_PIVOT_RADIUS_PERCENT * std::min(m_glViewport.width(), m_glViewport.height()) / 2;
 		double pivotSymbolScale = pivotActualRadius * computeActualPixelSize();
 		MP = std::max<double>(MP, pivotSymbolScale);
 	}
 	MP *= 1.01; //for round-off issues
-	
+
 	if (withGLfeatures && m_customLightEnabled)
 	{
 		//distance from custom light to pivot point
-		double d = (pivotPoint - CCVector3d::fromArray(m_customLightPos)).norm();
-		MP = std::max<double>(MP, d);
+		double distToCustomLight = (pivotPoint - CCVector3d::fromArray(m_customLightPos)).norm();
+		MP = std::max<double>(MP, distToCustomLight);
 	}
 
 	if (m_viewportParams.perspectiveView)
@@ -3174,20 +3037,27 @@ ccGLMatrixd ccGLWindow::computeProjectionMatrix(const CCVector3d& cameraCenter, 
 		//DGM: the 'zNearCoef' must not be too small, otherwise the loss in accuracy
 		//for the detph buffer is too high and the display is jeopardized, especially
 		//for entities with big coordinates)
-		zNear = MP * m_viewportParams.zNearCoef;
+		//double zNear = MP * m_viewportParams.zNearCoef;
 		//DGM: what was the purpose of this?!
 		//if (m_viewportParams.objectCenteredView)
-		//	zNear = std::max<double>(CP-MP,zNear);
-		zFar = std::max(CP+MP, 1.0);
+		//	zNear = std::max<double>(CP-MP, zNear);
+		double zFar = std::max(CP + MP, 1.0);
+		double zNear = zFar * m_viewportParams.zNearCoef;
+
+		if (metrics)
+		{
+			metrics->zNear = zNear;
+			metrics->zFar = zFar;
+		}
 
 		//compute the aspect ratio
 		double ar = static_cast<double>(m_glViewport.width()) / m_glViewport.height();
 
 		float currentFov_deg = getFov();
-		
+
 		//DGM: take now 'frustumAsymmetry' into account (for stereo rendering)
 		//return ccGLUtils::Perspective(currentFov_deg,ar,zNear,zFar);
-		double yMax = zNear * tanf(currentFov_deg/2 * CC_DEG_TO_RAD);
+		double yMax = zNear * tanf(currentFov_deg / 2 * CC_DEG_TO_RAD);
 		double xMax = yMax * ar;
 
 		double frustumAsymmetry = 0;
@@ -3195,7 +3065,7 @@ ccGLMatrixd ccGLWindow::computeProjectionMatrix(const CCVector3d& cameraCenter, 
 		{
 			//see 'NVIDIA 3D VISION PRO AND STEREOSCOPIC 3D' White paper (Oct 2010, p. 12)
 			//on input 'eyeOffset' should be -1 or +1
-			frustumAsymmetry = *eyeOffset * (2*xMax) * (m_stereoParams.eyeSepFactor / 100.0);
+			frustumAsymmetry = *eyeOffset * (2 * xMax) * (m_stereoParams.eyeSepFactor / 100.0);
 
 			double convergence = m_stereoParams.focalDist;
 			if (m_stereoParams.autoFocal)
@@ -3205,7 +3075,7 @@ ccGLMatrixd ccGLWindow::computeProjectionMatrix(const CCVector3d& cameraCenter, 
 			*eyeOffset = frustumAsymmetry * convergence / zNear;
 		}
 
-		return ccGL::Frustum(-xMax-frustumAsymmetry, xMax-frustumAsymmetry, -yMax, yMax, zNear, zFar);
+		return ccGL::Frustum(-xMax - frustumAsymmetry, xMax - frustumAsymmetry, -yMax, yMax, zNear, zFar);
 	}
 	else
 	{
@@ -3213,26 +3083,41 @@ ccGLMatrixd ccGLWindow::computeProjectionMatrix(const CCVector3d& cameraCenter, 
 		double maxDist = CP + MP;
 
 		double maxDist_pix = maxDist / m_viewportParams.pixelSize * m_viewportParams.zoom;
-		maxDist_pix = std::max<double>(maxDist_pix,1.0);
+		maxDist_pix = std::max<double>(maxDist_pix, 1.0);
 
 		double halfW = m_glViewport.width() / 2.0;
-		double halfH = m_glViewport.height() /2.0 * m_viewportParams.orthoAspectRatio;
+		double halfH = m_glViewport.height() / 2.0 * m_viewportParams.orthoAspectRatio;
 
 		//save actual zNear and zFar parameters
-		zNear = -maxDist_pix;
-		zFar = maxDist_pix;
+		double zNear = -maxDist_pix;
+		double zFar = maxDist_pix;
 
-		return ccGL::Ortho(halfW,halfH,maxDist_pix);
+		if (metrics)
+		{
+			metrics->zNear = zNear;
+			metrics->zFar = zFar;
+		}
+
+		return ccGL::Ortho(halfW, halfH, maxDist_pix);
 	}
 }
 
 void ccGLWindow::updateProjectionMatrix()
 {
-	m_projMatd = computeProjectionMatrix(	getRealCameraCenter(), 
-											m_viewportParams.zNear,
-											m_viewportParams.zFar,
-											true,
-											0 ); //no stereo vision by default!
+	ProjectionMetrics metrics;
+
+	m_projMatd = computeProjectionMatrix
+	(
+		getRealCameraCenter(),
+		true,
+		&metrics,
+		0
+	); //no stereo vision by default!
+
+	m_viewportParams.zNear = metrics.zNear;
+	m_viewportParams.zFar = metrics.zFar;
+	m_cameraToBBCenterDist = metrics.cameraToBBCenterDist;
+	m_bbHalfDiag = metrics.bbHalfDiag;
 
 	m_validProjectionMatrix = true;
 }
@@ -3252,7 +3137,7 @@ ccGLMatrixd ccGLWindow::computeModelViewMatrix(const CCVector3d& cameraCenter) c
 	if (m_viewportParams.objectCenteredView)
 	{
 		//place origin on pivot point
-		viewMatd.setTranslation(viewMatd.getTranslationAsVec3D() - m_viewportParams.pivotPoint);
+		viewMatd.setTranslation(/*viewMatd.getTranslationAsVec3D()*/ - m_viewportParams.pivotPoint);
 
 		//rotation (viewMat is simply a rotation matrix around the pivot here!)
 		viewMatd = m_viewportParams.viewMat * viewMatd;
@@ -3264,7 +3149,7 @@ ccGLMatrixd ccGLWindow::computeModelViewMatrix(const CCVector3d& cameraCenter) c
 	else
 	{
 		//place origin on camera center
-		viewMatd.setTranslation(viewMatd.getTranslationAsVec3D() - cameraCenter);
+		viewMatd.setTranslation(/*viewMatd.getTranslationAsVec3D()*/ - cameraCenter);
 
 		//rotation (viewMat is the rotation around the camera center here - no pivot)
 		viewMatd = m_viewportParams.viewMat * viewMatd;
@@ -3275,12 +3160,15 @@ ccGLMatrixd ccGLWindow::computeModelViewMatrix(const CCVector3d& cameraCenter) c
 	if (m_viewportParams.perspectiveView) //perspective mode
 	{
 		//for proper aspect ratio handling
-		float ar = (m_glViewport.height() != 0 ? m_glViewport.width() / (m_glViewport.height() * m_viewportParams.perspectiveAspectRatio) : 0.0f);
-		if (ar < 1.0f)
+		if (m_glViewport.height() != 0)
 		{
-			//glScalef(ar,ar,1.0);
-			scaleMatd.data()[0] = ar;
-			scaleMatd.data()[5] = ar;
+			float ar = m_glViewport.width() / (m_glViewport.height() * m_viewportParams.perspectiveAspectRatio);
+			if (ar < 1.0f)
+			{
+				//glScalef(ar, ar, 1.0);
+				scaleMatd.data()[0] = ar;
+				scaleMatd.data()[5] = ar;
+			}
 		}
 	}
 	else //ortho. mode
@@ -3288,8 +3176,8 @@ ccGLMatrixd ccGLWindow::computeModelViewMatrix(const CCVector3d& cameraCenter) c
 		//apply zoom
 		float totalZoom = m_viewportParams.zoom / m_viewportParams.pixelSize;
 		//glScalef(totalZoom,totalZoom,totalZoom);
-		scaleMatd.data()[0]  = totalZoom;
-		scaleMatd.data()[5]  = totalZoom;
+		scaleMatd.data()[0] = totalZoom;
+		scaleMatd.data()[5] = totalZoom;
 		scaleMatd.data()[10] = totalZoom;
 	}
 
@@ -3299,7 +3187,7 @@ ccGLMatrixd ccGLWindow::computeModelViewMatrix(const CCVector3d& cameraCenter) c
 void ccGLWindow::updateModelViewMatrix()
 {
 	//we save visualization matrix
-	m_viewMatd = computeModelViewMatrix( getRealCameraCenter() );
+	m_viewMatd = computeModelViewMatrix(getRealCameraCenter());
 
 	m_validModelviewMatrix = true;
 }
@@ -3359,171 +3247,80 @@ const ccGLMatrixd& ccGLWindow::getProjectionMatrix()
 
 void ccGLWindow::setStandardOrthoCenter()
 {
-	glMatrixMode(GL_PROJECTION);
-	glLoadIdentity();
-	float halfW = m_glViewport.width() / 2.0f;
-	float halfH = m_glViewport.height() / 2.0f;
-	float maxS = std::max(halfW,halfH);
-	glOrtho(-halfW,halfW,-halfH,halfH,-maxS,maxS);
-	glMatrixMode(GL_MODELVIEW);
-	glLoadIdentity();
+	ccQOpenGLFunctions* glFunc = functions();
+	assert(glFunc);
+
+	glFunc->glMatrixMode(GL_PROJECTION);
+	glFunc->glLoadIdentity();
+	double halfW = m_glViewport.width() / 2.0f;
+	double halfH = m_glViewport.height() / 2.0f;
+	double maxS = std::max(halfW, halfH);
+	glFunc->glOrtho(-halfW, halfW, -halfH, halfH, -maxS, maxS);
+	glFunc->glMatrixMode(GL_MODELVIEW);
+	glFunc->glLoadIdentity();
 }
 
 void ccGLWindow::setStandardOrthoCorner()
 {
-	glMatrixMode(GL_PROJECTION);
-	glLoadIdentity();
-	glOrtho(0, static_cast<double>(m_glViewport.width()), 0, static_cast<double>(m_glViewport.height()), 0, 1);
-	glMatrixMode(GL_MODELVIEW);
-	glLoadIdentity();
+	ccQOpenGLFunctions* glFunc = functions();
+	assert(glFunc);
+
+	glFunc->glMatrixMode(GL_PROJECTION);
+	glFunc->glLoadIdentity();
+	glFunc->glOrtho(0, m_glViewport.width(), 0, m_glViewport.height(), 0, 1);
+	glFunc->glMatrixMode(GL_MODELVIEW);
+	glFunc->glLoadIdentity();
 }
 
-void ccGLWindow::getContext(CC_DRAW_CONTEXT& context)
+void ccGLWindow::getContext(CC_DRAW_CONTEXT& CONTEXT)
 {
 	//display size
-	context.glW = m_glViewport.width();
-	context.glH = m_glViewport.height();
-	context._win = this;
-	context.flags = 0;
+	CONTEXT.glW = m_glViewport.width();
+	CONTEXT.glH = m_glViewport.height();
+	CONTEXT.display = this;
+	CONTEXT.qGLContext = this->context();
+	CONTEXT.drawingFlags = 0;
 
 	const ccGui::ParamStruct& guiParams = getDisplayParameters();
 
 	//decimation options
-	context.decimateCloudOnMove = guiParams.decimateCloudOnMove;
-	context.minLODPointCount    = guiParams.minLoDCloudSize;
-	context.decimateMeshOnMove  = guiParams.decimateMeshOnMove;
-	context.minLODTriangleCount = guiParams.minLoDMeshSize;
-	context.higherLODLevelsAvailable = false;
-	context.moreLODPointsAvailable = false;
-	context.currentLODLevel = 0;
-	context.minLODLevel = 0;
-	if (guiParams.decimateCloudOnMove)
-	{
-		//we automatically deduce the minimal octree level for decimation
-		//(we make the hypothesis that couds are filling a (flat) 'square' portion of the octree (and not 'cubical'))
-		context.minLODLevel = static_cast<unsigned>(log(static_cast<double>(std::max<unsigned>(1000,guiParams.minLoDCloudSize)))/(2.0*log(2.0)));
-		//ccLog::Print(QString("context.minLODLevel = %1").arg(context.minLODLevel));
-		//just in case...
-		assert(context.minLODLevel > 0);
-		context.minLODLevel = std::max<unsigned>(context.minLODLevel,1);
-	}
+	CONTEXT.decimateCloudOnMove = guiParams.decimateCloudOnMove;
+	CONTEXT.minLODPointCount = guiParams.minLoDCloudSize;
+	CONTEXT.decimateMeshOnMove = guiParams.decimateMeshOnMove && m_mouseMoved;
+	CONTEXT.minLODTriangleCount = guiParams.minLoDMeshSize;
+	CONTEXT.higherLODLevelsAvailable = false;
+	CONTEXT.moreLODPointsAvailable = false;
+	CONTEXT.currentLODLevel = 0;
 
 	//scalar field color-bar
-	context.sfColorScaleToDisplay = 0;
+	CONTEXT.sfColorScaleToDisplay = 0;
 
 	//point picking
-	context.labelMarkerSize = static_cast<float>(guiParams.labelMarkerSize * computeActualPixelSize());
-	context.labelMarkerTextShift_pix = 5; //5 pixels shift
+	CONTEXT.labelMarkerSize = static_cast<float>(guiParams.labelMarkerSize * computeActualPixelSize());
+	CONTEXT.labelMarkerTextShift_pix = 5; //5 pixels shift
 
 	//text display
-	context.dispNumberPrecision = guiParams.displayedNumPrecision;
+	CONTEXT.dispNumberPrecision = guiParams.displayedNumPrecision;
 	//label opacity
-	context.labelOpacity        = guiParams.labelOpacity;
+	CONTEXT.labelOpacity = guiParams.labelOpacity;
 
 	//default materials
-	context.defaultMat->setDiffuseFront(guiParams.meshFrontDiff);
-	context.defaultMat->setDiffuseBack(guiParams.meshBackDiff);
-	context.defaultMat->setAmbient(ccColor::bright);
-	context.defaultMat->setSpecular(guiParams.meshSpecular);
-	context.defaultMat->setEmission(ccColor::night);
-	context.defaultMat->setShininessFront(30);
-	context.defaultMat->setShininessBack(50);
+	CONTEXT.defaultMat->setDiffuseFront(guiParams.meshFrontDiff);
+	CONTEXT.defaultMat->setDiffuseBack(guiParams.meshBackDiff);
+	CONTEXT.defaultMat->setAmbient(ccColor::bright);
+	CONTEXT.defaultMat->setSpecular(guiParams.meshSpecular);
+	CONTEXT.defaultMat->setEmission(ccColor::night);
+	CONTEXT.defaultMat->setShininessFront(30);
+	CONTEXT.defaultMat->setShininessBack(50);
 	//default colors
-	context.pointsDefaultCol      = guiParams.pointsDefaultCol;
-	context.textDefaultCol        = guiParams.textDefaultCol;
-	context.labelDefaultBkgCol    = guiParams.labelBackgroundCol;
-	context.labelDefaultMarkerCol = guiParams.labelMarkerCol;
-	context.bbDefaultCol          = guiParams.bbDefaultCol;
+	CONTEXT.pointsDefaultCol = guiParams.pointsDefaultCol;
+	CONTEXT.textDefaultCol = guiParams.textDefaultCol;
+	CONTEXT.labelDefaultBkgCol = guiParams.labelBackgroundCol;
+	CONTEXT.labelDefaultMarkerCol = guiParams.labelMarkerCol;
+	CONTEXT.bbDefaultCol = guiParams.bbDefaultCol;
 
 	//display acceleration
-	context.useVBOs = guiParams.useVBOs;
-}
-
-unsigned ccGLWindow::getTextureID(const QImage& image)
-{
-#ifdef THREADED_GL_WIDGET
-	//FIXME
-	return GL_INVALID_TEXTURE_ID;
-#else
-	makeCurrent();
-
-	//default parameters
-	glTexParameterf(GL_TEXTURE_2D,GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-	glTexParameterf(GL_TEXTURE_2D,GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-
-	//check that image size is not too big!
-	GLint maxTexSize = 0;
-	glGetIntegerv(GL_MAX_TEXTURE_SIZE,&maxTexSize);
-	int cacheLimitBytes = context()->textureCacheLimit() * 1024; //result in bytes
-
-	if (image.width() <= maxTexSize && image.height() <= maxTexSize && cacheLimitBytes >= image.width()*image.height()*4)
-	{
-		return bindTexture(image,GL_TEXTURE_2D,GL_RGBA,QGLContext::NoBindOption);
-	}
-	else
-	{
-		maxTexSize = std::min(maxTexSize, static_cast<int>(sqrt(static_cast<double>(cacheLimitBytes>>2)))); // ">>2"="/4" because we assume all textures have 4 components
-		int width = image.width();
-		int height = image.height();
-		if (width > height)
-		{
-			width = maxTexSize;
-			height = (width*image.height()) / image.width();
-		}
-		else
-		{
-			height = maxTexSize;
-			width = (height*image.width()) / image.height();
-		}
-		ccLog::Warning("[OpenGL] Image is too big to fit in texture cache! Reducing it to (%i x %i) for display!",width,height);
-
-		QImage qImage = image.scaled(width,height,Qt::IgnoreAspectRatio,Qt::SmoothTransformation);
-		if (qImage.isNull())
-		{
-			ccLog::Warning("[OpenGL] Not enough memory to perform operation!");
-			return GL_INVALID_TEXTURE_ID;
-		}
-
-		return bindTexture(qImage,GL_TEXTURE_2D,GL_RGBA,QGLContext::NoBindOption);
-	}
-#endif
-}
-
-unsigned ccGLWindow::getTextureID(ccMaterial::CShared mtl)
-{
-	if (!mtl)
-	{
-		assert(false);
-		return GL_INVALID_TEXTURE_ID;
-	}
-
-	QString id = mtl->getUniqueIdentifier();
-	if (!m_materialTextures.contains(id))
-		m_materialTextures[id] = getTextureID(mtl->getTexture());
-
-	return m_materialTextures[id];
-}
-
-void ccGLWindow::releaseTexture(unsigned texID)
-{
-#ifdef THREADED_GL_WIDGET
-	//FIXME
-#else
-	makeCurrent();
-
-	//release texture from map!
-	for (QMap< QString, unsigned >::iterator it=m_materialTextures.begin(); it != m_materialTextures.end(); ++it)
-	{
-		if (it.value() == texID)
-		{
-			m_materialTextures.remove(it.key());
-			break;
-		}
-	}
-	deleteTexture(texID);
-#endif
+	CONTEXT.useVBOs = guiParams.useVBOs;
 }
 
 CCVector3d ccGLWindow::getCurrentViewDir() const
@@ -3559,7 +3356,7 @@ void ccGLWindow::setPickingMode(PICKING_MODE mode/*=DEFAULT_PICKING*/)
 		return;
 	}
 
-	switch(mode)
+	switch (mode)
 	{
 	case DEFAULT_PICKING:
 		mode = ENTITY_PICKING;
@@ -3581,8 +3378,8 @@ void ccGLWindow::setPickingMode(PICKING_MODE mode/*=DEFAULT_PICKING*/)
 
 CCVector3d ccGLWindow::convertMousePositionToOrientation(int x, int y)
 {
-	double xc = static_cast<double>(width()/2);
-	double yc = static_cast<double>(height()/2);
+	double xc = static_cast<double>(width() / 2);
+	double yc = static_cast<double>(height() / 2);
 
 	CCVector3d Q2D;
 	if (m_viewportParams.objectCenteredView)
@@ -3598,11 +3395,11 @@ CCVector3d ccGLWindow::convertMousePositionToOrientation(int x, int y)
 		}
 
 		//we set the virtual rotation pivot closer to the actual one (but we always stay in the central part of the screen!)
-		Q2D.x = std::min<GLdouble>(Q2D.x,3*width()/4);
-		Q2D.x = std::max<GLdouble>(Q2D.x,  width()/4);
+		Q2D.x = std::min<GLdouble>(Q2D.x, 3 * width() / 4);
+		Q2D.x = std::max<GLdouble>(Q2D.x, width() / 4);
 
-		Q2D.y = std::min<GLdouble>(Q2D.y,3*height()/4);
-		Q2D.y = std::max<GLdouble>(Q2D.y,  height()/4);
+		Q2D.y = std::min<GLdouble>(Q2D.y, 3 * height() / 4);
+		Q2D.y = std::max<GLdouble>(Q2D.y, height() / 4);
 	}
 	else
 	{
@@ -3611,12 +3408,12 @@ CCVector3d ccGLWindow::convertMousePositionToOrientation(int x, int y)
 	}
 
 	//invert y
-	y = height()-1 - y;
+	y = height() - 1 - y;
 
 	CCVector3d v(x - Q2D.x, y - Q2D.y, 0);
 
-	v.x = std::max<double>(std::min<double>(v.x/xc,1),-1);
-	v.y = std::max<double>(std::min<double>(v.y/yc,1),-1);
+	v.x = std::max<double>(std::min<double>(v.x / xc, 1), -1);
+	v.y = std::max<double>(std::min<double>(v.y / yc, 1), -1);
 
 	if (m_verticalRotationLocked || m_bubbleViewModeEnabled)
 	{
@@ -3647,17 +3444,7 @@ void ccGLWindow::updateActiveItemsList(int x, int y, bool extendToSelectedLabels
 
 	PickingParameters params(FAST_PICKING, x, y, 2, 2);
 
-#ifdef THREADED_GL_WIDGET
-	//DGM TOOD: wait for the thread to finish the process!
-	QEventLoop loop;
-	loop.connect(this, SIGNAL(fastPickingFinished()), SLOT(quit()), Qt::QueuedConnection);
-#endif
-
 	startPicking(params);
-
-#ifdef THREADED_GL_WIDGET
-	loop.exec();
-#endif
 
 	if (m_activeItems.size() == 1)
 	{
@@ -3676,11 +3463,11 @@ void ccGLWindow::updateActiveItemsList(int x, int y, bool extendToSelectedLabels
 				//we get the other selected labels as well!
 				ccHObject::Container labels;
 				if (m_globalDBRoot)
-					m_globalDBRoot->filterChildren(labels,true,CC_TYPES::LABEL_2D);
+					m_globalDBRoot->filterChildren(labels, true, CC_TYPES::LABEL_2D);
 				if (m_winDBRoot)
-					m_winDBRoot->filterChildren(labels,true,CC_TYPES::LABEL_2D);
+					m_winDBRoot->filterChildren(labels, true, CC_TYPES::LABEL_2D);
 
-				for (ccHObject::Container::iterator it=labels.begin(); it!=labels.end(); ++it)
+				for (ccHObject::Container::iterator it = labels.begin(); it != labels.end(); ++it)
 				{
 					if ((*it)->isA(CC_TYPES::LABEL_2D) && (*it)->isVisible()) //Warning: cc2DViewportLabel is also a kind of 'CC_TYPES::LABEL_2D'!
 					{
@@ -3726,7 +3513,7 @@ void ccGLWindow::mousePressEvent(QMouseEvent *event)
 
 	if ((event->buttons() & Qt::RightButton)
 #ifdef CC_MAC_OS
-		|| (QApplication::keyboardModifiers () & Qt::MetaModifier)
+		|| (QApplication::keyboardModifiers() & Qt::MetaModifier)
 #endif
 		)
 	{
@@ -3743,7 +3530,7 @@ void ccGLWindow::mousePressEvent(QMouseEvent *event)
 	}
 	else if (event->buttons() & Qt::LeftButton)
 	{
-		m_lastClickTime_ticks = ccTimer::Msec();
+		m_lastClickTime_ticks = m_timer.elapsed(); //in msec
 
 		//left click = rotation
 		if (m_interactionFlags & INTERACT_ROTATE)
@@ -3798,7 +3585,7 @@ void ccGLWindow::mouseMoveEvent(QMouseEvent *event)
 
 	if ((event->buttons() & Qt::RightButton)
 #ifdef CC_MAC_OS
-		|| (QApplication::keyboardModifiers () & Qt::MetaModifier)
+		|| (QApplication::keyboardModifiers() & Qt::MetaModifier)
 #endif
 		)
 	{
@@ -3807,14 +3594,14 @@ void ccGLWindow::mouseMoveEvent(QMouseEvent *event)
 		{
 			//displacement vector (in "3D")
 			double pixSize = computeActualPixelSize();
-			CCVector3d u(static_cast<double>(dx)*pixSize, -static_cast<double>(dy)*pixSize, 0);
+			CCVector3d u(dx * pixSize, -dy * pixSize, 0);
 			if (!m_viewportParams.perspectiveView)
 			{
 				u.y *= m_viewportParams.orthoAspectRatio;
 			}
 
-			bool entityMovingMode =		(m_interactionFlags & INTERACT_TRANSFORM_ENTITIES)
-									||	((QApplication::keyboardModifiers () & Qt::ControlModifier) && m_customLightEnabled);
+			bool entityMovingMode = (m_interactionFlags & INTERACT_TRANSFORM_ENTITIES)
+				|| ((QApplication::keyboardModifiers() & Qt::ControlModifier) && m_customLightEnabled);
 			if (entityMovingMode)
 			{
 				//apply inverse view matrix
@@ -3839,8 +3626,8 @@ void ccGLWindow::mouseMoveEvent(QMouseEvent *event)
 				{
 					//inverse displacement in object-based mode
 					u = -u;
-				}			
-				moveCamera(static_cast<float>(u.x),static_cast<float>(u.y),static_cast<float>(u.z));
+				}
+				moveCamera(static_cast<float>(u.x), static_cast<float>(u.y), static_cast<float>(u.z));
 			}
 
 		} //if (m_interactionFlags & INTERACT_PAN)
@@ -3852,15 +3639,13 @@ void ccGLWindow::mouseMoveEvent(QMouseEvent *event)
 			//on the first time, let's check if the mouse is on a (selected) 2D item
 			if (!m_mouseMoved)
 			{
-				if (	m_pickingMode != NO_PICKING
-					/*//DGM: in fact we still need to move labels in those modes below (see the 'Point Picking' tool of CloudCompare for instance)
-					&&	m_pickingMode != POINT_PICKING
-					&&	m_pickingMode != TRIANGLE_PICKING
-					&&	m_pickingMode != POINT_OR_TRIANGLE_PICKING
-					//*/
-					&&
-					(	QApplication::keyboardModifiers () == Qt::NoModifier
-					||	QApplication::keyboardModifiers () == Qt::ControlModifier ) )
+				if (m_pickingMode != NO_PICKING
+					//DGM: in fact we still need to move labels in those modes below (see the 'Point Picking' tool of CloudCompare for instance)
+					//&&	m_pickingMode != POINT_PICKING
+					//&&	m_pickingMode != TRIANGLE_PICKING
+					//&&	m_pickingMode != POINT_OR_TRIANGLE_PICKING
+					&& (	QApplication::keyboardModifiers() == Qt::NoModifier
+						||	QApplication::keyboardModifiers() == Qt::ControlModifier) )
 				{
 					updateActiveItemsList(m_lastMousePos.x(), m_lastMousePos.y(), true);
 				}
@@ -3879,9 +3664,9 @@ void ccGLWindow::mouseMoveEvent(QMouseEvent *event)
 			CCVector3d u(dx*pixSize, -dy*pixSize, 0);
 			m_viewportParams.viewMat.transposed().applyRotation(u);
 
-			for (std::list<ccInteractor*>::iterator it=m_activeItems.begin(); it!=m_activeItems.end(); ++it)
+			for (std::list<ccInteractor*>::iterator it = m_activeItems.begin(); it != m_activeItems.end(); ++it)
 			{
-				if ((*it)->move2D(x,y,dx,dy,width(),height()) || (*it)->move3D(u))
+				if ((*it)->move2D(x, y, dx, dy, width(), height()) || (*it)->move3D(u))
 				{
 					invalidateViewport();
 					//m_updateFBO = true; //already done by invalidateViewport
@@ -3891,9 +3676,9 @@ void ccGLWindow::mouseMoveEvent(QMouseEvent *event)
 		else
 		{
 			//specific case: rectangular polyline drawing (for rectangular area selection mode)
-			if (	m_allowRectangularEntityPicking
+			if (m_allowRectangularEntityPicking
 				&& (m_pickingMode == ENTITY_PICKING || m_pickingMode == ENTITY_RECT_PICKING)
-				&& (m_rectPickingPoly || (QApplication::keyboardModifiers () & Qt::AltModifier)))
+				&& (m_rectPickingPoly || (QApplication::keyboardModifiers() & Qt::AltModifier)))
 			{
 				//first time: initialization of the rectangle
 				if (!m_rectPickingPoly)
@@ -3901,7 +3686,7 @@ void ccGLWindow::mouseMoveEvent(QMouseEvent *event)
 					ccPointCloud* vertices = new ccPointCloud("rect.vertices");
 					m_rectPickingPoly = new ccPolyline(vertices);
 					m_rectPickingPoly->addChild(vertices);
-					if (vertices->reserve(4) && m_rectPickingPoly->addPointIndex(0,4))
+					if (vertices->reserve(4) && m_rectPickingPoly->addPointIndex(0, 4))
 					{
 						m_rectPickingPoly->setForeground(true);
 						m_rectPickingPoly->setColor(ccColor::green);
@@ -3909,16 +3694,16 @@ void ccGLWindow::mouseMoveEvent(QMouseEvent *event)
 						m_rectPickingPoly->set2DMode(true);
 						m_rectPickingPoly->setDisplay(this);
 						m_rectPickingPoly->setVisible(true);
-						CCVector3 A(static_cast<PointCoordinateType>(m_lastMousePos.x()-width()/2),
-									static_cast<PointCoordinateType>(height()/2-m_lastMousePos.y()),
-									0);
+						CCVector3 A(static_cast<PointCoordinateType>(m_lastMousePos.x() - width() / 2),
+							static_cast<PointCoordinateType>(height() / 2 - m_lastMousePos.y()),
+							0);
 						//we add 4 times the same point (just to fill the cloud!)
 						vertices->addPoint(A);
 						vertices->addPoint(A);
 						vertices->addPoint(A);
 						vertices->addPoint(A);
 						m_rectPickingPoly->setClosed(true);
-						addToOwnDB(m_rectPickingPoly,false);
+						addToOwnDB(m_rectPickingPoly, false);
 					}
 					else
 					{
@@ -3936,15 +3721,40 @@ void ccGLWindow::mouseMoveEvent(QMouseEvent *event)
 					CCVector3* B = const_cast<CCVector3*>(vertices->getPointPersistentPtr(1));
 					CCVector3* C = const_cast<CCVector3*>(vertices->getPointPersistentPtr(2));
 					CCVector3* D = const_cast<CCVector3*>(vertices->getPointPersistentPtr(3));
-					B->x = C->x = static_cast<PointCoordinateType>(event->x() - width()/2);
-					C->y = D->y = static_cast<PointCoordinateType>(height()/2 - event->y());
+					B->x = C->x = static_cast<PointCoordinateType>(event->x() - width() / 2);
+					C->y = D->y = static_cast<PointCoordinateType>(height() / 2 - event->y());
 				}
 			}
 			else if (m_interactionFlags & INTERACT_ROTATE) //standard rotation around the current pivot
 			{
 				m_currentMouseOrientation = convertMousePositionToOrientation(x, y);
 
-				ccGLMatrixd rotMat = ccGLMatrixd::FromToRotation(m_lastMouseOrientation, m_currentMouseOrientation);
+				ccGLMatrixd rotMat;
+				if (m_bubbleViewModeEnabled)
+				{
+					QPoint posDelta = m_lastMousePos - event->pos();
+
+					if (abs(posDelta.x()) != 0)
+					{
+						double delta_deg = (posDelta.x() * static_cast<double>(m_bubbleViewFov_deg)) / height();
+						//rotation about the sensor Z axis
+						CCVector3d axis = m_viewportParams.viewMat.getColumnAsVec3D(2);
+						rotMat.initFromParameters(delta_deg * CC_DEG_TO_RAD, axis, CCVector3d(0, 0, 0));
+					}
+					//else if (m_bubbleViewDirection == VERT)
+					if (abs(posDelta.y()) != 0)
+					{
+						double delta_deg = (posDelta.y() * static_cast<double>(m_bubbleViewFov_deg)) / height();
+						//rotation about the local X axis
+						ccGLMatrixd rotX;
+						rotX.initFromParameters(delta_deg * CC_DEG_TO_RAD, CCVector3d(1, 0, 0), CCVector3d(0, 0, 0));
+						rotMat = rotX * rotMat;
+					}
+				}
+				else
+				{
+					rotMat = ccGLMatrixd::FromToRotation(m_lastMouseOrientation, m_currentMouseOrientation);
+				}
 				m_lastMouseOrientation = m_currentMouseOrientation;
 				m_updateFBO = true;
 
@@ -3987,11 +3797,11 @@ bool ccGLWindow::processClickableItems(int x, int y)
 		//shortcut
 		return false;
 	}
-	
+
 	ClickableItem::Role clickedItem = ClickableItem::NO_ROLE;
 	for (std::vector<ClickableItem>::const_iterator it = m_clickableItems.begin(); it != m_clickableItems.end(); ++it)
 	{
-		if (it->area.contains(x,y))
+		if (it->area.contains(x, y))
 		{
 			clickedItem = it->role;
 			break;
@@ -4004,30 +3814,28 @@ bool ccGLWindow::processClickableItems(int x, int y)
 		//nothing to do
 		break;
 	case ClickableItem::INCREASE_POINT_SIZE:
-		if (m_viewportParams.defaultPointSize < MAX_POINT_SIZE)
 		{
-			setPointSize(m_viewportParams.defaultPointSize+1);
+			setPointSize(m_viewportParams.defaultPointSize + 1.0f);
 			redraw();
 		}
 		return true;
 	case ClickableItem::DECREASE_POINT_SIZE:
-		if (m_viewportParams.defaultPointSize > MIN_POINT_SIZE)
 		{
-			setPointSize(m_viewportParams.defaultPointSize-1);
+			setPointSize(m_viewportParams.defaultPointSize - 1.0f);
 			redraw();
 		}
 		return true;
 	case ClickableItem::LEAVE_BUBBLE_VIEW_MODE:
-		{
-			setBubbleViewMode(false);
-			redraw();
-		}
-		return true;
+	{
+		setBubbleViewMode(false);
+		redraw();
+	}
+	return true;
 	case ClickableItem::LEAVE_FULLSCREEN_MODE:
-		{
-			toggleExclusiveFullScreen(false);
-		}
-		return true;
+	{
+		toggleExclusiveFullScreen(false);
+	}
+	return true;
 	default:
 		//unhandled item?!
 		assert(false);
@@ -4081,7 +3889,7 @@ void ccGLWindow::mouseReleaseEvent(QMouseEvent *event)
 			{
 				ccInteractor* item = m_activeItems.front();
 				m_activeItems.clear();
-				if (item->acceptClick(event->x(),height()-1-event->y(),Qt::RightButton))
+				if (item->acceptClick(event->x(), height() - 1 - event->y(), Qt::RightButton))
 				{
 					event->accept();
 					toBeRefreshed();
@@ -4101,16 +3909,16 @@ void ccGLWindow::mouseReleaseEvent(QMouseEvent *event)
 				const CCVector3* A = vertices->getPointPersistentPtr(0);
 				const CCVector3* C = vertices->getPointPersistentPtr(2);
 
-				int pickX = static_cast<int>(A->x+C->x)/2;
-				int pickY = static_cast<int>(A->y+C->y)/2;
-				int pickW = static_cast<int>(fabs(C->x-A->x));
-				int pickH = static_cast<int>(fabs(C->y-A->y));
+				int pickX = static_cast<int>(A->x + C->x) / 2;
+				int pickY = static_cast<int>(A->y + C->y) / 2;
+				int pickW = static_cast<int>(fabs(C->x - A->x));
+				int pickH = static_cast<int>(fabs(C->y - A->y));
 
 				removeFromOwnDB(m_rectPickingPoly);
 				m_rectPickingPoly = 0;
 				vertices = 0;
 
-				PickingParameters params(ENTITY_RECT_PICKING, pickX+width()/2, height()/2-pickY, pickW, pickH);
+				PickingParameters params(ENTITY_RECT_PICKING, pickX + width() / 2, height() / 2 - pickY, pickW, pickH);
 				startPicking(params);
 			}
 
@@ -4120,18 +3928,18 @@ void ccGLWindow::mouseReleaseEvent(QMouseEvent *event)
 		else
 		{
 			//picking?
-			if (ccTimer::Msec() < m_lastClickTime_ticks + CC_MAX_PICKING_CLICK_DURATION_MS)
+			if (m_timer.elapsed() < m_lastClickTime_ticks + CC_MAX_PICKING_CLICK_DURATION_MS) //in msec
 			{
 				int x = event->x();
 				int y = event->y();
 
 				//first test if the user has clicked on a particular item on the screen
-				if (processClickableItems(x,y))
+				if (processClickableItems(x, y))
 				{
 					event->accept();
 				}
-				else if (	(m_pickingMode != NO_PICKING)
-						||	(m_interactionFlags & INTERACT_2D_ITEMS) )
+				else if ((m_pickingMode != NO_PICKING)
+					|| (m_interactionFlags & INTERACT_2D_ITEMS))
 				{
 					if (m_interactionFlags & INTERACT_2D_ITEMS)
 					{
@@ -4196,16 +4004,72 @@ void ccGLWindow::mouseReleaseEvent(QMouseEvent *event)
 
 void ccGLWindow::wheelEvent(QWheelEvent* event)
 {
-	if (m_interactionFlags & INTERACT_ZOOM_CAMERA)
+	bool doRedraw = false;
+
+	Qt::KeyboardModifiers keyboardModifiers = QApplication::keyboardModifiers();
+	if (keyboardModifiers & Qt::AltModifier)
 	{
+		event->accept();
+
+		//same shortcut as Meshlab: change the point size
+		float sizeModifier = (event->delta() < 0 ? -1.0f : 1.0f);
+		setPointSize(m_viewportParams.defaultPointSize + sizeModifier);
+
+		doRedraw = true;
+	}
+	else if (keyboardModifiers & Qt::ControlModifier)
+	{
+		event->accept();
+
+		if (m_viewportParams.perspectiveView)
+		{
+			//same shortcut as Meshlab: change the zNear value
+			static const int MAX_INCREMENT = 150;
+			int increment = ccViewportParameters::ZNearCoefToIncrement(m_viewportParams.zNearCoef, MAX_INCREMENT+1);
+			int newIncrement = std::min(std::max(0, increment + (event->delta() < 0 ? -1 : 1)), MAX_INCREMENT); //the zNearCoef must be < 1! 
+			if (newIncrement != increment)
+			{
+				float newCoef = ccViewportParameters::IncrementToZNearCoef(newIncrement, MAX_INCREMENT+1);
+				setZNearCoef(newCoef);
+				doRedraw = true;
+			}
+		}
+	}
+	else if (keyboardModifiers & Qt::ShiftModifier)
+	{
+		event->accept();
+		
+		if (m_viewportParams.perspectiveView)
+		{
+			//same shortcut as Meshlab: change the fov value
+			float newFOV = (m_viewportParams.fov + (event->delta() < 0 ? -1.0f : 1.0f));
+			newFOV = std::min(std::max(1.0f, newFOV), 180.0f);
+			if (newFOV != m_viewportParams.fov)
+			{
+				setFov(newFOV);
+				doRedraw = true;
+			}
+		}
+	}
+	else if (m_interactionFlags & INTERACT_ZOOM_CAMERA)
+	{
+		event->accept();
+
 		//see QWheelEvent documentation ("distance that the wheel is rotated, in eighths of a degree")
 		float wheelDelta_deg = static_cast<float>(event->delta()) / 8;
-
 		onWheelEvent(wheelDelta_deg);
 
 		emit mouseWheelRotated(wheelDelta_deg);
-	
-		event->accept();
+
+		doRedraw = true;
+	}
+
+	if (doRedraw)
+	{
+		setLODEnabled(true, true);
+		m_currentLODState.level = 0;
+
+		redraw();
 	}
 }
 
@@ -4223,14 +4087,23 @@ void ccGLWindow::onWheelEvent(float wheelDelta_deg)
 		{
 			//convert degrees in 'constant' walking speed in ... pixels ;)
 			const double& deg2PixConversion = getDisplayParameters().zoomSpeed;
-			moveCamera(0,0,-static_cast<float>(deg2PixConversion * wheelDelta_deg) * m_viewportParams.pixelSize);
+			double delta = static_cast<float>(deg2PixConversion * wheelDelta_deg) * m_viewportParams.pixelSize;
+
+			//if we are (clearly) outisde of the displayed objects bounding-box
+			if (m_cameraToBBCenterDist > m_bbHalfDiag)
+			{
+				//we go faster if we are far from the entities
+				delta *= 1.0 + log(m_cameraToBBCenterDist / m_bbHalfDiag);
+			}
+
+			moveCamera(0, 0, -delta);
 		}
 	}
 	else //ortho. mode
 	{
 		//convert degrees in zoom 'power'
 		static const float c_defaultDeg2Zoom = 20.0f;
-		float zoomFactor = pow(1.1f,wheelDelta_deg / c_defaultDeg2Zoom);
+		float zoomFactor = pow(1.1f, wheelDelta_deg / c_defaultDeg2Zoom);
 		updateZoom(zoomFactor);
 	}
 
@@ -4251,62 +4124,26 @@ void ccGLWindow::startPicking(PickingParameters& params)
 		return;
 	}
 
-	//setup rendering context
-	params.flags = CC_DRAW_FOREGROUND;
-	qint64 startTime = 0;
-
-	switch (params.mode)
-	{
-	case ENTITY_PICKING:
-	case ENTITY_RECT_PICKING:
-		params.flags |= CC_DRAW_ENTITY_NAMES;
-		break;
-	case FAST_PICKING:
-		params.flags |= CC_DRAW_ENTITY_NAMES;
-		params.flags |= CC_DRAW_FAST_NAMES_ONLY;
-		break;
-	case POINT_PICKING:
-		params.flags |= CC_DRAW_POINT_NAMES;	//automatically push entity names as well!
-		break;
-	case TRIANGLE_PICKING:
-		params.flags |= CC_DRAW_TRI_NAMES;		//automatically push entity names as well!
-		break;
-	case POINT_OR_TRIANGLE_PICKING:
-	case LABEL_PICKING:
-		params.flags |= CC_DRAW_POINT_NAMES;	//automatically push entity names as well!
-		params.flags |= CC_DRAW_TRI_NAMES;
-		startTime = m_timer.nsecsElapsed();
-		break;
-	default:
-		assert(false);
-		//we must always emit a signal!
-		processPickingResult(params, 0, -1);
-		return;
-	}
-
-	if (!getDisplayParameters().useOpenGLPointPicking &&
-		(	params.mode == LABEL_PICKING
-		||	params.mode == POINT_OR_TRIANGLE_PICKING
+	if (	params.mode == POINT_OR_TRIANGLE_PICKING
 		||	params.mode == POINT_PICKING
-		||	params.mode == TRIANGLE_PICKING) )
+		||	params.mode == TRIANGLE_PICKING
+		||	params.mode == LABEL_PICKING // = spawn a label on the clicked point or triangle
+		)
 	{
 		//CPU-based point picking
 		startCPUBasedPointPicking(params);
 	}
 	else
 	{
-#ifdef THREADED_GL_WIDGET
-		//FIXME
-#else
 		startOpenGLPicking(params);
-#endif
 	}
 }
 
-void ccGLWindow::processPickingResult(	const PickingParameters& params,
-										ccHObject* pickedEntity,
-										int pickedItemIndex,
-										const std::unordered_set<int>* selectedIDs/*=0*/)
+void ccGLWindow::processPickingResult(const PickingParameters& params,
+	ccHObject* pickedEntity,
+	int pickedItemIndex,
+	const CCVector3* nearestPoint/*=0*/,
+	const std::unordered_set<int>* selectedIDs/*=0*/)
 {
 	//standard "entity" picking
 	if (params.mode == ENTITY_PICKING)
@@ -4327,8 +4164,9 @@ void ccGLWindow::processPickingResult(	const PickingParameters& params,
 			||	params.mode == POINT_OR_TRIANGLE_PICKING)
 	{
 		assert(pickedEntity == 0 || pickedItemIndex >= 0);
+		assert(nearestPoint);
 
-		emit itemPicked(pickedEntity, static_cast<unsigned>(pickedItemIndex), params.centerX, params.centerY);
+		emit itemPicked(pickedEntity, static_cast<unsigned>(pickedItemIndex), params.centerX, params.centerY, *nearestPoint);
 	}
 	//fast picking (labels, interactors, etc.)
 	else if (params.mode == FAST_PICKING)
@@ -4341,7 +4179,7 @@ void ccGLWindow::processPickingResult(	const PickingParameters& params,
 		{
 			//qint64 stopTime = m_timer.nsecsElapsed();
 			//ccLog::Print(QString("[Picking] entity ID %1 - item #%2 (time: %3 ms)").arg(selectedID).arg(pickedItemIndex).arg((stopTime-startTime) / 1.0e6));
-			
+
 			//auto spawn the right label
 			cc2DLabel* label = 0;
 			if (pickedEntity->isKindOf(CC_TYPES::POINT_CLOUD))
@@ -4372,8 +4210,8 @@ void ccGLWindow::processPickingResult(	const PickingParameters& params,
 			{
 				label->setVisible(true);
 				label->setDisplay(pickedEntity->getDisplay());
-				label->setPosition(	static_cast<float>(params.centerX+20)/ width(),
-									static_cast<float>(params.centerY+20) / height() );
+				label->setPosition(static_cast<float>(params.centerX + 20) / width(),
+					static_cast<float>(params.centerY + 20) / height());
 				emit newLabel(static_cast<ccHObject*>(label));
 				QApplication::processEvents();
 
@@ -4393,21 +4231,50 @@ void ccGLWindow::startOpenGLPicking(const PickingParameters& params)
 		return;
 	}
 
+	//setup rendering context
+	unsigned short flags = CC_DRAW_FOREGROUND;
+
+	switch (params.mode)
+	{
+	case ENTITY_PICKING:
+	case ENTITY_RECT_PICKING:
+		flags |= CC_DRAW_ENTITY_NAMES;
+		break;
+	case FAST_PICKING:
+		flags |= CC_DRAW_ENTITY_NAMES;
+		flags |= CC_DRAW_FAST_NAMES_ONLY;
+		break;
+	default:
+		assert(false);
+		//we must always emit a signal!
+		processPickingResult(params, 0, -1);
+		return;
+	}
+
 	//OpenGL picking
+	assert(!m_captureMode.enabled);
 	makeCurrent();
 
+	ccQOpenGLFunctions* glFunc = functions();
+	assert(glFunc);
+
 	//no need to clear display, we don't draw anything new!
-	//glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+	//glFunc->glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+	//OpenGL picking buffer size (= max hits number per 'OpenGL' selection pass)
+	static const GLsizei CC_PICKING_BUFFER_SIZE = 65536;
+	//GL names picking buffer
+	static GLuint s_pickingBuffer[CC_PICKING_BUFFER_SIZE];
 
 	//setup selection buffers
-	memset(m_pickingBuffer,0,sizeof(GLuint)*CC_PICKING_BUFFER_SIZE);
-	glSelectBuffer(CC_PICKING_BUFFER_SIZE,m_pickingBuffer);
-	glRenderMode(GL_SELECT);
-	glInitNames();
+	memset(s_pickingBuffer, 0, sizeof(GLuint)*CC_PICKING_BUFFER_SIZE);
+	glFunc->glSelectBuffer(CC_PICKING_BUFFER_SIZE, s_pickingBuffer);
+	glFunc->glRenderMode(GL_SELECT);
+	glFunc->glInitNames();
 
 	//get viewport
 	GLint viewport[4];
-	glGetIntegerv(GL_VIEWPORT,viewport);
+	glFunc->glGetIntegerv(GL_VIEWPORT, viewport);
 
 	//get context
 	CC_DRAW_CONTEXT CONTEXT;
@@ -4415,29 +4282,29 @@ void ccGLWindow::startOpenGLPicking(const PickingParameters& params)
 
 	//3D objects picking
 	{
-		CONTEXT.flags = CC_DRAW_3D | params.flags;
+		CONTEXT.drawingFlags = CC_DRAW_3D | flags;
 
 		//projection matrix
-		glMatrixMode(GL_PROJECTION);
+		glFunc->glMatrixMode(GL_PROJECTION);
 		//restrict drawing to the picking area
 		{
 			double pickMatrix[16];
 			ccGL::PickMatrix(	static_cast<GLdouble>(params.centerX),
-								static_cast<GLdouble>(viewport[3]-params.centerY),
+								static_cast<GLdouble>(viewport[3] - params.centerY),
 								static_cast<GLdouble>(params.pickWidth),
 								static_cast<GLdouble>(params.pickWidth),
 								viewport,
 								pickMatrix);
-			glLoadMatrixd(pickMatrix);
+			glFunc->glLoadMatrixd(pickMatrix);
 		}
-		glMultMatrixd(getProjectionMatrix().data());
+		glFunc->glMultMatrixd(getProjectionMatrix().data());
 
 		//model view matrix
-		glMatrixMode(GL_MODELVIEW);
-		glLoadMatrixd(getModelViewMatrix().data());
+		glFunc->glMatrixMode(GL_MODELVIEW);
+		glFunc->glLoadMatrixd(getModelViewMatrix().data());
 
-		glPushAttrib(GL_DEPTH_BUFFER_BIT);
-		glEnable(GL_DEPTH_TEST);
+		glFunc->glPushAttrib(GL_DEPTH_BUFFER_BIT);
+		glFunc->glEnable(GL_DEPTH_TEST);
 
 		//display 3D objects
 		//DGM: all of them, even if we don't pick the own DB for instance, as they can hide the other objects!
@@ -4446,37 +4313,37 @@ void ccGLWindow::startOpenGLPicking(const PickingParameters& params)
 		if (m_winDBRoot)
 			m_winDBRoot->draw(CONTEXT);
 
-		glPopAttrib(); //GL_DEPTH_BUFFER_BIT
+		glFunc->glPopAttrib(); //GL_DEPTH_BUFFER_BIT
 
-		ccGLUtils::CatchGLError("ccGLWindow::startPicking.draw(3D)");
+		logGLError("ccGLWindow::startPicking.draw(3D)");
 	}
 
 	//2D objects picking
 	if (params.mode == ENTITY_PICKING || params.mode == ENTITY_RECT_PICKING || params.mode == FAST_PICKING)
 	{
-		CONTEXT.flags = CC_DRAW_2D | params.flags;
+		CONTEXT.drawingFlags = CC_DRAW_2D | flags;
 
 		//we must first grab the 2D ortho view projection matrix
 		setStandardOrthoCenter();
-		glMatrixMode(GL_PROJECTION);
+		glFunc->glMatrixMode(GL_PROJECTION);
 		double orthoProjMatd[OPENGL_MATRIX_SIZE];
-		glGetDoublev(GL_PROJECTION_MATRIX, orthoProjMatd);
+		glFunc->glGetDoublev(GL_PROJECTION_MATRIX, orthoProjMatd);
 		//restrict drawing to the picking area
 		{
 			double pickMatrix[16];
 			ccGL::PickMatrix(	static_cast<GLdouble>(params.centerX),
-								static_cast<GLdouble>(viewport[3]-params.centerY),
+								static_cast<GLdouble>(viewport[3] - params.centerY),
 								static_cast<GLdouble>(params.pickWidth),
 								static_cast<GLdouble>(params.pickWidth),
 								viewport,
 								pickMatrix);
-			glLoadMatrixd(pickMatrix);
+			glFunc->glLoadMatrixd(pickMatrix);
 		}
-		glMultMatrixd(orthoProjMatd);
-		glMatrixMode(GL_MODELVIEW);
+		glFunc->glMultMatrixd(orthoProjMatd);
+		glFunc->glMatrixMode(GL_MODELVIEW);
 
-		glPushAttrib(GL_DEPTH_BUFFER_BIT);
-		glDisable(GL_DEPTH_TEST);
+		glFunc->glPushAttrib(GL_DEPTH_BUFFER_BIT);
+		glFunc->glDisable(GL_DEPTH_TEST);
 
 		//we display 2D objects
 		//DGM: all of them, even if we don't pick the own DB for instance, as they can hide the other objects!
@@ -4485,19 +4352,19 @@ void ccGLWindow::startOpenGLPicking(const PickingParameters& params)
 		if (m_winDBRoot)
 			m_winDBRoot->draw(CONTEXT);
 
-		glPopAttrib(); //GL_DEPTH_BUFFER_BIT
+		glFunc->glPopAttrib(); //GL_DEPTH_BUFFER_BIT
 
-		ccGLUtils::CatchGLError("ccGLWindow::startPicking.draw(2D)");
+		logGLError("ccGLWindow::startPicking.draw(2D)");
 	}
 
-	glFlush();
+	glFunc->glFlush();
 
 	// returning to normal rendering mode
-	int hits = glRenderMode(GL_RENDER);
+	int hits = glFunc->glRenderMode(GL_RENDER);
 
-	ccGLUtils::CatchGLError("ccGLWindow::startPicking.render");
+	logGLError("ccGLWindow::startPicking.render");
 
-	ccLog::PrintDebug("[Picking] hits: %i",hits);
+	ccLog::PrintDebug("[Picking] hits: %i", hits);
 	if (hits < 0)
 	{
 		ccLog::Warning("[Picking] Too many items inside the picking area! Try to zoom in...");
@@ -4512,9 +4379,9 @@ void ccGLWindow::startOpenGLPicking(const PickingParameters& params)
 	try
 	{
 		GLuint minMinDepth = (~0);
-		const GLuint* _selectBuf = m_pickingBuffer;
+		const GLuint* _selectBuf = s_pickingBuffer;
 
-		for (int i=0; i<hits; ++i)
+		for (int i = 0; i < hits; ++i)
 		{
 			const GLuint& n = _selectBuf[0]; //number of names on stack
 			if (n) //if we draw anything outside of 'glPushName()... glPopName()' then it will appear here with as an empty set!
@@ -4542,11 +4409,11 @@ void ccGLWindow::startOpenGLPicking(const PickingParameters& params)
 				}
 			}
 
-			_selectBuf += (3+n);
+			_selectBuf += (3 + n);
 		}
 
 		//standard output is made through the 'selectedIDs' set
-		if (	params.mode != ENTITY_RECT_PICKING
+		if (params.mode != ENTITY_RECT_PICKING
 			&&	selectedID != -1)
 		{
 			selectedIDs.insert(selectedID);
@@ -4571,19 +4438,28 @@ void ccGLWindow::startOpenGLPicking(const PickingParameters& params)
 		}
 	}
 
+	CCVector3 P(0, 0, 0);
+	CCVector3* pickedPoint = 0;
+	if (pickedEntity && pickedItemIndex >= 0 && pickedEntity->isKindOf(CC_TYPES::POINT_CLOUD))
+	{
+		P = *(static_cast<ccGenericPointCloud*>(pickedEntity)->getPoint(pickedItemIndex));
+		pickedPoint = &P;
+	}
+
 	//we must always emit a signal!
-	processPickingResult(params, pickedEntity, pickedItemIndex, &selectedIDs);
+	processPickingResult(params, pickedEntity, pickedItemIndex, pickedPoint, &selectedIDs);
 }
 
 void ccGLWindow::startCPUBasedPointPicking(const PickingParameters& params)
 {
 	//qint64 t0 = m_timer.elapsed();
 
-	CCVector2d clickedPos(params.centerX, height()-1 - params.centerY);
-	
+	CCVector2d clickedPos(params.centerX, height() - 1 - params.centerY);
+
 	ccHObject* nearestEntity = 0;
 	int nearestElementIndex = -1;
 	double nearestElementSquareDist = -1.0;
+	CCVector3 nearestPoint(0, 0, 0);
 
 	static ccGui::ParamStruct::ComputeOctreeForPicking autoComputeOctreeThisSession = ccGui::ParamStruct::ASK_USER;
 	bool autoComputeOctree = false;
@@ -4612,7 +4488,7 @@ void ccGLWindow::startCPUBasedPointPicking(const PickingParameters& params)
 			bool ignoreSubmeshes = false;
 
 			//we look for point cloud displayed in this window
-			if (ent->isVisible() && ent->getDisplay() == this)
+			if (ent->isVisible() && ent->isEnabled() && ent->getDisplay() == this)
 			{
 				if (ent->isKindOf(CC_TYPES::POINT_CLOUD))
 				{
@@ -4627,7 +4503,7 @@ void ccGLWindow::startCPUBasedPointPicking(const PickingParameters& params)
 							//we use the persistent parameter for this session
 							behavior = autoComputeOctreeThisSession;
 						}
-						
+
 						switch (behavior)
 						{
 						case ccGui::ParamStruct::ALWAYS:
@@ -4635,45 +4511,45 @@ void ccGLWindow::startCPUBasedPointPicking(const PickingParameters& params)
 							break;
 
 						case ccGui::ParamStruct::ASK_USER:
-							{
-								QMessageBox question(	QMessageBox::Question,
-														"Picking acceleration",
-														"Automatically compute octree(s) to accelerate the picking process?\n(this behavior can be changed later in the Display Settings)",
-														QMessageBox::NoButton,
-														this );
-								
-								QPushButton* yes = new QPushButton("Yes");
-								question.addButton(yes, QMessageBox::AcceptRole);
-								QPushButton* no = new QPushButton("No");
-								question.addButton(no, QMessageBox::RejectRole);
-								QPushButton* always = new QPushButton("Always");
-								question.addButton(always, QMessageBox::AcceptRole);
-								QPushButton* never = new QPushButton("Never");
-								question.addButton(never, QMessageBox::RejectRole);
+						{
+							QMessageBox question(QMessageBox::Question,
+								"Picking acceleration",
+								"Automatically compute octree(s) to accelerate the picking process?\n(this behavior can be changed later in the Display Settings)",
+								QMessageBox::NoButton,
+								asWidget());
 
-								question.exec();
-								QAbstractButton* clickedButton = question.clickedButton();
-								if (clickedButton == yes)
-								{
-									autoComputeOctree = true;
-									autoComputeOctreeThisSession = ccGui::ParamStruct::ALWAYS;
-								}
-								else if (clickedButton == no)
-								{
-									autoComputeOctree = false;
-									autoComputeOctreeThisSession = ccGui::ParamStruct::NEVER;
-								}
-								else if (clickedButton == always || clickedButton == never)
-								{
-									autoComputeOctree = (clickedButton == always);
-									//update the global application parameters
-									ccGui::ParamStruct params = ccGui::Parameters();
-									params.autoComputeOctree = ccGui::ParamStruct::ALWAYS;
-									ccGui::Set(params);
-									params.toPersistentSettings();
-								}
+							QPushButton* yes = new QPushButton("Yes");
+							question.addButton(yes, QMessageBox::AcceptRole);
+							QPushButton* no = new QPushButton("No");
+							question.addButton(no, QMessageBox::RejectRole);
+							QPushButton* always = new QPushButton("Always");
+							question.addButton(always, QMessageBox::AcceptRole);
+							QPushButton* never = new QPushButton("Never");
+							question.addButton(never, QMessageBox::RejectRole);
+
+							question.exec();
+							QAbstractButton* clickedButton = question.clickedButton();
+							if (clickedButton == yes)
+							{
+								autoComputeOctree = true;
+								autoComputeOctreeThisSession = ccGui::ParamStruct::ALWAYS;
 							}
-							break;
+							else if (clickedButton == no)
+							{
+								autoComputeOctree = false;
+								autoComputeOctreeThisSession = ccGui::ParamStruct::NEVER;
+							}
+							else if (clickedButton == always || clickedButton == never)
+							{
+								autoComputeOctree = (clickedButton == always);
+								//update the global application parameters
+								ccGui::ParamStruct params = ccGui::Parameters();
+								params.autoComputeOctree = autoComputeOctree ? ccGui::ParamStruct::ALWAYS : ccGui::ParamStruct::NEVER;
+								ccGui::Set(params);
+								params.toPersistentSettings();
+							}
+						}
+						break;
 
 						case ccGui::ParamStruct::NEVER:
 							autoComputeOctree = false;
@@ -4687,18 +4563,18 @@ void ccGLWindow::startCPUBasedPointPicking(const PickingParameters& params)
 					double nearestSquareDist = 0;
 
 					if (cloud->pointPicking(clickedPos,
-											camera,
-											nearestPointIndex,
-											nearestSquareDist,
-											params.pickWidth,
-											params.pickHeight,
-											autoComputeOctree
-											) )
+						camera,
+						nearestPointIndex,
+						nearestSquareDist,
+						params.pickWidth,
+						params.pickHeight,
+						autoComputeOctree))
 					{
 						if (nearestElementIndex < 0 || (nearestPointIndex >= 0 && nearestSquareDist < nearestElementSquareDist))
 						{
 							nearestElementSquareDist = nearestSquareDist;
 							nearestElementIndex = nearestPointIndex;
+							nearestPoint = *(cloud->getPoint(nearestPointIndex));
 							nearestEntity = cloud;
 						}
 					}
@@ -4711,15 +4587,18 @@ void ccGLWindow::startCPUBasedPointPicking(const PickingParameters& params)
 
 					int nearestTriIndex = -1;
 					double nearestSquareDist = 0;
+					CCVector3d P;
 					if (mesh->trianglePicking(	clickedPos,
 												camera,
 												nearestTriIndex,
-												nearestSquareDist) )
+												nearestSquareDist,
+												P))
 					{
 						if (nearestElementIndex < 0 || (nearestTriIndex >= 0 && nearestSquareDist < nearestElementSquareDist))
 						{
 							nearestElementSquareDist = nearestSquareDist;
 							nearestElementIndex = nearestTriIndex;
+							nearestPoint = CCVector3::fromArray(P.u);
 							nearestEntity = mesh;
 						}
 					}
@@ -4727,17 +4606,17 @@ void ccGLWindow::startCPUBasedPointPicking(const PickingParameters& params)
 			}
 
 			//add children
-			for (unsigned i=0; i<ent->getChildrenNumber(); ++i)
+			for (unsigned i = 0; i < ent->getChildrenNumber(); ++i)
 			{
 				//we ignore the sub-meshes of the current (mesh) entity
 				//as their content is the same!
-				if (	ignoreSubmeshes
+				if (ignoreSubmeshes
 					&&	ent->getChild(i)->isKindOf(CC_TYPES::SUB_MESH)
-					&&	static_cast<ccSubMesh*>(ent)->getAssociatedMesh() == ent)
+					&& static_cast<ccSubMesh*>(ent)->getAssociatedMesh() == ent)
 				{
 					continue;
 				}
-				
+
 				toProcess.push_back(ent->getChild(i));
 			}
 		}
@@ -4752,7 +4631,7 @@ void ccGLWindow::startCPUBasedPointPicking(const PickingParameters& params)
 	//ccLog::Print(QString("[Picking][CPU] Time: %1 ms").arg(dt));
 
 	//we must always emit a signal!
-	processPickingResult(params, nearestEntity, nearestElementIndex);
+	processPickingResult(params, nearestEntity, nearestElementIndex, &nearestPoint);
 }
 
 void ccGLWindow::displayNewMessage(	const QString& message,
@@ -4777,7 +4656,7 @@ void ccGLWindow::displayNewMessage(	const QString& message,
 		}
 		else
 		{
-			ccLog::Warning("[ccGLWindow::displayNewMessage] Appending an empty message has no effect!"); 
+			ccLog::Warning("[ccGLWindow::displayNewMessage] Appending an empty message has no effect!");
 		}
 		return;
 	}
@@ -4797,23 +4676,19 @@ void ccGLWindow::displayNewMessage(	const QString& message,
 					++it;
 			}
 		}
-		else
-		{
-			ccLog::WarningDebug("[ccGLWindow::displayNewMessage] Append is forced for custom messages!");
-		}
 	}
 	else
 	{
 		if (pos == SCREEN_CENTER_MESSAGE)
 		{
-			ccLog::Warning("[ccGLWindow::displayNewMessage] Append is not supported for center screen messages!"); 
+			ccLog::Warning("[ccGLWindow::displayNewMessage] Append is not supported for center screen messages!");
 			append = false;
 		}
 	}
 
 	MessageToDisplay mess;
 	mess.message = message;
-	mess.messageValidity_sec = ccTimer::Sec()+displayMaxDelay_sec;
+	mess.messageValidity_sec = m_timer.elapsed() / 1000 + displayMaxDelay_sec;
 	mess.position = pos;
 	mess.type = type;
 	m_messagesToDisplay.push_back(mess);
@@ -4823,10 +4698,18 @@ void ccGLWindow::displayNewMessage(	const QString& message,
 
 void ccGLWindow::setPointSize(float size)
 {
-	if (size >= static_cast<float>(MIN_POINT_SIZE) && size <= static_cast<float>(MAX_POINT_SIZE))
+	float newSize = std::max<float>(std::min<float>(size, MAX_POINT_SIZE), MIN_POINT_SIZE);
+	ccLog::Print(QString("New point size: %1").arg(newSize));
+	if (m_viewportParams.defaultPointSize != newSize)
 	{
-		m_viewportParams.defaultPointSize = size;
+		m_viewportParams.defaultPointSize = newSize;
 		m_updateFBO = true;
+	
+		displayNewMessage(	QString("New default point size: %1").arg(newSize),
+							ccGLWindow::LOWER_LEFT_MESSAGE, //DGM HACK: we cheat and use the same 'slot' as the window size
+							false,
+							2,
+							SCREEN_SIZE_MESSAGE);
 	}
 }
 
@@ -4848,7 +4731,7 @@ int FontSizeModifier(int fontSize, float zoomFactor)
 
 int ccGLWindow::getFontPointSize() const
 {
-	return (m_captureMode.enabled ? FontSizeModifier(getDisplayParameters().defaultFontSize,m_captureMode.zoomFactor) : getDisplayParameters().defaultFontSize);
+	return (m_captureMode.enabled ? FontSizeModifier(getDisplayParameters().defaultFontSize, m_captureMode.zoomFactor) : getDisplayParameters().defaultFontSize);
 }
 
 void ccGLWindow::setFontPointSize(int pixelSize)
@@ -4859,7 +4742,7 @@ void ccGLWindow::setFontPointSize(int pixelSize)
 QFont ccGLWindow::getTextDisplayFont() const
 {
 	//if (!m_captureMode.enabled || m_captureMode.zoomFactor == 1.0f)
-		return m_font;
+	return m_font;
 
 	//QFont font = m_font;
 	//font.setPointSize(getFontPointSize());
@@ -4868,7 +4751,7 @@ QFont ccGLWindow::getTextDisplayFont() const
 
 int ccGLWindow::getLabelFontPointSize() const
 {
-	return (m_captureMode.enabled ? FontSizeModifier(getDisplayParameters().labelFontSize,m_captureMode.zoomFactor) : getDisplayParameters().labelFontSize);
+	return (m_captureMode.enabled ? FontSizeModifier(getDisplayParameters().labelFontSize, m_captureMode.zoomFactor) : getDisplayParameters().labelFontSize);
 }
 
 QFont ccGLWindow::getLabelDisplayFont() const
@@ -4880,23 +4763,26 @@ QFont ccGLWindow::getLabelDisplayFont() const
 
 void ccGLWindow::glEnableSunLight()
 {
-	glLightfv(GL_LIGHT0,GL_DIFFUSE,getDisplayParameters().lightDiffuseColor.rgba);
-	glLightfv(GL_LIGHT0,GL_AMBIENT,getDisplayParameters().lightAmbientColor.rgba);
-	glLightfv(GL_LIGHT0,GL_SPECULAR,getDisplayParameters().lightSpecularColor.rgba);
-	glLightfv(GL_LIGHT0, GL_POSITION, m_sunLightPos);
-	glLightModelf(GL_LIGHT_MODEL_TWO_SIDE,GL_TRUE);
-	glEnable(GL_LIGHT0);
+	ccQOpenGLFunctions* glFunc = functions();
+	assert(glFunc);
+
+	glFunc->glLightfv(GL_LIGHT0, GL_DIFFUSE, getDisplayParameters().lightDiffuseColor.rgba);
+	glFunc->glLightfv(GL_LIGHT0, GL_AMBIENT, getDisplayParameters().lightAmbientColor.rgba);
+	glFunc->glLightfv(GL_LIGHT0, GL_SPECULAR, getDisplayParameters().lightSpecularColor.rgba);
+	glFunc->glLightfv(GL_LIGHT0, GL_POSITION, m_sunLightPos);
+	glFunc->glLightModelf(GL_LIGHT_MODEL_TWO_SIDE, GL_TRUE);
+	glFunc->glEnable(GL_LIGHT0);
 }
 
 void ccGLWindow::glDisableSunLight()
 {
-	glDisable(GL_LIGHT0);
+	functions()->glDisable(GL_LIGHT0);
 }
 
 void ccGLWindow::setSunLight(bool state)
 {
-	m_sunLightEnabled=state;
-	displayNewMessage(state ? "Sun light ON" : "Sun light OFF",
+	m_sunLightEnabled = state;
+	displayNewMessage(	state ? "Sun light ON" : "Sun light OFF",
 						ccGLWindow::LOWER_LEFT_MESSAGE,
 						false,
 						2,
@@ -4907,7 +4793,7 @@ void ccGLWindow::setSunLight(bool state)
 	{
 		QSettings settings;
 		settings.beginGroup(c_ps_groupName);
-		settings.setValue(c_ps_sunLight,	m_sunLightEnabled);
+		settings.setValue(c_ps_sunLight, m_sunLightEnabled);
 	}
 }
 
@@ -4918,23 +4804,26 @@ void ccGLWindow::toggleSunLight()
 
 void ccGLWindow::glEnableCustomLight()
 {
-	glLightfv(GL_LIGHT1,GL_DIFFUSE,getDisplayParameters().lightDiffuseColor.rgba);
-	glLightfv(GL_LIGHT1,GL_AMBIENT,getDisplayParameters().lightAmbientColor.rgba);
-	glLightfv(GL_LIGHT1,GL_SPECULAR,getDisplayParameters().lightSpecularColor.rgba);
-	glLightfv(GL_LIGHT1,GL_POSITION,m_customLightPos);
-	glLightModelf(GL_LIGHT_MODEL_TWO_SIDE,GL_TRUE);
-	glEnable(GL_LIGHT1);
+	ccQOpenGLFunctions* glFunc = functions();
+	assert(glFunc);
+
+	glFunc->glLightfv(GL_LIGHT1, GL_DIFFUSE, getDisplayParameters().lightDiffuseColor.rgba);
+	glFunc->glLightfv(GL_LIGHT1, GL_AMBIENT, getDisplayParameters().lightAmbientColor.rgba);
+	glFunc->glLightfv(GL_LIGHT1, GL_SPECULAR, getDisplayParameters().lightSpecularColor.rgba);
+	glFunc->glLightfv(GL_LIGHT1, GL_POSITION, m_customLightPos);
+	glFunc->glLightModelf(GL_LIGHT_MODEL_TWO_SIDE, GL_TRUE);
+	glFunc->glEnable(GL_LIGHT1);
 }
 
 void ccGLWindow::glDisableCustomLight()
 {
-	glDisable(GL_LIGHT1);
+	functions()->glDisable(GL_LIGHT1);
 }
 
 void ccGLWindow::setCustomLight(bool state)
 {
-	m_customLightEnabled=state;
-	displayNewMessage(state ? "Custom light ON" : "Custom light OFF",
+	m_customLightEnabled = state;
+	displayNewMessage(	state ? "Custom light ON" : "Custom light OFF",
 						ccGLWindow::LOWER_LEFT_MESSAGE,
 						false,
 						2,
@@ -4947,7 +4836,7 @@ void ccGLWindow::setCustomLight(bool state)
 	{
 		QSettings settings;
 		settings.beginGroup(c_ps_groupName);
-		settings.setValue(c_ps_customLight,	m_customLightEnabled);
+		settings.setValue(c_ps_customLight, m_customLightEnabled);
 	}
 }
 
@@ -4958,49 +4847,59 @@ void ccGLWindow::toggleCustomLight()
 
 void ccGLWindow::drawCustomLight()
 {
-	ccGL::Color3v(ccColor::yellow.rgba);
+	ccQOpenGLFunctions* glFunc = functions();
+	assert(glFunc);
+
+	glFunc->glColor4ubv(ccColor::yellow.rgba);
 	//ensure that the star size is constant (in pixels)
 	GLfloat d = static_cast<GLfloat>(CC_DISPLAYED_CUSTOM_LIGHT_LENGTH * computeActualPixelSize());
 
-	glBegin(GL_LINES);
-	glVertex3f(m_customLightPos[0]-d, m_customLightPos[1],   m_customLightPos[2]);
-	glVertex3f(m_customLightPos[0]+d, m_customLightPos[1],   m_customLightPos[2]);
-	glVertex3f(m_customLightPos[0],   m_customLightPos[1]-d, m_customLightPos[2]);
-	glVertex3f(m_customLightPos[0],   m_customLightPos[1]+d, m_customLightPos[2]);
-	glVertex3f(m_customLightPos[0],   m_customLightPos[1],   m_customLightPos[2]-d);
-	glVertex3f(m_customLightPos[0],   m_customLightPos[1],   m_customLightPos[2]+d);
-	glEnd();
+	glFunc->glBegin(GL_LINES);
+	glFunc->glVertex3f(m_customLightPos[0] - d, m_customLightPos[1], m_customLightPos[2]);
+	glFunc->glVertex3f(m_customLightPos[0] + d, m_customLightPos[1], m_customLightPos[2]);
+	glFunc->glVertex3f(m_customLightPos[0], m_customLightPos[1] - d, m_customLightPos[2]);
+	glFunc->glVertex3f(m_customLightPos[0], m_customLightPos[1] + d, m_customLightPos[2]);
+	glFunc->glVertex3f(m_customLightPos[0], m_customLightPos[1], m_customLightPos[2] - d);
+	glFunc->glVertex3f(m_customLightPos[0], m_customLightPos[1], m_customLightPos[2] + d);
+	glFunc->glEnd();
 }
 
 //draw a unit circle in a given plane (0=YZ, 1 = XZ, 2=XY) 
-static void glDrawUnitCircle(unsigned char dim, unsigned steps = 64)
+static void glDrawUnitCircle(QOpenGLContext* context, unsigned char dim, unsigned steps = 64)
 {
+	assert(context);
+	QOpenGLFunctions_2_1* glFunc = context->versionFunctions<QOpenGLFunctions_2_1>();
+	if (!glFunc)
+	{
+		return;
+	}
+
 	double thetaStep = 2.0 * M_PI / static_cast<double>(steps);
-	unsigned char dimX = (dim  < 2 ? dim  + 1 : 0);
+	unsigned char dimX = (dim < 2 ? dim + 1 : 0);
 	unsigned char dimY = (dimX < 2 ? dimX + 1 : 0);
 
-	CCVector3d P(0,0,0);
+	CCVector3d P(0, 0, 0);
 
-	glBegin(GL_LINE_LOOP);
-	for (unsigned i=0; i<steps; ++i)
+	glFunc->glBegin(GL_LINE_LOOP);
+	for (unsigned i = 0; i < steps; ++i)
 	{
 		double theta = thetaStep * i;
 		P.u[dimX] = cos(theta);
 		P.u[dimY] = sin(theta);
-		glVertex3dv(P.u);
+		glFunc->glVertex3dv(P.u);
 	}
-	glEnd();
+	glFunc->glEnd();
 }
 
 void ccGLWindow::setPivotVisibility(PivotVisibility vis)
 {
 	m_pivotVisibility = vis;
-	
+
 	//auto-save last pivot visibility settings
 	{
 		QSettings settings;
 		settings.beginGroup(c_ps_groupName);
-		settings.setValue(c_ps_pivotVisibility,	vis);
+		settings.setValue(c_ps_pivotVisibility, vis);
 		settings.endGroup();
 	}
 }
@@ -5030,88 +4929,91 @@ void ccGLWindow::drawPivot()
 		(m_pivotVisibility == PIVOT_SHOW_ON_MOVE && !m_pivotSymbolShown))
 		return;
 
-	glMatrixMode(GL_MODELVIEW);
-	glPushMatrix();
+	ccQOpenGLFunctions* glFunc = functions();
+	assert(glFunc);
+
+	glFunc->glMatrixMode(GL_MODELVIEW);
+	glFunc->glPushMatrix();
 
 	//place origin on pivot point
-	glTranslated(m_viewportParams.pivotPoint.x, m_viewportParams.pivotPoint.y, m_viewportParams.pivotPoint.z);
+	glFunc->glTranslated(m_viewportParams.pivotPoint.x, m_viewportParams.pivotPoint.y, m_viewportParams.pivotPoint.z);
 
 	//compute actual symbol radius
 	double symbolRadius = CC_DISPLAYED_PIVOT_RADIUS_PERCENT * std::min(m_glViewport.width(), m_glViewport.height()) / 2;
 
 	if (m_pivotGLList == GL_INVALID_LIST_ID)
 	{
-		m_pivotGLList = glGenLists(1);
-		glNewList(m_pivotGLList, GL_COMPILE);
+		m_pivotGLList = glFunc->glGenLists(1);
+		glFunc->glNewList(m_pivotGLList, GL_COMPILE);
 
 		//draw a small sphere
 		{
-			ccSphere sphere(static_cast<PointCoordinateType>(10.0/symbolRadius));
+			ccSphere sphere(static_cast<PointCoordinateType>(10.0 / symbolRadius));
 			sphere.setColor(ccColor::yellow);
 			sphere.showColors(true);
 			sphere.setVisible(true);
 			sphere.setEnabled(true);
 			//force lighting for proper sphere display
-			glPushAttrib(GL_LIGHTING_BIT);
+			glFunc->glPushAttrib(GL_LIGHTING_BIT);
 			glEnableSunLight();
 			CC_DRAW_CONTEXT CONTEXT;
 			getContext(CONTEXT);
-			CONTEXT.flags = CC_DRAW_3D | CC_DRAW_FOREGROUND | CC_LIGHT_ENABLED;
-			CONTEXT._win = 0;
+			CONTEXT.drawingFlags = CC_DRAW_3D | CC_DRAW_FOREGROUND | CC_LIGHT_ENABLED;
+			CONTEXT.display = 0;
 			sphere.draw(CONTEXT);
-			glPopAttrib();
+			glFunc->glPopAttrib();
 		}
 
 		//draw 3 circles
-		glPushAttrib(GL_COLOR_BUFFER_BIT | GL_LINE_BIT);
-		glEnable(GL_BLEND);
-		glLineWidth(2.0f);
+		glFunc->glPushAttrib(GL_COLOR_BUFFER_BIT | GL_LINE_BIT);
+		glFunc->glEnable(GL_BLEND);
+		glFunc->glLineWidth(2.0f);
 
 		//default transparency
 		const float c_alpha = 0.6f;
 
 		//pivot symbol: 3 circles
-		glColor4f(1.0f,0.0f,0.0f,c_alpha);
-		glDrawUnitCircle(0);
-		glBegin(GL_LINES);
-		glVertex3f(-1.0f,0.0f,0.0f);
-		glVertex3f( 1.0f,0.0f,0.0f);
-		glEnd();
+		glFunc->glColor4f(1.0f, 0.0f, 0.0f, c_alpha);
+		glDrawUnitCircle(context(), 0);
+		glFunc->glBegin(GL_LINES);
+		glFunc->glVertex3f(-1.0f, 0.0f, 0.0f);
+		glFunc->glVertex3f(1.0f, 0.0f, 0.0f);
+		glFunc->glEnd();
 
-		glColor4f(0.0f,1.0f,0.0f,c_alpha);
-		glDrawUnitCircle(1);
-		glBegin(GL_LINES);
-		glVertex3f(0.0f,-1.0f,0.0f);
-		glVertex3f(0.0f, 1.0f,0.0f);
-		glEnd();
+		glFunc->glColor4f(0.0f, 1.0f, 0.0f, c_alpha);
+		glDrawUnitCircle(context(), 1);
+		glFunc->glBegin(GL_LINES);
+		glFunc->glVertex3f(0.0f, -1.0f, 0.0f);
+		glFunc->glVertex3f(0.0f, 1.0f, 0.0f);
+		glFunc->glEnd();
 
-		glColor4f(0.0f,0.7f,1.0f,c_alpha);
-		glDrawUnitCircle(2);
-		glBegin(GL_LINES);
-		glVertex3f(0.0f,0.0f,-1.0f);
-		glVertex3f(0.0f,0.0f, 1.0f);
-		glEnd();
+		glFunc->glColor4f(0.0f, 0.7f, 1.0f, c_alpha);
+		glDrawUnitCircle(context(), 2);
+		glFunc->glBegin(GL_LINES);
+		glFunc->glVertex3f(0.0f, 0.0f, -1.0f);
+		glFunc->glVertex3f(0.0f, 0.0f, 1.0f);
+		glFunc->glEnd();
 
-		glPopAttrib();
+		glFunc->glPopAttrib();
 
-		glEndList();
+		glFunc->glEndList();
 	}
 
 	//constant scale
 	double scale = symbolRadius * computeActualPixelSize();
-	glScaled(scale,scale,scale);
-	
-	glCallList(m_pivotGLList);
+	glFunc->glScaled(scale, scale, scale);
 
-	glPopMatrix();
+	glFunc->glCallList(m_pivotGLList);
+
+	glFunc->glPopMatrix();
 }
 
 void ccGLWindow::togglePerspective(bool objectCentered)
 {
 	if (m_viewportParams.objectCenteredView != objectCentered)
-		setPerspectiveState(true,objectCentered);
+		setPerspectiveState(true, objectCentered);
 	else
-		setPerspectiveState(!m_viewportParams.perspectiveView,objectCentered);
+		setPerspectiveState(!m_viewportParams.perspectiveView, objectCentered);
 }
 
 double ccGLWindow::computeActualPixelSize() const
@@ -5129,7 +5031,7 @@ double ccGLWindow::computeActualPixelSize() const
 	double zoomEquivalentDist = (m_viewportParams.cameraCenter - m_viewportParams.pivotPoint).norm();
 
 	float currentFov_deg = getFov();
-	return zoomEquivalentDist * tan(currentFov_deg * CC_DEG_TO_RAD) / static_cast<double>(minScreenDim);
+	return zoomEquivalentDist * tan(std::min(currentFov_deg, 75.0f) * CC_DEG_TO_RAD) / static_cast<double>(minScreenDim); //tan(75) = 3.73 (then it quickly increases!)
 }
 
 float ccGLWindow::computePerspectiveZoom() const
@@ -5147,7 +5049,7 @@ float ccGLWindow::computePerspectiveZoom() const
 	double zoomEquivalentDist = (m_viewportParams.cameraCenter - m_viewportParams.pivotPoint).norm();
 	if (zoomEquivalentDist < ZERO_TOLERANCE)
 		return 1.0f;
-	
+
 	float screenSize = std::min(m_glViewport.width(), m_glViewport.height()) * m_viewportParams.pixelSize; //see how pixelSize is computed!
 	return screenSize / static_cast<float>(zoomEquivalentDist * tan(currentFov_deg * CC_DEG_TO_RAD));
 }
@@ -5166,7 +5068,7 @@ void ccGLWindow::setBubbleViewMode(bool state)
 		//bubble-view mode = viewer-based perspective mode
 		//setPerspectiveState must be called first as it
 		//automatically deactivates bubble-view mode!
-		setPerspectiveState(true,false);
+		setPerspectiveState(true, false);
 
 		m_bubbleViewModeEnabled = true;
 
@@ -5177,7 +5079,7 @@ void ccGLWindow::setBubbleViewMode(bool state)
 	else if (bubbleViewModeWasEnabled)
 	{
 		m_bubbleViewModeEnabled = false;
-		setPerspectiveState(m_preBubbleViewParameters.perspectiveView,m_preBubbleViewParameters.objectCenteredView);
+		setPerspectiveState(m_preBubbleViewParameters.perspectiveView, m_preBubbleViewParameters.objectCenteredView);
 
 		//when leaving this mode, we restore the original camera center
 		setViewportParameters(m_preBubbleViewParameters);
@@ -5207,15 +5109,18 @@ void ccGLWindow::setPerspectiveState(bool state, bool objectCenteredView)
 			float currentFov_deg = getFov();
 			assert(currentFov_deg > ZERO_TOLERANCE);
 			double screenSize = std::min(m_glViewport.width(), m_glViewport.height()) * m_viewportParams.pixelSize; //see how pixelSize is computed!
-			PC.z = screenSize / (m_viewportParams.zoom*tan(currentFov_deg*CC_DEG_TO_RAD));
+			if (screenSize > 0)
+			{
+				PC.z = screenSize / (m_viewportParams.zoom*tan(currentFov_deg*CC_DEG_TO_RAD));
+			}
 		}
 
 		//display message
-		displayNewMessage(objectCenteredView ?	"Centered perspective ON" : "Viewer-based perspective ON",
-												ccGLWindow::LOWER_LEFT_MESSAGE,
-												false,
-												2,
-												PERSPECTIVE_STATE_MESSAGE);
+		displayNewMessage(objectCenteredView ? "Centered perspective ON" : "Viewer-based perspective ON",
+			ccGLWindow::LOWER_LEFT_MESSAGE,
+			false,
+			2,
+			PERSPECTIVE_STATE_MESSAGE);
 	}
 	else
 	{
@@ -5229,10 +5134,10 @@ void ccGLWindow::setPerspectiveState(bool state, bool objectCenteredView)
 		}
 
 		displayNewMessage("Perspective OFF",
-							ccGLWindow::LOWER_LEFT_MESSAGE,
-							false,
-							2,
-							PERSPECTIVE_STATE_MESSAGE);
+			ccGLWindow::LOWER_LEFT_MESSAGE,
+			false,
+			2,
+			PERSPECTIVE_STATE_MESSAGE);
 	}
 
 	//if we change form object-based to viewer-based visualization, we must
@@ -5272,7 +5177,7 @@ void ccGLWindow::setAspectRatio(float ar)
 		ccLog::Warning("[ccGLWindow::setAspectRatio] Invalid AR value!");
 		return;
 	}
-	
+
 	if (m_viewportParams.perspectiveAspectRatio != ar)
 	{
 		//update param
@@ -5299,10 +5204,8 @@ void ccGLWindow::setFov(float fov_deg)
 	if (m_bubbleViewModeEnabled)
 	{
 		setBubbleViewFov(fov_deg);
-		return;
 	}
-
-	if (m_viewportParams.fov != fov_deg)
+	else if (m_viewportParams.fov != fov_deg)
 	{
 		//update param
 		m_viewportParams.fov = fov_deg;
@@ -5311,6 +5214,12 @@ void ccGLWindow::setFov(float fov_deg)
 		{
 			invalidateViewport();
 			invalidateVisualization();
+
+			displayNewMessage(	QString("F.O.V. = %1 deg.").arg(fov_deg, 0, 'f', 1),
+								ccGLWindow::LOWER_LEFT_MESSAGE, //DGM HACK: we cheat and use the same 'slot' as the window size
+								false,
+								2,
+								SCREEN_SIZE_MESSAGE);
 		}
 
 		emit fovChanged(m_viewportParams.fov);
@@ -5342,7 +5251,7 @@ void ccGLWindow::setBubbleViewFov(float fov_deg)
 
 void ccGLWindow::setZNearCoef(double coef)
 {
-	if (coef <= 0)
+	if (coef <= 0 || coef >= 1.0)
 	{
 		ccLog::Warning("[ccGLWindow::setZNearCoef] Invalid coef. value!");
 		return;
@@ -5355,9 +5264,20 @@ void ccGLWindow::setZNearCoef(double coef)
 		//and camera state (if perspective view is 'on')
 		if (m_viewportParams.perspectiveView)
 		{
-			invalidateViewport();
-			invalidateVisualization();
+			//invalidateViewport();
+			//invalidateVisualization();
+
+			//DGM: we update the projection matrix directly so as to get an up-to-date estimation of zNear
+			updateProjectionMatrix();
+
+			displayNewMessage(	QString("Near clipping = %1% of max depth (= %2)").arg(m_viewportParams.zNearCoef * 100.0, 0, 'f', 1).arg(m_viewportParams.zNear),
+								ccGLWindow::LOWER_LEFT_MESSAGE, //DGM HACK: we cheat and use the same 'slot' as the window size
+								false,
+								2,
+								SCREEN_SIZE_MESSAGE);
 		}
+
+		emit zNearCoefChanged(coef);
 	}
 }
 
@@ -5396,21 +5316,23 @@ void ccGLWindow::updateZoom(float zoomFactor)
 	}
 }
 
-void ccGLWindow::setupProjectiveViewport(	const ccGLMatrixd& cameraMatrix,
-											float fov_deg/*=0.0f*/,
-											float ar/*=1.0f*/,
-											bool viewerBasedPerspective/*=true*/,
-											bool bubbleViewMode/*=false*/)
+void ccGLWindow::setupProjectiveViewport(const ccGLMatrixd& cameraMatrix,
+	float fov_deg/*=0.0f*/,
+	float ar/*=1.0f*/,
+	bool viewerBasedPerspective/*=true*/,
+	bool bubbleViewMode/*=false*/)
 {
 	//perspective (viewer-based by default)
 	if (bubbleViewMode)
 		setBubbleViewMode(true);
 	else
-		setPerspectiveState(true,!viewerBasedPerspective);
+		setPerspectiveState(true, !viewerBasedPerspective);
 
 	//field of view (= OpenGL 'fovy' but in degrees)
 	if (fov_deg > 0)
+	{
 		setFov(fov_deg);
+	}
 
 	//aspect ratio
 	setAspectRatio(ar);
@@ -5419,7 +5341,9 @@ void ccGLWindow::setupProjectiveViewport(	const ccGLMatrixd& cameraMatrix,
 	CCVector3d T = cameraMatrix.getTranslationAsVec3D();
 	setCameraPos(T);
 	if (viewerBasedPerspective)
+	{
 		setPivotPoint(T);
+	}
 
 	//apply orientation matrix
 	ccGLMatrixd trans = cameraMatrix;
@@ -5434,13 +5358,13 @@ void ccGLWindow::setCustomView(const CCVector3d& forward, const CCVector3d& up, 
 {
 	bool wasViewerBased = !m_viewportParams.objectCenteredView;
 	if (wasViewerBased)
-		setPerspectiveState(m_viewportParams.perspectiveView,true);
+		setPerspectiveState(m_viewportParams.perspectiveView, true);
 
-	ccGLMatrixd viewMat = ccGLMatrixd::FromViewDirAndUpDir(forward,up);
+	ccGLMatrixd viewMat = ccGLMatrixd::FromViewDirAndUpDir(forward, up);
 	setBaseViewMat(viewMat);
 
 	if (wasViewerBased)
-		setPerspectiveState(m_viewportParams.perspectiveView,false);
+		setPerspectiveState(m_viewportParams.perspectiveView, false);
 
 	if (forceRedraw)
 		redraw();
@@ -5450,12 +5374,12 @@ void ccGLWindow::setView(CC_VIEW_ORIENTATION orientation, bool forceRedraw/*=tru
 {
 	bool wasViewerBased = !m_viewportParams.objectCenteredView;
 	if (wasViewerBased)
-		setPerspectiveState(m_viewportParams.perspectiveView,true);
+		setPerspectiveState(m_viewportParams.perspectiveView, true);
 
 	m_viewportParams.viewMat = ccGLUtils::GenerateViewMat(orientation);
 
 	if (wasViewerBased)
-		setPerspectiveState(m_viewportParams.perspectiveView,false);
+		setPerspectiveState(m_viewportParams.perspectiveView, false);
 
 	invalidateVisualization();
 
@@ -5472,7 +5396,9 @@ bool ccGLWindow::renderToFile(	QString filename,
 								bool renderOverlayItems/*=false*/)
 {
 	if (filename.isEmpty() || zoomFactor < 1.0e-2f)
+	{
 		return false;
+	}
 
 	QImage output = renderToImage(zoomFactor, dontScaleFeatures, renderOverlayItems);
 
@@ -5500,6 +5426,8 @@ QImage ccGLWindow::renderToImage(	float zoomFactor/*=1.0*/,
 									bool renderOverlayItems/*=false*/,
 									bool silent/*=false*/)
 {
+	makeCurrent();
+
 	//current window size (in pixels)
 	int Wp = static_cast<int>(width() * zoomFactor);
 	int Hp = static_cast<int>(height() * zoomFactor);
@@ -5540,47 +5468,45 @@ QImage ccGLWindow::renderToImage(	float zoomFactor/*=1.0*/,
 		setFontPointSize(getFontPointSize());
 	}
 
-	//setDisplayParameters(displayParams,true);
+	//setDisplayParameters(displayParams, true);
 
 	QImage outputImage;
-	if (m_fbo)
+	if (m_glExtFuncSupported)
 	{
 		if (!silent)
+		{
 			ccLog::Print("[Render screen via FBO]");
+		}
 
 		ccFrameBufferObject* fbo = 0;
 		ccGlFilter* filter = 0;
-		if (zoomFactor == 1.0f)
+		if (zoomFactor == 1.0f && m_fbo)
 		{
+			//we use the existing FBO
 			fbo = m_fbo;
 			filter = m_activeGLFilter;
 		}
 		else
 		{
 			fbo = new ccFrameBufferObject();
+
 			bool success = (	fbo->init(Wp, Hp)
-							&&	fbo->initColor(GL_RGBA,GL_RGBA, GL_UNSIGNED_BYTE)
-							&&	fbo->initDepth(GL_CLAMP_TO_BORDER, GL_DEPTH_COMPONENT32, GL_NEAREST, GL_TEXTURE_2D) );
+							&&	fbo->initColor()
+							&&	fbo->initDepth());
 			if (!success)
 			{
 				if (!silent)
 					ccLog::Error("[FBO] Initialization failed! (not enough memory?)");
 				delete fbo;
 				fbo = 0;
+				return QImage();
 			}
 		}
 
 		if (fbo)
 		{
-			//WARNING: THIS IS A ***FRACKING*** TRICK!!!
-			//we must trick Qt painter that the widget has actually
-			//been resized, otherwise the 'renderText' won't work!
-			QRect backupRect = geometry();
-			QRect& ncRect = const_cast<QRect&>(geometry());
-			ncRect.setWidth(Wp);
-			ncRect.setHeight(Hp);
-
-			makeCurrent();
+			ccQOpenGLFunctions* glFunc = functions();
+			assert(glFunc);
 
 			//update viewport
 			setGLViewport(0, 0, Wp, Hp);
@@ -5603,8 +5529,6 @@ QImage ccGLWindow::renderToImage(	float zoomFactor/*=1.0*/,
 				}
 			}
 
-			//updateZoom(zoomFactor);
-
 			CC_DRAW_CONTEXT CONTEXT;
 			getContext(CONTEXT);
 			CONTEXT.glW = Wp;
@@ -5614,41 +5538,53 @@ QImage ccGLWindow::renderToImage(	float zoomFactor/*=1.0*/,
 			//just to be sure
 			stopLODCycle();
 
-			//enable the FBO
-			fbo->start();
-			ccGLUtils::CatchGLError("ccGLWindow::renderToFile/FBO start");
-
 			RenderingParams renderingParams;
 			renderingParams.drawForeground = false;
+			renderingParams.useFBO = false; //DGM: make sure that no FBO is used internally!
 			bool stereoModeWasEnabled = m_stereoModeEnabled;
 			m_stereoModeEnabled = false;
-			fullRenderingPass(CONTEXT, renderingParams);
-			m_stereoModeEnabled = stereoModeWasEnabled;
-		
-			//disable the FBO
-			fbo->stop();
-			ccGLUtils::CatchGLError("ccGLWindow::renderToFile/FBO stop");
 
-			CONTEXT.flags = CC_DRAW_2D | CC_DRAW_FOREGROUND;
+			//updateZoom(zoomFactor);
+			float originalZoom = m_viewportParams.zoom;
+			setZoom(m_viewportParams.zoom * zoomFactor);
+
+			//disable LOD!
+			bool wasLODEnabled = isLODEnabled();
+			setLODEnabled(false);
+
+			//enable the FBO
+			bindFBO(fbo);
+			logGLError("ccGLWindow::renderToFile/FBO start");
+
+			fullRenderingPass(CONTEXT, renderingParams);
+
+			setZoom(originalZoom);
+
+			//disable the FBO
+			logGLError("ccGLWindow::renderToFile/FBO stop");
+			bindFBO(0);
+
+			setLODEnabled(wasLODEnabled);
+
+			m_stereoModeEnabled = stereoModeWasEnabled;
+
+			CONTEXT.drawingFlags = CC_DRAW_2D | CC_DRAW_FOREGROUND;
 			if (m_interactionFlags == INTERACT_TRANSFORM_ENTITIES)
 			{
-				CONTEXT.flags |= CC_VIRTUAL_TRANS_ENABLED;
+				CONTEXT.drawingFlags |= CC_VIRTUAL_TRANS_ENABLED;
 			}
 
-			//setStandardOrthoCenter();
-			{
-				glMatrixMode(GL_PROJECTION);
-				glLoadIdentity();
-				float halfW = Wp/2.0f;
-				float halfH = Hp/2.0f;
-				float maxS = std::max(halfW,halfH);
-				glOrtho(-halfW,halfW,-halfH,halfH,-maxS,maxS);
-				glMatrixMode(GL_MODELVIEW);
-				glLoadIdentity();
-			}
+			//glFunc->glMatrixMode(GL_PROJECTION);
+			//glFunc->glLoadIdentity();
+			//float halfW = Wp / 2.0f;
+			//float halfH = Hp / 2.0f;
+			//float maxS = std::max(halfW, halfH);
+			//glFunc->glOrtho(-halfW, halfW, -halfH, halfH, -maxS, maxS);
+			//glFunc->glMatrixMode(GL_MODELVIEW);
+			//glFunc->glLoadIdentity();
 
-			glPushAttrib(GL_DEPTH_BUFFER_BIT);
-			glDisable(GL_DEPTH_TEST);
+			glFunc->glPushAttrib(GL_DEPTH_BUFFER_BIT);
+			glFunc->glDisable(GL_DEPTH_TEST);
 
 			if (filter)
 			{
@@ -5657,23 +5593,27 @@ QImage ccGLWindow::renderToImage(	float zoomFactor/*=1.0*/,
 				GLuint colorTex = fbo->getColorTexture();
 				//minimal set of viewport parameters necessary for GL filters
 				ccGlFilter::ViewportParameters parameters;
-				parameters.perspectiveMode = m_viewportParams.perspectiveView;
-				parameters.zFar = m_viewportParams.zFar;
-				parameters.zNear = m_viewportParams.zNear;
-				parameters.zoom = m_viewportParams.perspectiveView ? computePerspectiveZoom() : m_viewportParams.zoom; //TODO: doesn't work well with EDL in perspective mode!
+				{
+					parameters.perspectiveMode = m_viewportParams.perspectiveView;
+					parameters.zFar = m_viewportParams.zFar;
+					parameters.zNear = m_viewportParams.zNear;
+					parameters.zoom = m_viewportParams.perspectiveView ? computePerspectiveZoom() : m_viewportParams.zoom * zoomFactor; //TODO: doesn't work well with EDL in perspective mode!
+				}
 				//apply shader
 				filter->shade(depthTex, colorTex, parameters);
+				logGLError("ccGLWindow::renderToFile/glFilter shade");
 
-				ccGLUtils::CatchGLError("ccGLWindow::renderToFile/glFilter shade");
-
-				//if render mode is ON: we only want to capture it, not to display it
-				fbo->start();
-				ccGLUtils::DisplayTexture2D(filter->getTexture(),CONTEXT.glW,CONTEXT.glH);
-				//glClear(GL_DEPTH_BUFFER_BIT);
-				fbo->stop();
+				//in render mode we only want to capture it, not to display it
+				bindFBO(fbo);
+				
+				setStandardOrthoCorner();
+				ccGLUtils::DisplayTexture2DPosition(filter->getTexture(), 0, 0, CONTEXT.glW, CONTEXT.glH);
+				
+				bindFBO(0);
 			}
 
-			fbo->start();
+			bindFBO(fbo);
+			setStandardOrthoCenter();
 
 			//we draw 2D entities (mainly for the color ramp!)
 			if (m_globalDBRoot)
@@ -5699,24 +5639,30 @@ QImage ccGLWindow::renderToImage(	float zoomFactor/*=1.0*/,
 			{
 				//scale: only in ortho mode
 				if (!m_viewportParams.perspectiveView)
+				{
+					//DGM FIXME: with a zoom > 1, the renderText call inside drawScale will result in the wrong FBO being used?!
 					drawScale(getDisplayParameters().textDefaultCol);
+				}
 
 				//trihedron
 				drawTrihedron();
 			}
 
-			glFlush();
+			glFunc->glFlush();
 
 			//read from fbo
-			glReadBuffer(GL_COLOR_ATTACHMENT0_EXT);
+			glFunc->glReadBuffer(GL_COLOR_ATTACHMENT0_EXT);
 			//to avoid memory issues, we read line by line
-			for (int i=0; i<Hp; ++i)
+			for (int i = 0; i < Hp; ++i)
 			{
-				glReadPixels(0,i,Wp,1,GL_BGRA,GL_UNSIGNED_BYTE,data+(Hp-1-i)*Wp*4);
+				glFunc->glReadPixels(0, i, Wp, 1, GL_BGRA, GL_UNSIGNED_BYTE, data + (Hp - 1 - i)*Wp * 4);
 			}
-			glReadBuffer(GL_NONE);
+			glFunc->glReadBuffer(GL_NONE);
 
-			fbo->stop();
+			logGLError("ccGLWindow::renderToFile");
+
+			//restore the default FBO
+			bindFBO(0);
 
 			if (m_fbo != fbo)
 			{
@@ -5724,14 +5670,9 @@ QImage ccGLWindow::renderToImage(	float zoomFactor/*=1.0*/,
 			}
 			fbo = 0;
 
-			//don't forget to restore the right 'rect' or the widget will be broken!
-			ncRect = backupRect;
-
-			ccGLUtils::CatchGLError("ccGLWindow::renderToFile");
-
 			if (m_activeGLFilter)
 			{
-				initGLFilter(width(), height());
+				initGLFilter(width(), height(), true);
 			}
 
 			//restore original viewport
@@ -5739,32 +5680,34 @@ QImage ccGLWindow::renderToImage(	float zoomFactor/*=1.0*/,
 
 			outputImage = output;
 
-			glPopAttrib(); //GL_DEPTH_BUFFER_BIT
-			
-			//updateZoom(1.0/zoomFactor);
+			glFunc->glPopAttrib(); //GL_DEPTH_BUFFER_BIT
+
 		}
 	}
-	else if (m_activeShader)
-	{
-		if (!silent)
-			ccLog::Error("Screen capture with shader not supported!");
-	}
-	//if no shader or fbo --> we grab screen directly
 	else
 	{
+#ifdef CC_GL_WINDOW_USE_QWINDOW
 		if (!silent)
-			ccLog::Print("[Render screen via QT pixmap]");
-
-		QPixmap capture = renderPixmap(Wp, Hp);
-		if (!capture.isNull())
 		{
-			outputImage = capture.toImage();
+			ccLog::Error("Direct screen capture without FBO is not supported anymore!");
+		}
+#else
+		//if no shader or fbo --> we grab the screen directly
+		if (m_activeShader)
+		{
+			if (!silent)
+				ccLog::Error("Direct screen capture with shader is not supported!");
 		}
 		else
 		{
-			if (!silent)
-				ccLog::Error("Direct screen capture failed! (not enough memory?)");
+			outputImage = grabFramebuffer();
+			if (outputImage.isNull())
+			{
+				if (!silent)
+					ccLog::Error("Direct screen capture failed! (not enough memory?)");
+			}
 		}
+#endif
 	}
 
 	//for the sake of code symmetry ;)
@@ -5782,26 +5725,30 @@ QImage ccGLWindow::renderToImage(	float zoomFactor/*=1.0*/,
 
 void ccGLWindow::removeFBO()
 {
-	safeRemoveFBO(m_fbo);
-	safeRemoveFBO(m_fbo2);
+	removeFBOSafe(m_fbo);
+	removeFBOSafe(m_fbo2);
 }
 
 bool ccGLWindow::initFBO(int w, int h)
 {
+	makeCurrent();
+
 	if (!initFBOSafe(m_fbo, w, h))
 	{
 		ccLog::Warning("[FBO] Initialization failed!");
 		m_alwaysUseFBO = false;
-		safeRemoveFBO(m_fbo2);
+		removeFBOSafe(m_fbo2);
 		setLODEnabled(false, false);
 		return false;
 	}
 
-	if (!m_stereoModeEnabled || m_stereoParams.isAnaglyph())
+	if (!m_stereoModeEnabled || m_stereoParams.glassType != StereoParams::NVIDIA_VISION)
 	{
 		//we don't need it anymore
 		if (m_fbo2)
-			safeRemoveFBO(m_fbo2);
+		{
+			removeFBOSafe(m_fbo2);
+		}
 	}
 	else
 	{
@@ -5809,7 +5756,7 @@ bool ccGLWindow::initFBO(int w, int h)
 		{
 			ccLog::Warning("[FBO] Failed to initialize secondary FBO!");
 			m_alwaysUseFBO = false;
-			safeRemoveFBO(m_fbo);
+			removeFBOSafe(m_fbo);
 			setLODEnabled(false, false);
 			return false;
 		}
@@ -5833,12 +5780,17 @@ void ccGLWindow::removeGLFilter()
 	}
 }
 
-bool ccGLWindow::initGLFilter(int w, int h)
+bool ccGLWindow::initGLFilter(int w, int h, bool silent/*=false*/)
 {
 	if (!m_activeGLFilter)
 	{
 		return false;
 	}
+
+	makeCurrent();
+	const qreal retinaScale = devicePixelRatio();
+	w *= retinaScale;
+	h *= retinaScale;
 
 	//we "disconnect" current glFilter, to avoid wrong display/errors
 	//if QT tries to redraw window during initialization
@@ -5848,13 +5800,19 @@ bool ccGLWindow::initGLFilter(int w, int h)
 	QString shadersPath = ccGLWindow::getShadersPath();
 
 	QString error;
-	if (!_filter->init(w,h,shadersPath,error))
+	if (!_filter->init(static_cast<unsigned>(w), static_cast<unsigned>(h), shadersPath, error))
 	{
-		ccLog::Warning(QString("[GL Filter] Initialization failed: ")+error.trimmed());
+		if (!silent)
+		{
+			ccLog::Warning(QString("[GL Filter] Initialization failed: ") + error.trimmed());
+		}
 		return false;
 	}
 
-	ccLog::Print("[GL Filter] Filter initialized");
+	if (!silent)
+	{
+		ccLog::Print("[GL Filter] Filter initialized");
+	}
 
 	m_activeGLFilter = _filter;
 
@@ -5863,17 +5821,12 @@ bool ccGLWindow::initGLFilter(int w, int h)
 
 int ccGLWindow::getGlFilterBannerHeight() const
 {
-	return QFontMetrics(font()).height() + 2*CC_GL_FILTER_BANNER_MARGIN;
-}
-
-bool ccGLWindow::supportOpenGLVersion(unsigned openGLVersionFlag)
-{
-	return (format().openGLVersionFlags() & openGLVersionFlag);
+	return QFontMetrics(font()).height() + 2 * CC_GL_FILTER_BANNER_MARGIN;
 }
 
 void ccGLWindow::display3DLabel(const QString& str, const CCVector3& pos3D, const unsigned char* rgb/*=0*/, const QFont& font/*=QFont()*/)
 {
-	glColor3ubv_safe(rgb ? rgb : getDisplayParameters().textDefaultCol.rgb);
+	glColor3ubv_safe<ccQOpenGLFunctions>(functions(), rgb ? rgb : getDisplayParameters().textDefaultCol.rgb);
 	renderText(pos3D.x, pos3D.y, pos3D.z, str, font);
 }
 
@@ -5885,8 +5838,8 @@ void ccGLWindow::displayText(	QString text,
 								const unsigned char* rgbColor/*=0*/,
 								const QFont* font/*=0*/)
 {
-	//DGM: the context should be already active!
-	//makeCurrent();
+	ccQOpenGLFunctions* glFunc = functions();
+	assert(glFunc);
 
 	int x2 = x;
 	int y2 = m_glViewport.height() - 1 - y;
@@ -5897,7 +5850,7 @@ void ccGLWindow::displayText(	QString text,
 	QFont textFont = (font ? *font : m_font);
 
 	QFontMetrics fm(textFont);
-	int margin = fm.height()/4;
+	int margin = fm.height() / 4;
 
 	if (align != ALIGN_DEFAULT || bkgAlpha != 0)
 	{
@@ -5905,102 +5858,103 @@ void ccGLWindow::displayText(	QString text,
 
 		//text alignment
 		if (align & ALIGN_HMIDDLE)
-			x2 -= rect.width()/2;
+			x2 -= rect.width() / 2;
 		else if (align & ALIGN_HRIGHT)
 			x2 -= rect.width();
 		if (align & ALIGN_VMIDDLE)
-			y2 += rect.height()/2;
+			y2 += rect.height() / 2;
 		else if (align & ALIGN_VBOTTOM)
 			y2 += rect.height();
 
 		//background is not totally transparent
 		if (bkgAlpha != 0)
 		{
-			glPushAttrib(GL_COLOR_BUFFER_BIT);
-			glEnable(GL_BLEND);
+			glFunc->glPushAttrib(GL_COLOR_BUFFER_BIT);
+			glFunc->glEnable(GL_BLEND);
 
 			//inverted color with a bit of transparency
 			const float invertedCol[4] = {	(255 - col[0]) / 255.0f,
 											(255 - col[0]) / 255.0f,
 											(255 - col[0]) / 255.0f,
 											bkgAlpha };
-			glColor4fv(invertedCol);
+			glFunc->glColor4fv(invertedCol);
 
-			int xB = x2 - m_glViewport.width()/2;
-			int yB = m_glViewport.height()/2 - y2;
+			int xB = x2 - m_glViewport.width() / 2;
+			int yB = m_glViewport.height() / 2 - y2;
 			//yB += margin/2; //empirical compensation
 
-			glMatrixMode(GL_PROJECTION);
-			glPushMatrix();
-			glMatrixMode(GL_MODELVIEW);
-			glPushMatrix();
+			glFunc->glMatrixMode(GL_PROJECTION);
+			glFunc->glPushMatrix();
+			glFunc->glMatrixMode(GL_MODELVIEW);
+			glFunc->glPushMatrix();
 
 			setStandardOrthoCenter();
 
-			glBegin(GL_POLYGON);
-			glVertex2d(xB - margin, yB - margin);
-			glVertex2d(xB - margin, yB + rect.height() + margin/2);
-			glVertex2d(xB + rect.width() + margin, yB + rect.height() + margin/2); 
-			glVertex2d(xB + rect.width() + margin, yB - margin); 
-			glEnd();
+			glFunc->glBegin(GL_POLYGON);
+			glFunc->glVertex2d(xB - margin, yB - margin);
+			glFunc->glVertex2d(xB - margin, yB + rect.height() + margin / 2);
+			glFunc->glVertex2d(xB + rect.width() + margin, yB + rect.height() + margin / 2);
+			glFunc->glVertex2d(xB + rect.width() + margin, yB - margin);
+			glFunc->glEnd();
 
-			glMatrixMode(GL_PROJECTION);
-			glPopMatrix();
-			glMatrixMode(GL_MODELVIEW);
-			glPopMatrix();
-			glPopAttrib();
+			glFunc->glMatrixMode(GL_PROJECTION);
+			glFunc->glPopMatrix();
+			glFunc->glMatrixMode(GL_MODELVIEW);
+			glFunc->glPopMatrix();
+			glFunc->glPopAttrib();
 		}
 	}
 
 	if (align & ALIGN_VBOTTOM)
 		y2 -= margin; //empirical compensation
 	else if (align & ALIGN_VMIDDLE)
-		y2 -= margin/2; //empirical compensation
-	
-	glColor3ubv_safe(col);
+		y2 -= margin / 2; //empirical compensation
+
+	glColor3ubv_safe<ccQOpenGLFunctions>(glFunc, col);
 	renderText(x2, y2, text, textFont);
 }
 
 QString ccGLWindow::getShadersPath()
 {
-#if defined(Q_OS_MAC)
-	// shaders are in the bundle
-	QString  path = QCoreApplication::applicationDirPath();
-	path.remove( "MacOS" );
-	return path + "Shaders";
-#else
-	return QApplication::applicationDirPath() + "/shaders";
-#endif
-}
-
-//! Loads all available OpenGL extensions
-bool ccGLWindow::InitGLEW()
-{
-#ifdef USE_GLEW
+	QString  appPath = QCoreApplication::applicationDirPath();
+	QString	shaderPath;
 	
-	// GLEW initialization
-	if (!ccFBOUtils::InitGLEW())
+#if defined(Q_OS_MAC)
+	appPath.remove( "MacOS" );
+	
+#if defined(CC_MAC_DEV_PATHS)
+	shaderPath = appPath + "../../../shaders";
+#else
+	shaderPath = appPath + "/Shaders";
+#endif
+#elif defined(Q_OS_WIN)
+	shaderPath = appPath + "/shaders";
+#elif defined(Q_OS_LINUX)
+	// Shaders are relative to the bin directory where the executable is found
+	QDir  theDir( appPath );
+	
+	if ( theDir.dirName() == "bin" )
 	{
-		ccLog::Warning("[Glew] An error occurred while initializing OpenGL extensions!");
-		return false;
+		theDir.cdUp();
+		
+		shaderPath = (theDir.absolutePath() + "/share/cloudcompare/shaders");
 	}
 	else
 	{
-		ccLog::Print("[Glew] Initialized!");
-		return true;
+		// Choose a reasonable default to look in
+		shaderPath = "/usr/share/cloudcompare/shaders";
 	}
-
 #else
-
-	return false;
-
+#warning Need to specify the shader path for this OS.	
 #endif
+	
+	return shaderPath;
 }
 
 CCVector3 ccGLWindow::backprojectPointOnTriangle(	const CCVector2i& P2D,
 													const CCVector3& A3D,
 													const CCVector3& B3D,
-													const CCVector3& C3D )
+													const CCVector3& C3D)
 {
 	//viewing parameters
 	ccGLCameraParameters camera;
@@ -6014,9 +5968,9 @@ CCVector3 ccGLWindow::backprojectPointOnTriangle(	const CCVector2i& P2D,
 	camera.project(C3D, C2D);
 
 	//barycentric coordinates
-	GLdouble detT =  (B2D.y-C2D.y) * (A2D.x-C2D.x) + (C2D.x-B2D.x) * (A2D.y-C2D.y);
-	GLdouble l1   = ((B2D.y-C2D.y) * (P2D.x-C2D.x) + (C2D.x-B2D.x) * (P2D.y-C2D.y)) / detT;
-	GLdouble l2   = ((C2D.y-A2D.y) * (P2D.x-C2D.x) + (A2D.x-C2D.x) * (P2D.y-C2D.y)) / detT;
+	GLdouble detT =  (B2D.y - C2D.y) * (A2D.x - C2D.x) + (C2D.x - B2D.x) * (A2D.y - C2D.y);
+	GLdouble l1   = ((B2D.y - C2D.y) * (P2D.x - C2D.x) + (C2D.x - B2D.x) * (P2D.y - C2D.y)) / detT;
+	GLdouble l2   = ((C2D.y - A2D.y) * (P2D.x - C2D.x) + (A2D.x - C2D.x) * (P2D.y - C2D.y)) / detT;
 
 	//clamp everything between 0 and 1
 	if (l1 < 0)
@@ -6027,14 +5981,14 @@ CCVector3 ccGLWindow::backprojectPointOnTriangle(	const CCVector2i& P2D,
 		l2 = 0;
 	else if (l2 > 1.0)
 		l2 = 1.0;
-	double l1l2 = l1+l2;
+	double l1l2 = l1 + l2;
 	assert(l1l2 >= 0);
 	if (l1l2 > 1.0)
 	{
 		l1 /= l1l2;
 		l2 /= l1l2;
 	}
-	GLdouble l3 = 1.0-l1-l2;
+	GLdouble l3 = 1.0 - l1 - l2;
 	assert(l3 >= -1.0e-12);
 
 	//now deduce the 3D position
@@ -6063,7 +6017,7 @@ void ccGLWindow::cancelScheduledRedraw()
 void ccGLWindow::scheduleFullRedraw(unsigned maxDelay_ms)
 {
 	m_scheduledFullRedrawTime = m_timer.elapsed() + maxDelay_ms;
-	
+
 	if (!m_scheduleTimer.isActive())
 	{
 		m_scheduleTimer.start(500);
@@ -6077,35 +6031,15 @@ ccGLWindow::StereoParams::StereoParams()
 	, glassType(RED_CYAN)
 {}
 
-#ifdef CC_OCULUS_SUPPORT
-
-static void OVR_CDECL LogCallback(uintptr_t /*userData*/, int level, const char* message)
-{
-	switch (level)
-	{
-	case ovrLogLevel_Debug:
-		ccLog::PrintDebug(QString("[oculus] ") + message);
-		break;
-	case ovrLogLevel_Info:
-		ccLog::Print(QString("[oculus] ") + message);
-		break;
-	case ovrLogLevel_Error:
-		ccLog::Warning(QString("[oculus] ") + message);
-		break;
-	default:
-		assert(false);
-		break;
-	}
-}
-
-#endif //CC_OCULUS_SUPPORT
-
 bool ccGLWindow::enableStereoMode(const StereoParams& params)
 {
+	bool needSecondFBO = false;
+	bool needAutoRefresh = false;
+	
 	if (params.glassType == StereoParams::OCULUS)
 	{
 #ifdef CC_OCULUS_SUPPORT
-
+#ifdef CC_GL_WINDOW_USE_QWINDOW
 		if (!s_oculus.session)
 		{
 			// Example use of ovr_Initialize() to specify a log callback.
@@ -6115,7 +6049,7 @@ bool ccGLWindow::enableStereoMode(const StereoParams& params)
 			ovrResult result = ovr_Initialize(nullptr);
 			if (OVR_FAILURE(result))
 			{
-				QMessageBox::critical(this, "Oculus", "Failed to initialize the Oculus SDK (ovr_Initialize)");
+				QMessageBox::critical(asWidget(), "Oculus", "Failed to initialize the Oculus SDK (ovr_Initialize)");
 				return false;
 			}
 
@@ -6124,11 +6058,11 @@ bool ccGLWindow::enableStereoMode(const StereoParams& params)
 			result = ovr_Create(&session, &luid);
 			if (OVR_FAILURE(result))
 			{
-				QMessageBox::critical(this, "Oculus", "Failed to initialize the Oculus SDK (ovr_Create)");
+				QMessageBox::critical(asWidget(), "Oculus", "Failed to initialize the Oculus SDK (ovr_Create)");
 				ovr_Shutdown();
 				return false;
 			}
-			
+
 			//get device description
 			ovrHmdDesc desc = ovr_GetHmdDesc(s_oculus.session);
 			ccLog::Print(QString("[Oculus] HMD '%0' detected (resolution: %1 x %2)").arg(desc.ProductName).arg(desc.Resolution.w).arg(desc.Resolution.h));
@@ -6137,58 +6071,61 @@ bool ccGLWindow::enableStereoMode(const StereoParams& params)
 			assert(s_oculus.session);
 		}
 
-		if (!s_oculus.initTextureSet())
+		if (!s_oculus.initTextureSet(context()))
 		{
-			QMessageBox::critical(this, "Oculus", "Failed to initialize the swap texture set (ovr_CreateSwapTextureSetGL)");
+			QMessageBox::critical(asWidget(), "Oculus", "Failed to initialize the swap texture set (ovr_CreateSwapTextureSetGL)");
 			s_oculus.stop(true);
 			return false;
 		}
 
-		//resize the GL window to the right texture size (simpler)
-		//QWidget* pWidget = parentWidget();
-		//if (pWidget)
-		//{
-		//	s_oculus.winWasMaximized = pWidget->isMaximized();
-		//	s_oculus.winPreviousSize = pWidget->size();
-		//	pWidget->showNormal();
-		//	pWidget->resize(s_oculus.textureSize.w, s_oculus.textureSize.h);
-		//	QApplication::processEvents();
-		//}
-
 		//configure tracking
 		{
-			ovr_ConfigureTracking	(s_oculus.session,
-									/*requested = */ovrTrackingCap_Orientation | ovrTrackingCap_MagYawCorrection | ovrTrackingCap_Position,
-									/*required  = */ovrTrackingCap_Orientation );
+			//No longer necessary
+			//ovr_ConfigureTracking(	s_oculus.session,
+			//						/*requested = */ovrTrackingCap_Orientation | ovrTrackingCap_MagYawCorrection | ovrTrackingCap_Position,
+			//						/*required  = */ovrTrackingCap_Orientation );
 
 			//reset tracking
 			s_oculus.hasLastOVRPos = false;
-			ovr_RecenterPose(s_oculus.session);
+			ovr_RecenterTrackingOrigin(s_oculus.session);
 		}
 
+		displayNewMessage("Look into your headset", ccGLWindow::SCREEN_CENTER_MESSAGE, false, 3600);
+		//force the screen update before we freeze it! (see paintGL)
+		update();
+
+		needSecondFBO = false;
+		needAutoRefresh = true;
+
+#else //no CC_GL_WINDOW_USE_QWINDOW
+		QMessageBox::critical(asWidget(), "Oculus", "The Oculus device is not supported by this version\n(use the 'Stereo' version)");
+		return false;
+#endif //no CC_GL_WINDOW_USE_QWINDOW
+
 #else //no CC_OCULUS_SUPPORT
-		
-		QMessageBox::critical(this, "Oculus", "Oculus devies are not supported by this version!");
+
+		QMessageBox::critical(asWidget(), "Oculus", "The Oculus device is not supported by this version\n(use the 'Stereo' version)");
 		return false;
 
 #endif //no CC_OCULUS_SUPPORT
 	}
-	if (params.glassType == StereoParams::NVIDIA_VISION)
+	else if (params.glassType == StereoParams::NVIDIA_VISION)
 	{
-		if (!format().stereo() || !format().doubleBuffer())
+		if (	!format().stereo()
+			||	format().swapBehavior() != QSurfaceFormat::DoubleBuffer )
+			
 		{
-			QMessageBox::critical(this, "Stereo", "Quad buffering not supported!");
+			QMessageBox::critical(asWidget(), "Stereo", "Quad buffering not supported!");
 			return false;
 		}
 
-		if (false) //test with OpenGL --> DGM: useless
+		if (m_initialized)
 		{
-			makeCurrent();
-			GLboolean isStereoEnabled = false;
-			glGetBooleanv(GL_STEREO, &isStereoEnabled);
-			if (!isStereoEnabled)
+			GLboolean isStereoEnabled = 0;
+			functions()->glGetBooleanv(GL_STEREO, &isStereoEnabled);
+			if (isStereoEnabled == 0)
 			{
-				QMessageBox::critical(this, "Stereo", "OpenGL stereo mode not supported/enabled!");
+				QMessageBox::critical(asWidget(), "Stereo", "OpenGL stereo mode not supported/enabled!");
 				return false;
 			}
 		}
@@ -6198,23 +6135,31 @@ bool ccGLWindow::enableStereoMode(const StereoParams& params)
 			ccLog::Warning("3D window should be in exclusive full screen mode!");
 			return false;
 		}
+
+		needSecondFBO = true;
+		needAutoRefresh = false;
 	}
 
 	m_stereoParams = params;
 	m_stereoModeEnabled = true;
-	
+
 	//In some cases we must init the secondary FBO
-	if (!initFBO(width(), height()))
+	if (needSecondFBO && !initFBO(width(), height()))
 	{
 		//well, we only lose the LOD mechanism :(
 	}
-	
+
 	//auto-save last glass type
 	{
 		QSettings settings;
 		settings.beginGroup(c_ps_groupName);
-		settings.setValue(c_ps_stereoGlassType,	m_stereoParams.glassType);
+		settings.setValue(c_ps_stereoGlassType, m_stereoParams.glassType);
 		settings.endGroup();
+	}
+
+	if (needAutoRefresh)
+	{
+		toggleAutoRefresh(true);
 	}
 
 	return true;
@@ -6222,77 +6167,266 @@ bool ccGLWindow::enableStereoMode(const StereoParams& params)
 
 void ccGLWindow::disableStereoMode()
 {
-#ifdef CC_OCULUS_SUPPORT
-
-	if (m_stereoModeEnabled && s_oculus.session)
+	if (m_stereoModeEnabled)
 	{
-		//QWidget* pWidget = parentWidget();
-		//if (s_oculus.winWasMaximized)
-		//{
-		//	pWidget->showMaximized();
-		//}
-		//else
-		//{
-		//	pWidget->resize(s_oculus.winPreviousSize);
-		//}
-		//QApplication::processEvents();
+		if (m_stereoParams.glassType == StereoParams::OCULUS)
+		{
+			toggleAutoRefresh(false);
+			displayNewMessage(QString(), ccGLWindow::SCREEN_CENTER_MESSAGE, false);
+
+#ifdef CC_OCULUS_SUPPORT
+			if (s_oculus.session)
+			{
+				s_oculus.stop(false);
+			}
+#endif
+		}
+		else if (m_stereoParams.glassType == StereoParams::NVIDIA_VISION)
+		{
+			//toggleAutoRefresh(false);
+		}
 	}
 
-#endif
 	m_stereoModeEnabled = false;
 
-	//we don't need it anymore
-	safeRemoveFBO(m_fbo2);
-}
-
-bool ccGLWindow::exclusiveFullScreen() const
-{
-	return parentWidget() == 0 && m_formerParent;
+	if (m_fbo2)
+	{
+		//we don't need it anymore
+		removeFBOSafe(m_fbo2);
+	}
 }
 
 void ccGLWindow::toggleExclusiveFullScreen(bool state)
 {
+	QWidget* widget = asWidget();
+
 	if (state)
 	{
 		//we are currently in normal screen mode
-		if (!m_formerParent)
+		if (!m_exclusiveFullscreen)
 		{
-			m_formerGeometry = saveGeometry();
-			m_formerParent = parentWidget();
-			if (m_formerParent && m_formerParent->layout())
-				m_formerParent->layout()->removeWidget(this);
-			setParent(0);
-		}
+			if (widget)
+			{
+				m_formerGeometry = widget->saveGeometry();
+				m_formerParent = widget->parentWidget();
+				if (m_formerParent && m_formerParent->layout())
+				{
+					m_formerParent->layout()->removeWidget(widget);
+				}
+				widget->setParent(0);
+			}
 
-		showFullScreen();
-		displayNewMessage("Press F11 to disable full-screen mode", ccGLWindow::UPPER_CENTER_MESSAGE, false, 30, FULL_SCREEN_MESSAGE);
+			m_exclusiveFullscreen = true;
+			if (widget)
+				widget->showFullScreen();
+			else
+				showFullScreen();
+			displayNewMessage("Press F11 to disable full-screen mode", ccGLWindow::UPPER_CENTER_MESSAGE, false, 30, FULL_SCREEN_MESSAGE);
+		}
 	}
 	else
 	{
-		//if we are currently in full-screen mode
-		if (m_formerParent)
+		if (m_stereoModeEnabled && m_stereoParams.glassType == StereoParams::NVIDIA_VISION)
 		{
-			if (m_formerParent->layout())
-				m_formerParent->layout()->addWidget(this);
-			else
-				setParent(m_formerParent);
-		
-			m_formerParent = 0;
+			//auto disable stereo mode (DGM: otherwise the application may crash!)
+			disableStereoMode();
 		}
 
-		displayNewMessage(QString(), ccGLWindow::UPPER_CENTER_MESSAGE, false, 0, FULL_SCREEN_MESSAGE); //remove any message
-		showNormal();
-
-		if (!m_formerGeometry.isNull())
+		//if we are currently in full-screen mode
+		if (m_exclusiveFullscreen)
 		{
-			restoreGeometry(m_formerGeometry);
-			m_formerGeometry.clear();
+			if (m_formerParent && widget)
+			{
+				if (m_formerParent->layout())
+				{
+					m_formerParent->layout()->addWidget(widget);
+				}
+				else
+				{
+					widget->setParent(m_formerParent);
+				}
+				m_formerParent = 0;
+			}
+			m_exclusiveFullscreen = false;
+
+			displayNewMessage(QString(), ccGLWindow::UPPER_CENTER_MESSAGE, false, 0, FULL_SCREEN_MESSAGE); //remove any message
+			if (widget)
+			{
+				widget->showNormal();
+				if (!m_formerGeometry.isNull())
+				{
+					widget->restoreGeometry(m_formerGeometry);
+					m_formerGeometry.clear();
+				}
+			}
+			else
+			{
+				showNormal();
+			}
 		}
 	}
 
 	QCoreApplication::processEvents();
-	setFocus();
+	if (widget)
+	{
+		widget->setFocus();
+	}
 	redraw();
 
 	emit exclusiveFullScreenToggled(state);
+}
+
+void ccGLWindow::renderText(int x, int y, const QString & str, const QFont & font/*=QFont()*/)
+{   
+	if (m_activeFbo)
+	{
+		m_activeFbo->start();
+	}
+   
+	ccQOpenGLFunctions* glFunc = functions();
+	assert(glFunc);
+
+	//compute the text bounding rect
+	QRect rect = QFontMetrics(font).boundingRect(str);
+
+	//first we create a QImage from the text
+	QImage textImage(rect.width(), rect.height(), QImage::Format::Format_RGBA8888);
+	{
+		QPainter painter(&textImage);
+		painter.setRenderHints(QPainter::Antialiasing | QPainter::TextAntialiasing);
+		textImage.fill(Qt::transparent);
+
+		float glColor[4];
+		glFunc->glGetFloatv(GL_CURRENT_COLOR, glColor);
+		QColor color;
+		{
+			color.setRedF(glColor[0]);
+			color.setGreenF(glColor[1]);
+			color.setBlueF(glColor[2]);
+			color.setAlphaF(glColor[3]);
+		}
+		QPen pen(color);
+		painter.setPen(pen);
+		painter.setFont(font);
+		painter.drawText(-rect.x(), -rect.y(), str);
+	}
+	
+	//and then we convert this QImage to a texture!
+	{
+		glFunc->glPushAttrib(GL_COLOR_BUFFER_BIT | GL_TEXTURE_BIT | GL_DEPTH_BUFFER_BIT | GL_ENABLE_BIT);
+		glFunc->glEnable(GL_BLEND);
+		glFunc->glDisable(GL_DEPTH_TEST);
+
+		//set ortho view with center in the upper-left corner
+		glFunc->glMatrixMode(GL_PROJECTION);
+		glFunc->glPushMatrix();
+		glFunc->glLoadIdentity();
+		glFunc->glOrtho(0, m_glViewport.width(), 0, m_glViewport.height(), -1, 1);
+		glFunc->glMatrixMode(GL_MODELVIEW);
+		glFunc->glPushMatrix();
+		glFunc->glLoadIdentity();
+		{
+			//move to the right position on the screen
+			glFunc->glTranslatef(x, m_glViewport.height() - 1 - y, 0);
+
+			glFunc->glEnable(GL_TEXTURE_2D);         
+			QOpenGLTexture textTex(textImage);
+			textTex.bind();
+
+			glFunc->glColor4f(1.0f, 1.0f, 1.0f, 1.0f); //DGM: warning must be float colors to work properly?!
+			glFunc->glBegin(GL_QUADS);
+			glFunc->glTexCoord2f(0, 1); glFunc->glVertex3i(0, 0, 0);
+			glFunc->glTexCoord2f(1, 1); glFunc->glVertex3i(rect.width(), 0, 0);
+			glFunc->glTexCoord2f(1, 0); glFunc->glVertex3i(rect.width(), rect.height(), 0);
+			glFunc->glTexCoord2f(0, 0); glFunc->glVertex3i(0, rect.height(), 0);
+			glFunc->glEnd();
+
+			textTex.release();
+		}
+
+		glFunc->glMatrixMode(GL_PROJECTION);
+		glFunc->glPopMatrix();
+		glFunc->glMatrixMode(GL_MODELVIEW);
+		glFunc->glPopMatrix();
+		glFunc->glPopAttrib();
+	}
+}
+
+void ccGLWindow::renderText(double x, double y, double z, const QString & str, const QFont & font/*=QFont()*/)
+{
+	makeCurrent();
+
+	ccQOpenGLFunctions* glFunc = functions();
+	assert(glFunc);
+	
+	//get the actual viewport / matrices
+	ccGLCameraParameters camera;
+	glFunc->glGetIntegerv(GL_VIEWPORT, camera.viewport);
+	glFunc->glGetDoublev(GL_PROJECTION_MATRIX, camera.projectionMat.data());
+	glFunc->glGetDoublev(GL_MODELVIEW_MATRIX, camera.modelViewMat.data());
+
+	CCVector3d Q2D(0, 0, 0);
+	if (camera.project(CCVector3d(x, y, z), Q2D))
+	{
+		Q2D.y = m_glViewport.height() - 1 - Q2D.y;
+		renderText(Q2D.x, Q2D.y, str, font);
+	}
+}
+
+void ccGLWindow::logGLError(const char* context) const
+{
+	if (m_initialized)
+	{
+		LogGLError(functions()->glGetError(), context);
+	}
+}
+
+void ccGLWindow::LogGLError(GLenum err, const char* context)
+{
+	//see http://www.opengl.org/sdk/docs/man/xhtml/glGetError.xml
+	switch (err)
+	{
+	case GL_NO_ERROR:
+		break;
+	case GL_INVALID_ENUM:
+		ccLog::Warning("[%s] OpenGL error: invalid enumerator", context);
+		break;
+	case GL_INVALID_VALUE:
+		ccLog::Warning("[%s] OpenGL error: invalid value", context);
+		break;
+	case GL_INVALID_OPERATION:
+		ccLog::Warning("[%s] OpenGL error: invalid operation", context);
+		break;
+	case GL_STACK_OVERFLOW:
+		ccLog::Error("[%s] OpenGL error: stack overflow", context);
+		break;
+	case GL_STACK_UNDERFLOW:
+		ccLog::Error("[%s] OpenGL error: stack underflow", context);
+		break;
+	case GL_OUT_OF_MEMORY:
+		ccLog::Error("[%s] OpenGL error: out of memory", context);
+		break;
+	case GL_INVALID_FRAMEBUFFER_OPERATION:
+		ccLog::Warning("[%s] OpenGL error: invalid framebuffer operation", context);
+		break;
+	}
+}
+
+void ccGLWindow::toggleAutoRefresh(bool state, int period_ms/*=0*/)
+{
+	if (state == m_autoRefresh)
+	{
+		//nothing to do
+		return;
+	}
+	
+	m_autoRefresh = state;
+	if (m_autoRefresh)
+	{
+		m_autoRefreshTimer.start(period_ms);
+	}
+	else
+	{
+		m_autoRefreshTimer.stop();
+	}
 }

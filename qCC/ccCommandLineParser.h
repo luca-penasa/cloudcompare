@@ -5,16 +5,11 @@
 #include <FileIOFilter.h>
 
 //qCC_db
-#include <ccHObject.h>
 #include <ccGenericMesh.h>
 #include <ccPointCloud.h>
 
 //Qt
 #include <QString>
-#include <QStringList>
-
-//system
-#include <vector>
 
 class ccProgressDialog;
 class QDialog;
@@ -47,6 +42,7 @@ protected:
 	bool commandColorBanding				(QStringList& arguments);
 	bool matchBBCenters						(QStringList& arguments);
 	bool commandSfArithmetic				(QStringList& arguments);
+	bool commandSfOp						(QStringList& arguments);
 	bool commandICP							(QStringList& arguments, QDialog* parent = 0);
 	bool commandDelaunay					(QStringList& arguments, QDialog* parent = 0);
 	bool commandChangeCloudOutputFormat		(QStringList& arguments);
@@ -63,6 +59,7 @@ protected:
 	bool commandLogFile						(QStringList& arguments);
 	bool commandSORFilter					(QStringList& arguments, ccProgressDialog* pDlg = 0);
 	bool commandOrientNormalsMST			(QStringList& arguments, ccProgressDialog* pDlg = 0);
+	bool commandDropGlobalShift				(QStringList& arguments);
 
 protected:
 
@@ -172,12 +169,14 @@ protected:
 
 	//! Saves all clouds
 	/** \param suffix optional suffix
+		\param allAtOnce whether to save all clouds in the same file or one cloud per file
 		\return success
 	**/
 	bool saveClouds(QString suffix = QString(), bool allAtOnce = false);
 
 	//! Saves all meshes
 	/** \param suffix optional suffix
+		\param allAtOnce whether to save all meshes in the same file or one mesh per file
 		\return success
 	**/
 	bool saveMeshes(QString suffix = QString(), bool allAtOnce = false);

@@ -1,14 +1,14 @@
 //##########################################################################
 //#                                                                        #
-//#                            CLOUDCOMPARE                                #
+//#                              CLOUDCOMPARE                              #
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU General Public License as published by  #
-//#  the Free Software Foundation; version 2 of the License.               #
+//#  the Free Software Foundation; version 2 or later of the License.      #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
 //#          COPYRIGHT: EDF R&D / TELECOM ParisTech (ENST-TSI)             #
@@ -30,13 +30,11 @@
 #include "ccScalarField.h"
 #include "ccColorScalesManager.h"
 #include "ccGenericGLDisplay.h"
+#include "ccProgressDialog.h"
 
 //CCLib
 #include <ManualSegmentationTools.h>
 #include <ReferenceCloud.h>
-
-//Qt
-#include <QGLFormat>
 
 //System
 #include <string.h>
@@ -543,7 +541,7 @@ void ccMesh::transformTriNormals(const ccGLMatrix& trans)
 
 bool ccMesh::laplacianSmooth(	unsigned nbIteration,
 								PointCoordinateType factor,
-								CCLib::GenericProgressCallback* progressCb/*=0*/)
+								ccProgressDialog* progressCb/*=0*/)
 {
 	if (!m_associatedCloud)
 		return false;
@@ -555,7 +553,7 @@ bool ccMesh::laplacianSmooth(	unsigned nbIteration,
 	if (!vertCount || !faceCount)
 		return false;
 
-	GenericChunkedArray<3,PointCoordinateType>* verticesDisplacement = new GenericChunkedArray<3,PointCoordinateType>;
+	GenericChunkedArray<3, PointCoordinateType>* verticesDisplacement = new GenericChunkedArray < 3, PointCoordinateType > ;
 	if (!verticesDisplacement->resize(vertCount))
 	{
 		//not enough memory
@@ -589,8 +587,8 @@ bool ccMesh::laplacianSmooth(	unsigned nbIteration,
 	CCLib::NormalizedProgress nProgress(progressCb, nbIteration);
 	if (progressCb)
 	{
-		progressCb->setMethodTitle("Laplacian smooth");
-		progressCb->setInfo(qPrintable(QString("Iterations: %1\nVertices: %2\nFaces: %3").arg(nbIteration).arg(vertCount).arg(faceCount)));
+		progressCb->setMethodTitle(QObject::tr("Laplacian smooth"));
+		progressCb->setInfo(QObject::tr("Iterations: %1\nVertices: %2\nFaces: %3").arg(nbIteration).arg(vertCount).arg(faceCount));
 		progressCb->start();
 	}
 
@@ -937,7 +935,9 @@ ccMesh* ccMesh::Triangulate(ccGenericPointCloud* cloud,
 	bool cloudHadNormals = cloud->hasNormals();
 	//compute per-vertex normals if necessary
 	if (!cloudHadNormals || updateNormals)
+	{
 		mesh->computeNormals(true);
+	}
 	mesh->showNormals(cloudHadNormals || !cloud->hasColors());
 	if (mesh->getAssociatedCloud() && mesh->getAssociatedCloud() != cloud)
 	{
@@ -1433,11 +1433,18 @@ void ccMesh::drawMeOnly(CC_DRAW_CONTEXT& context)
 
 	handleColorRamp(context);
 
+	//get the set of OpenGL functions (version 2.1)
+	QOpenGLFunctions_2_1* glFunc = context.glFunctions<QOpenGLFunctions_2_1>();
+	assert(glFunc != nullptr);
+
+	if (glFunc == nullptr)
+		return;
+
 	//3D pass
 	if (MACRO_Draw3D(context))
 	{
 		//any triangle?
-		unsigned n,triNum = m_triVertIndexes->currentSize();
+		unsigned n, triNum = m_triVertIndexes->currentSize();
 		if (triNum == 0)
 			return;
 
@@ -1470,16 +1477,12 @@ void ccMesh::drawMeOnly(CC_DRAW_CONTEXT& context)
 
 		//GL name pushing
 		bool pushName = MACRO_DrawEntityNames(context);
-		//special case: triangle names pushing (for picking)
-		bool pushTriangleNames = MACRO_DrawTriangleNames(context);
-		pushName |= pushTriangleNames;
-
 		if (pushName)
 		{
 			//not fast at all!
 			if (MACRO_DrawFastNamesOnly(context))
 				return;
-			glPushName(getUniqueIDForDisplay());
+			glFunc->glPushName(getUniqueIDForDisplay());
 			//minimal display for picking mode!
 			glParams.showNorms = false;
 			glParams.showColors = false;
@@ -1525,8 +1528,8 @@ void ccMesh::drawMeOnly(CC_DRAW_CONTEXT& context)
 		{
 			applyMaterials = false;
 			colorMaterial = true;
-			glColorMaterial(GL_FRONT_AND_BACK, GL_DIFFUSE);
-			glEnable(GL_COLOR_MATERIAL);
+			glFunc->glColorMaterial(GL_FRONT_AND_BACK, GL_DIFFUSE);
+			glFunc->glEnable(GL_COLOR_MATERIAL);
 		}
 
 		//in the case we need to display vertex colors
@@ -1535,7 +1538,7 @@ void ccMesh::drawMeOnly(CC_DRAW_CONTEXT& context)
 		{
 			if (isColorOverriden())
 			{
-				ccGL::Color3v(m_tempColor.rgb);
+				ccGL::Color3v(glFunc, m_tempColor.rgb);
 				glParams.showColors = false;
 			}
 			else
@@ -1546,15 +1549,14 @@ void ccMesh::drawMeOnly(CC_DRAW_CONTEXT& context)
 		}
 		else
 		{
-			glColor3fv(context.defaultMat->getDiffuseFront().rgba);
+			glFunc->glColor3fv(context.defaultMat->getDiffuseFront().rgba);
 		}
 
 		if (glParams.showNorms)
 		{
-			//DGM: Strangely, when Qt::renderPixmap is called, the OpenGL version can fall to 1.0!
-			glEnable((QGLFormat::openGLVersionFlags() & QGLFormat::OpenGL_Version_1_2 ? GL_RESCALE_NORMAL : GL_NORMALIZE));
-			glEnable(GL_LIGHTING);
-			context.defaultMat->applyGL(true,colorMaterial);
+			glFunc->glEnable(GL_RESCALE_NORMAL);
+			glFunc->glEnable(GL_LIGHTING);
+			context.defaultMat->applyGL(context.qGLContext, true, colorMaterial);
 		}
 
 		//in the case we need normals (i.e. lighting)
@@ -1569,9 +1571,11 @@ void ccMesh::drawMeOnly(CC_DRAW_CONTEXT& context)
 
 		//stipple mask
 		if (m_stippling)
-			EnableGLStippleMask(true);
+		{
+			EnableGLStippleMask(context.qGLContext, true);
+		}
 
-		if (!pushTriangleNames && !visFiltering && !(applyMaterials || showTextures) && (!glParams.showSF || greyForNanScalarValues))
+		if (!visFiltering && !(applyMaterials || showTextures) && (!glParams.showSF || greyForNanScalarValues))
 		{
 #define OPTIM_MEM_CPY //use optimized mem. transfers
 #ifdef OPTIM_MEM_CPY
@@ -1582,18 +1586,18 @@ void ccMesh::drawMeOnly(CC_DRAW_CONTEXT& context)
 			//the GL type depends on the PointCoordinateType 'size' (float or double)
 			GLenum GL_COORD_TYPE = sizeof(PointCoordinateType) == 4 ? GL_FLOAT : GL_DOUBLE;
 
-			glEnableClientState(GL_VERTEX_ARRAY);
-			glVertexPointer(3,GL_COORD_TYPE,0,GetVertexBuffer());
+			glFunc->glEnableClientState(GL_VERTEX_ARRAY);
+			glFunc->glVertexPointer(3, GL_COORD_TYPE, 0, GetVertexBuffer());
 
 			if (glParams.showNorms)
 			{
-				glEnableClientState(GL_NORMAL_ARRAY);
-				glNormalPointer(GL_COORD_TYPE,0,GetNormalsBuffer());
+				glFunc->glEnableClientState(GL_NORMAL_ARRAY);
+				glFunc->glNormalPointer(GL_COORD_TYPE,0,GetNormalsBuffer());
 			}
 			if (glParams.showSF || glParams.showColors)
 			{
-				glEnableClientState(GL_COLOR_ARRAY);
-				glColorPointer(3,GL_UNSIGNED_BYTE,0,GetColorsBuffer());
+				glFunc->glEnableClientState(GL_COLOR_ARRAY);
+				glFunc->glColorPointer(3,GL_UNSIGNED_BYTE,0,GetColorsBuffer());
 			}
 
 			//we can scan and process each chunk separately in an optimized way
@@ -1795,30 +1799,30 @@ void ccMesh::drawMeOnly(CC_DRAW_CONTEXT& context)
 
 				if (!showWired)
 				{
-					glDrawArrays(lodEnabled ? GL_POINTS : GL_TRIANGLES,0,(chunkSize/decimStep)*3);
-					//glDrawElements(lodEnabled ? GL_POINTS : GL_TRIANGLES,(chunkSize/decimStep)*3,GL_UNSIGNED_INT,s_vertIndexes);
+					glFunc->glDrawArrays(lodEnabled ? GL_POINTS : GL_TRIANGLES, 0, (chunkSize / decimStep) * 3);
+					//glFunc->glDrawElements(lodEnabled ? GL_POINTS : GL_TRIANGLES,(chunkSize/decimStep)*3,GL_UNSIGNED_INT,s_vertIndexes);
 				}
 				else
 				{
-					glDrawElements(GL_LINES,(chunkSize/decimStep)*6,GL_UNSIGNED_INT,GetWireVertexIndexes());
+					glFunc->glDrawElements(GL_LINES, (chunkSize / decimStep) * 6, GL_UNSIGNED_INT, GetWireVertexIndexes());
 				}
 			}
 
 			//disable arrays
-			glDisableClientState(GL_VERTEX_ARRAY);
+			glFunc->glDisableClientState(GL_VERTEX_ARRAY);
 			if (glParams.showNorms)
-				glDisableClientState(GL_NORMAL_ARRAY);
+				glFunc->glDisableClientState(GL_NORMAL_ARRAY);
 			if (glParams.showSF || glParams.showColors)
-				glDisableClientState(GL_COLOR_ARRAY);
+				glFunc->glDisableClientState(GL_COLOR_ARRAY);
 		}
 		else
 		{
 			//current vertex color
-			const ColorCompType *col1=0,*col2=0,*col3=0;
+			const ColorCompType *col1 = 0, *col2 = 0, *col3 = 0;
 			//current vertex normal
-			const PointCoordinateType *N1=0,*N2=0,*N3=0;
+			const PointCoordinateType *N1 = 0, *N2 = 0, *N3 = 0;
 			//current vertex texture coordinates
-			const float *Tx1=0,*Tx2=0,*Tx3=0;
+			const float *Tx1 = 0, *Tx2 = 0, *Tx3 = 0;
 
 			//loop on all triangles
 			m_triVertIndexes->placeIteratorAtBegining();
@@ -1827,23 +1831,16 @@ void ccMesh::drawMeOnly(CC_DRAW_CONTEXT& context)
 
 			if (showTextures)
 			{
-//#define TEST_TEXTURED_BUNDLER_IMPORT
-#ifdef TEST_TEXTURED_BUNDLER_IMPORT
-				glPushAttrib(GL_COLOR_BUFFER_BIT);
-				glEnable(GL_BLEND);
-				glBlendFunc(context.sourceBlend, context.destBlend);
-#endif
-
-				glEnable(GL_TEXTURE_2D);
+				glFunc->glPushAttrib(GL_ENABLE_BIT);
+				glFunc->glEnable(GL_TEXTURE_2D);
 			}
 
-			if (pushTriangleNames)
-				glPushName(0);
-
 			GLenum triangleDisplayType = lodEnabled ? GL_POINTS : showWired ? GL_LINE_LOOP : GL_TRIANGLES;
-			glBegin(triangleDisplayType);
+			glFunc->glBegin(triangleDisplayType);
 
-			for (n=0; n<triNum; ++n)
+			GLuint currentTexID = 0;
+
+			for (n = 0; n < triNum; ++n)
 			{
 				//current triangle vertices
 				const CCLib::VerticesIndexes* tsi = (CCLib::VerticesIndexes*)m_triVertIndexes->getCurrentValue();
@@ -1912,22 +1909,32 @@ void ccMesh::drawMeOnly(CC_DRAW_CONTEXT& context)
 					if (lasMtlIndex != newMatlIndex)
 					{
 						assert(newMatlIndex < static_cast<int>(m_materials->size()));
-						glEnd();
+						glFunc->glEnd();
 						if (showTextures)
 						{
-							GLuint texID = (newMatlIndex >= 0 ? context._win->getTextureID((*m_materials)[newMatlIndex]) : 0);
-							if (texID > 0)
-								assert(glIsTexture(texID));
-							glBindTexture(GL_TEXTURE_2D, texID);
+							if (currentTexID)
+							{
+								glFunc->glBindTexture(GL_TEXTURE_2D, 0);
+								currentTexID = 0;
+							}
+
+							if (newMatlIndex >= 0)
+							{
+								currentTexID = m_materials->at(newMatlIndex)->getTextureID();
+								if (currentTexID)
+								{
+									glFunc->glBindTexture(GL_TEXTURE_2D, currentTexID);
+								}
+							}
 						}
 
 						//if we don't have any current material, we apply default one
 						if (newMatlIndex >= 0)
-							(*m_materials)[newMatlIndex]->applyGL(glParams.showNorms,false);
+							(*m_materials)[newMatlIndex]->applyGL(context.qGLContext, glParams.showNorms, false);
 						else
-							context.defaultMat->applyGL(glParams.showNorms,false);
+							context.defaultMat->applyGL(context.qGLContext, glParams.showNorms, false);
 						
-						glBegin(triangleDisplayType);
+						glFunc->glBegin(triangleDisplayType);
 						lasMtlIndex = newMatlIndex;
 					}
 
@@ -1944,82 +1951,72 @@ void ccMesh::drawMeOnly(CC_DRAW_CONTEXT& context)
 					}
 				}
 
-				if (pushTriangleNames)
+				if (showWired)
 				{
-					glEnd();
-					glLoadName(n);
-					glBegin(triangleDisplayType);
-				}
-				else if (showWired)
-				{
-					glEnd();
-					glBegin(triangleDisplayType);
+					glFunc->glEnd();
+					glFunc->glBegin(triangleDisplayType);
 				}
 
 				//vertex 1
 				if (N1)
-					ccGL::Normal3v(N1);
+					ccGL::Normal3v(glFunc, N1);
 				if (col1)
-					glColor3ubv(col1);
+					glFunc->glColor3ubv(col1);
 				if (Tx1)
-					glTexCoord2fv(Tx1);
-				ccGL::Vertex3v(m_associatedCloud->getPoint(tsi->i1)->u);
+					glFunc->glTexCoord2fv(Tx1);
+				ccGL::Vertex3v(glFunc, m_associatedCloud->getPoint(tsi->i1)->u);
 
 				//vertex 2
 				if (N2)
-					ccGL::Normal3v(N2);
+					ccGL::Normal3v(glFunc, N2);
 				if (col2)
-					glColor3ubv(col2);
+					glFunc->glColor3ubv(col2);
 				if (Tx2)
-					glTexCoord2fv(Tx2);
-				ccGL::Vertex3v(m_associatedCloud->getPoint(tsi->i2)->u);
+					glFunc->glTexCoord2fv(Tx2);
+				ccGL::Vertex3v(glFunc, m_associatedCloud->getPoint(tsi->i2)->u);
 
 				//vertex 3
 				if (N3)
-					ccGL::Normal3v(N3);
+					ccGL::Normal3v(glFunc, N3);
 				if (col3)
-					glColor3ubv(col3);
+					glFunc->glColor3ubv(col3);
 				if (Tx3)
-					glTexCoord2fv(Tx3);
-				ccGL::Vertex3v(m_associatedCloud->getPoint(tsi->i3)->u);
+					glFunc->glTexCoord2fv(Tx3);
+				ccGL::Vertex3v(glFunc, m_associatedCloud->getPoint(tsi->i3)->u);
 			}
 
-			glEnd();
-
-			if (pushTriangleNames)
-			{
-				glPopName();
-			}
+			glFunc->glEnd();
 
 			if (showTextures)
 			{
-#ifdef TEST_TEXTURED_BUNDLER_IMPORT
-				glPopAttrib(); //GL_COLOR_BUFFER_BIT 
-#endif
-				glBindTexture(GL_TEXTURE_2D, 0);
-				glDisable(GL_TEXTURE_2D);
+				if (currentTexID)
+				{
+					glFunc->glBindTexture(GL_TEXTURE_2D, 0);
+					currentTexID = 0;
+				}
+				glFunc->glPopAttrib();
 			}
 		}
 
 		if (m_stippling)
 		{
-			EnableGLStippleMask(false);
+			EnableGLStippleMask(context.qGLContext, false);
 		}
 
 		if (colorMaterial)
 		{
-			glDisable(GL_COLOR_MATERIAL);
+			glFunc->glDisable(GL_COLOR_MATERIAL);
 		}
 
 		if (glParams.showNorms)
 		{
-			glDisable(GL_LIGHTING);
-			glDisable((QGLFormat::openGLVersionFlags() & QGLFormat::OpenGL_Version_1_2 ? GL_RESCALE_NORMAL : GL_NORMALIZE));
+			glFunc->glDisable(GL_LIGHTING);
+			glFunc->glDisable(GL_RESCALE_NORMAL);
 		}
 
 		if (pushName)
 		{
-			glPopName();
+			glFunc->glPopName();
 		}
 	}
 }
@@ -2071,7 +2068,7 @@ ccMesh* ccMesh::createNewMeshFromSelection(bool removeSelectedFaces)
 	}
 
 	//we create a new mesh with the current selection
-	CCLib::GenericIndexedMesh* result = CCLib::ManualSegmentationTools::segmentMesh(this,rc,true,NULL,newVertices);
+	CCLib::GenericIndexedMesh* result = CCLib::ManualSegmentationTools::segmentMesh(this, rc, true, NULL, newVertices);
 
 	//don't use this anymore
 	delete rc;
@@ -2080,7 +2077,7 @@ ccMesh* ccMesh::createNewMeshFromSelection(bool removeSelectedFaces)
 	ccMesh* newMesh = NULL;
 	if (result)
 	{
-		newMesh = new ccMesh(result,newVertices);
+		newMesh = new ccMesh(result, newVertices);
 		if (!newMesh)
 		{
 			delete newVertices;
@@ -2089,7 +2086,7 @@ ccMesh* ccMesh::createNewMeshFromSelection(bool removeSelectedFaces)
 		}
 		else
 		{
-			newMesh->setName(getName()+QString(".part"));
+			newMesh->setName(getName() + QString(".part"));
 
 			//shall we add any advanced features?
 			bool addFeatures = false;
@@ -2113,7 +2110,7 @@ ccMesh* ccMesh::createNewMeshFromSelection(bool removeSelectedFaces)
 					newTriNormals->link();
 					try
 					{
-						newNormIndexes.resize(m_triNormals->currentSize(),-1);
+						newNormIndexes.resize(m_triNormals->currentSize(), -1);
 					}
 					catch (const std::bad_alloc&)
 					{
@@ -2135,7 +2132,7 @@ ccMesh* ccMesh::createNewMeshFromSelection(bool removeSelectedFaces)
 					newTriTexIndexes->link();
 					try
 					{
-						newTexIndexes.resize(m_texCoords->currentSize(),-1);
+						newTexIndexes.resize(m_texCoords->currentSize(), -1);
 					}
 					catch (const std::bad_alloc&)
 					{
@@ -2157,7 +2154,7 @@ ccMesh* ccMesh::createNewMeshFromSelection(bool removeSelectedFaces)
 					newMaterials->link();
 					try
 					{
-						newMatIndexes.resize(m_materials->size(),-1);
+						newMatIndexes.resize(m_materials->size(), -1);
 					}
 					catch (const std::bad_alloc&)
 					{
@@ -2177,7 +2174,7 @@ ccMesh* ccMesh::createNewMeshFromSelection(bool removeSelectedFaces)
 
 				unsigned triNum = m_triVertIndexes->currentSize();
 				m_triVertIndexes->placeIteratorAtBegining();
-				for (unsigned i=0; i<triNum; ++i)
+				for (unsigned i = 0; i < triNum; ++i)
 				{
 					const CCLib::VerticesIndexes* tsi = (CCLib::VerticesIndexes*)m_triVertIndexes->getCurrentValue();
 					m_triVertIndexes->forwardIterator();
@@ -2197,7 +2194,7 @@ ccMesh* ccMesh::createNewMeshFromSelection(bool removeSelectedFaces)
 
 							//for each triangle of this mesh, try to determine if its normals are already in use
 							//(otherwise add them to the new container and increase its index)
-							for (unsigned j=0; j<3; ++j)
+							for (unsigned j = 0; j < 3; ++j)
 							{
 								if (triNormIndexes[j] >= 0 && newNormIndexes[triNormIndexes[j]] < 0)
 								{
@@ -2486,14 +2483,14 @@ bool ccMesh::reservePerTriangleNormalIndexes()
 void ccMesh::addTriangleNormalIndexes(int i1, int i2, int i3)
 {
 	assert(m_triNormalIndexes && m_triNormalIndexes->isAllocated());
-	int indexes[3] = {i1,i2,i3};
+	int indexes[3] = { i1, i2, i3 };
 	m_triNormalIndexes->addElement(indexes);
 }
 
 void ccMesh::setTriangleNormalIndexes(unsigned triangleIndex, int i1, int i2, int i3)
 {
 	assert(m_triNormalIndexes && m_triNormalIndexes->currentSize() > triangleIndex);
-	int indexes[3] = {i1,i2,i3};
+	int indexes[3] = { i1, i2, i3 };
 	m_triNormalIndexes->setValue(triangleIndex,indexes);
 }
 
@@ -3266,14 +3263,13 @@ bool ccMesh::pushSubdivide(/*PointCoordinateType maxArea, */unsigned indexA, uns
 				CCVector3 G1 = (*A+*B)/(PointCoordinateType)2.0;
 				vertices->addPoint(G1);
 				//interpolate other features?
-				/*if (vertices->hasNormals())
-				{
-				//vertices->reserveTheNormsTable();
-				CCVector3 N(0.0,0.0,1.0);
-				<(indexA,indexB,indexC,G1,N);
-				vertices->addNorm(N);
-				}
-				//*/
+				//if (vertices->hasNormals())
+				//{
+				//	//vertices->reserveTheNormsTable();
+				//	CCVector3 N(0.0, 0.0, 1.0);
+				//	interpolateNormals(indexA, indexB, indexC, G1, N);
+				//	vertices->addNorm(N);
+				//}
 				if (vertices->hasColors())
 				{
 					ccColor::Rgb C;
@@ -3299,14 +3295,13 @@ bool ccMesh::pushSubdivide(/*PointCoordinateType maxArea, */unsigned indexA, uns
 				CCVector3 G2 = (*B+*C)/(PointCoordinateType)2.0;
 				vertices->addPoint(G2);
 				//interpolate other features?
-				/*if (vertices->hasNormals())
-				{
-				//vertices->reserveTheNormsTable();
-				CCVector3 N(0.0,0.0,1.0);
-				interpolateNormals(indexA,indexB,indexC,G2,N);
-				vertices->addNorm(N);
-				}
-				//*/
+				//if (vertices->hasNormals())
+				//{
+				//	//vertices->reserveTheNormsTable();
+				//	CCVector3 N(0.0, 0.0, 1.0);
+				//	interpolateNormals(indexA, indexB, indexC, G2, N);
+				//	vertices->addNorm(N);
+				//}
 				if (vertices->hasColors())
 				{
 					ccColor::Rgb C;
@@ -3332,14 +3327,13 @@ bool ccMesh::pushSubdivide(/*PointCoordinateType maxArea, */unsigned indexA, uns
 				CCVector3 G3 = (*C+*A)/(PointCoordinateType)2.0;
 				vertices->addPoint(G3);
 				//interpolate other features?
-				/*if (vertices->hasNormals())
-				{
-				//vertices->reserveTheNormsTable();
-				CCVector3 N(0.0,0.0,1.0);
-				interpolateNormals(indexA,indexB,indexC,G3,N);
-				vertices->addNorm(N);
-				}
-				//*/
+				//if (vertices->hasNormals())
+				//{
+				//	//vertices->reserveTheNormsTable();
+				//	CCVector3 N(0.0, 0.0, 1.0);
+				//	interpolateNormals(indexA, indexB, indexC, G3, N);
+				//	vertices->addNorm(N);
+				//}
 				if (vertices->hasColors())
 				{
 					ccColor::Rgb C;

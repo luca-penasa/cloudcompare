@@ -1,14 +1,14 @@
 //##########################################################################
 //#                                                                        #
-//#                            CLOUDCOMPARE                                #
+//#                              CLOUDCOMPARE                              #
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU General Public License as published by  #
-//#  the Free Software Foundation; version 2 of the License.               #
+//#  the Free Software Foundation; version 2 or later of the License.      #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
 //#          COPYRIGHT: EDF R&D / TELECOM ParisTech (ENST-TSI)             #
@@ -19,8 +19,7 @@
 
 //Local
 #include "ccPointCloud.h"
-#include "ccNormalVectors.h"
-#include "ccGenericGLDisplay.h"
+
 
 ccSphere::ccSphere(	PointCoordinateType radius,
 					const ccGLMatrix* transMat/*=0*/,
@@ -190,36 +189,36 @@ bool ccSphere::fromFile_MeOnly(QFile& in, short dataVersion, int flags)
 
 void ccSphere::drawNameIn3D(CC_DRAW_CONTEXT& context)
 {
-	if (!context._win)
+	if (!context.display)
 		return;
 
 	//we display it in the 2D layer in fact!
 	ccBBox bBox = getOwnBB();
-	if (bBox.isValid())
-	{
-		ccGLMatrix trans;
-		getAbsoluteGLTransformation(trans);
+	if (!bBox.isValid())
+		return;
+	
+	ccGLMatrix trans;
+	getAbsoluteGLTransformation(trans);
 
-		ccGLCameraParameters camera;
-		context._win->getGLCameraParameters(camera);
+	ccGLCameraParameters camera;
+	context.display->getGLCameraParameters(camera);
 
-		CCVector3 C = bBox.getCenter();
-		CCVector3d Q2D;
-		trans.apply(C);
-		camera.project(C, Q2D);
+	CCVector3 C = bBox.getCenter();
+	CCVector3d Q2D;
+	trans.apply(C);
+	camera.project(C, Q2D);
 
-		//we want to display this name next to the sphere, and not above it!
-		const ccViewportParameters& params = context._win->getViewportParameters();
-		int dPix = static_cast<int>(ceil(params.zoom * m_radius/params.pixelSize));
+	//we want to display this name next to the sphere, and not above it!
+	const ccViewportParameters& params = context.display->getViewportParameters();
+	int dPix = static_cast<int>(ceil(params.zoom * m_radius/params.pixelSize));
 
-		int bkgBorder = QFontMetrics(context._win->getTextDisplayFont()).height()/4+4;
-		QFont font = context._win->getTextDisplayFont(); //takes rendering zoom into account!
-		context._win->displayText(	getName(),
+	int bkgBorder = QFontMetrics(context.display->getTextDisplayFont()).height()/4+4;
+	QFont font = context.display->getTextDisplayFont(); //takes rendering zoom into account!
+	context.display->displayText(	getName(),
 									static_cast<int>(Q2D.x) + dPix + bkgBorder,
 									static_cast<int>(Q2D.y),
 									ccGenericGLDisplay::ALIGN_HLEFT | ccGenericGLDisplay::ALIGN_VMIDDLE,
 									0.75f,
 									0,
 									&font);
-	}
 }

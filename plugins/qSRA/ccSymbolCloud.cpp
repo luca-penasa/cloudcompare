@@ -106,22 +106,26 @@ void ccSymbolCloud::clear()
 	clearLabelArray();
 }
 
-void ccSymbolCloud::drawSymbolAt(const double& xp, const double& yp) const
+template <class QOpenGLFunctions> void drawSymbolAt(QOpenGLFunctions* glFunc, double xp, double yp, double symbolRadius)
 {
+	if (!glFunc)
+	{
+		assert(false);
+		return;
+	}
 	//diamong with cross
-	glBegin(GL_LINES);
-	glVertex2d(xp, yp - m_symbolSize/2.0);
-	glVertex2d(xp, yp + m_symbolSize/2.0);
-	glVertex2d(xp - m_symbolSize/2.0, yp);
-	glVertex2d(xp + m_symbolSize/2.0, yp);
-	glEnd();
-	glBegin(GL_LINE_LOOP);
-	glVertex2d(xp, yp - m_symbolSize/2.0);
-	glVertex2d(xp + m_symbolSize/2.0, yp);
-	glVertex2d(xp, yp + m_symbolSize/2.0);
-	glVertex2d(xp - m_symbolSize/2.0, yp);
-	glEnd();
-
+	glFunc->glBegin(GL_LINES);
+	glFunc->glVertex2d(xp, yp - symbolRadius);
+	glFunc->glVertex2d(xp, yp + symbolRadius);
+	glFunc->glVertex2d(xp - symbolRadius, yp);
+	glFunc->glVertex2d(xp + symbolRadius, yp);
+	glFunc->glEnd();
+	glFunc->glBegin(GL_LINE_LOOP);
+	glFunc->glVertex2d(xp, yp - symbolRadius);
+	glFunc->glVertex2d(xp + symbolRadius, yp);
+	glFunc->glVertex2d(xp, yp + symbolRadius);
+	glFunc->glVertex2d(xp - symbolRadius, yp);
+	glFunc->glEnd();
 }
 
 void ccSymbolCloud::drawMeOnly(CC_DRAW_CONTEXT& context)
@@ -132,6 +136,20 @@ void ccSymbolCloud::drawMeOnly(CC_DRAW_CONTEXT& context)
 	//nothing to do?!
 	if (!m_showSymbols && !m_showLabels)
 		return;
+
+	//get the set of OpenGL functions (version 2.1)
+	QOpenGLFunctions_2_1* glFunc = context.glFunctions<QOpenGLFunctions_2_1>();
+	assert(glFunc != nullptr);
+
+	if (glFunc == nullptr)
+		return;
+
+	if (MACRO_Draw3D(context))
+	{
+		//store the 3D camera parameters as we will need them for the 2D pass
+		//(and we need the real ones, especially if the rendering zoom is != 1)
+		context.display->getGLCameraParameters(m_lastCameraParams);
+	}
 
 	if (MACRO_Draw2D(context) && MACRO_Foreground(context))
 	{
@@ -148,12 +166,12 @@ void ccSymbolCloud::drawMeOnly(CC_DRAW_CONTEXT& context)
 			if (MACRO_DrawFastNamesOnly(context))
 				return;
 
-			glPushName(getUniqueID());
+			glFunc->glPushName(getUniqueID());
 			hasLabels = false; //no need to display labels in 'picking' mode
 		}
 
 		//we should already be in orthoprojective & centered omde
-		//glOrtho(-halfW,halfW,-halfH,halfH,-maxS,maxS);
+		//glFunc->glOrtho(-halfW, halfW, -halfH, halfH, -maxS, maxS);
 
 		//default color
 		const unsigned char* color = context.pointsDefaultCol.rgb;
@@ -163,17 +181,14 @@ void ccSymbolCloud::drawMeOnly(CC_DRAW_CONTEXT& context)
 			glParams.showColors = false;
 		}
 		
-		if (!glParams.showColors)
-			glColor3ubv(color);
-
 		unsigned numberOfPoints = size();
 
 		//viewport parameters (will be used to project 3D positions to 2D)
-		ccGLCameraParameters camera;
-		context._win->getGLCameraParameters(camera);
+		//ccGLCameraParameters camera;
+		//context.display->getGLCameraParameters(camera);
 
 		//only usefull when displaying labels!
-		QFont font(context._win->getTextDisplayFont()); //takes rendering zoom into account!
+		QFont font(context.display->getTextDisplayFont()); //takes rendering zoom into account!
 		font.setPointSize(static_cast<int>(m_fontSize * context.renderZoom));
 		//font.setBold(true);
 		QFontMetrics fontMetrics(font);
@@ -183,51 +198,52 @@ void ccSymbolCloud::drawMeOnly(CC_DRAW_CONTEXT& context)
 
 		double xpShift = 0.0;
 		if (m_labelAlignFlags & ccGenericGLDisplay::ALIGN_HLEFT)
-			xpShift = m_symbolSize/2.0;
+			xpShift = m_symbolSize / 2.0;
 		else if (m_labelAlignFlags & ccGenericGLDisplay::ALIGN_HRIGHT)
-			xpShift = -m_symbolSize/2.0;
+			xpShift = -m_symbolSize / 2.0;
 
 		double ypShift = 0.0;
 		if (m_labelAlignFlags & ccGenericGLDisplay::ALIGN_VTOP)
-			ypShift = m_symbolSize/2.0;
+			ypShift = m_symbolSize / 2.0;
 		else if (m_labelAlignFlags & ccGenericGLDisplay::ALIGN_VBOTTOM)
-			ypShift = -m_symbolSize/2.0;
+			ypShift = -m_symbolSize / 2.0;
 
 		//draw symbols + labels
 		{
-			for (unsigned i=0;i<numberOfPoints;i++)
+			for (unsigned i = 0; i < numberOfPoints; i++)
 			{
 				//symbol center
 				const CCVector3* P = getPoint(i);
 
 				//project it in 2D screen coordinates
 				CCVector3d Q2D;
-				camera.project(*P, Q2D);
+				m_lastCameraParams.project(*P, Q2D);
 
 				//apply point color (if any)
 				if (glParams.showColors)
 				{
 					color = getPointColor(i);
-					glColor3ubv(color);
 				}
-			
+				//we must reset the color each time as the call to displayText may change the active color!
+				glFunc->glColor3ubv(color);
+
 				//draw associated symbol
 				if (m_showSymbols && m_symbolSize > 0.0)
 				{
-					drawSymbolAt(Q2D.x- context.glW/2, Q2D.y - context.glH/2);
+					drawSymbolAt<QOpenGLFunctions_2_1>(glFunc, Q2D.x - context.glW / 2, Q2D.y - context.glH / 2, m_symbolSize / 2);
 				}
 
 				//draw associated label?
 				if (m_showLabels && hasLabels && m_labels.size() > i && !m_labels[i].isNull())
 				{
 					//draw label
-					context._win->displayText(	m_labels[i],
-												static_cast<int>(Q2D.x + xpShift),
-												static_cast<int>(Q2D.y + ypShift),
-												m_labelAlignFlags,
-												0,
-												color,
-												&font);
+					context.display->displayText(	m_labels[i],
+													static_cast<int>(Q2D.x + xpShift),
+													static_cast<int>(Q2D.y + ypShift),
+													m_labelAlignFlags,
+													0,
+													color,
+													&font);
 				}
 
 			}
@@ -237,6 +253,8 @@ void ccSymbolCloud::drawMeOnly(CC_DRAW_CONTEXT& context)
 		m_symbolSize = symbolSizeBackup;
 
 		if (pushName)
-			glPopName();
+		{
+			glFunc->glPopName();
+		}
 	}
 }

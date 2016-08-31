@@ -4,14 +4,14 @@
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU General Public License as published by  #
-//#  the Free Software Foundation; version 2 of the License.               #
+//#  the Free Software Foundation; version 2 or later of the License.      #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
-//#               COPYRIGHT: Daniel Girardeau-Montaut                      #
+//#                  COPYRIGHT: Daniel Girardeau-Montaut                   #
 //#                                                                        #
 //##########################################################################
 
@@ -20,12 +20,12 @@
 
 //Qt
 #include <QtGui>
-#include <QElapsedTimer>
 #include <QMainWindow>
 
 //qCC_db
 #include <ccPointCloud.h>
 #include <ccOctree.h>
+#include <ccOctreeProxy.h>
 #include <ccProgressDialog.h>
 #include <cc2DViewportObject.h>
 
@@ -34,10 +34,6 @@
 
 //CCLib
 #include <CloudSamplingTools.h>
-#include <ReferenceCloud.h>
-
-//System
-#include <string.h>
 
 //Qhull
 extern "C"
@@ -254,12 +250,18 @@ void qHPR::doAction()
 
 	//unique parameter: the octree subdivision level
 	int octreeLevel = dlg.octreeLevelSpinBox->value();
-	assert(octreeLevel >= 0 && octreeLevel <= 255);
+	assert(octreeLevel >= 0 && octreeLevel <= CCLib::DgmOctree::MAX_OCTREE_LEVEL);
 
 	//compute octree if cloud hasn't any
-	ccOctree* theOctree = cloud->getOctree();
+	ccOctree::Shared theOctree = cloud->getOctree();
 	if (!theOctree)
+	{
 		theOctree = cloud->computeOctree(&progressCb);
+		if (theOctree && cloud->getParent())
+		{
+			m_app->addToDB(cloud->getOctreeProxy());
+		}
+	}
 
 	if (!theOctree)
 	{
@@ -285,7 +287,7 @@ void qHPR::doAction()
 																											static_cast<unsigned char>(octreeLevel),
 																											CCLib::CloudSamplingTools::NEAREST_POINT_TO_CELL_CENTER,
 																											&progressCb,
-																											theOctree);
+																											theOctree.data());
 		if (!theCellCenters)
 		{
 			m_app->dispToConsole("Error while simplifying point cloud with octree!",ccMainAppInterface::ERR_CONSOLE_MESSAGE);
@@ -395,7 +397,3 @@ QIcon qHPR::getIcon() const
 {
 	return QIcon(QString::fromUtf8(":/CC/plugin/qHPR/cc_hpr.png"));
 }
-
-#ifndef CC_QT5
-Q_EXPORT_PLUGIN2(qHPR,qHPR);
-#endif

@@ -1,14 +1,14 @@
 //##########################################################################
 //#                                                                        #
-//#                            CLOUDCOMPARE                                #
+//#                              CLOUDCOMPARE                              #
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU General Public License as published by  #
-//#  the Free Software Foundation; version 2 of the License.               #
+//#  the Free Software Foundation; version 2 or later of the License.      #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
 //#          COPYRIGHT: EDF R&D / TELECOM ParisTech (ENST-TSI)             #
@@ -22,11 +22,8 @@
 #include <Polyline.h>
 
 //Local
-#include "qCC_db.h"
 #include "ccShiftedObject.h"
 
-//system
-#include <vector>
 
 class ccPointCloud;
 
@@ -48,7 +45,7 @@ public:
 	ccPolyline(const ccPolyline& poly);
 
 	//! Destructor
-	virtual ~ccPolyline() {};
+	virtual ~ccPolyline() {}
 
 	//! Returns class ID
 	virtual CC_CLASS_ENUM getClassID() const {return CC_TYPES::POLY_LINE;}
@@ -94,7 +91,12 @@ public:
 
 	//inherited methods (ccHObject)
 	virtual ccBBox getOwnBB(bool withGLFeatures = false);
-	inline virtual void drawBB(const ccColor::Rgb& col) { if (!is2DMode()) ccShiftedObject::drawBB(col); } //DGM: only for 3D polylines!
+	inline virtual void drawBB(CC_DRAW_CONTEXT& context, const ccColor::Rgb& col)
+	{
+		//DGM: only for 3D polylines!
+		if (!is2DMode())
+			ccShiftedObject::drawBB(context, col);
+	}
 
 
 	//! Splits the polyline into several parts based on a maximum edge length

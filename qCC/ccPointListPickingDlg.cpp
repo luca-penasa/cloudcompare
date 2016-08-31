@@ -1,14 +1,14 @@
 //##########################################################################
 //#                                                                        #
-//#                            CLOUDCOMPARE                                #
+//#                              CLOUDCOMPARE                              #
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU General Public License as published by  #
-//#  the Free Software Foundation; version 2 of the License.               #
+//#  the Free Software Foundation; version 2 or later of the License.      #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
 //#          COPYRIGHT: EDF R&D / TELECOM ParisTech (ENST-TSI)             #
@@ -30,7 +30,6 @@
 
 //qCC_db
 #include <ccLog.h>
-#include <ccObject.h> //for CC_QT5 def
 #include <ccPointCloud.h>
 #include <cc2DLabel.h>
 #include <ccPolyline.h>
@@ -70,11 +69,7 @@ ccPointListPickingDlg::ccPointListPickingDlg(QWidget* parent)
 	QAction* exportToNewPolyline = menu->addAction("new polyline");
 	exportToolButton->setMenu(menu);
 
-#ifdef CC_QT5
 	tableWidget->verticalHeader()->setSectionResizeMode(QHeaderView::ResizeToContents);
-#else
-	tableWidget->verticalHeader()->setResizeMode(QHeaderView::ResizeToContents);
-#endif
 
 	startIndexSpinBox->setValue(s_pickedPointsStartIndex);
 	showGlobalCoordsCheckBox->setChecked(s_showGlobalCoordsCheckBoxChecked);
@@ -514,7 +509,7 @@ void ccPointListPickingDlg::processPickedPoint(ccPointCloud* cloud, unsigned poi
 	newLabel->addPoint(cloud,pointIndex);
 	newLabel->setVisible(true);
 	newLabel->setDisplayedIn2D(false);
-	newLabel->setDisplayedIn3D(true);
+	newLabel->displayPointLegend(true);
 	newLabel->setCollapsed(true);
 	ccGenericGLDisplay* display = m_associatedCloud->getDisplay();
 	if (display)

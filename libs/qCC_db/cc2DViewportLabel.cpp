@@ -1,14 +1,14 @@
 //##########################################################################
 //#                                                                        #
-//#                            CLOUDCOMPARE                                #
+//#                              CLOUDCOMPARE                              #
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU General Public License as published by  #
-//#  the Free Software Foundation; version 2 of the License.               #
+//#  the Free Software Foundation; version 2 or later of the License.      #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
 //#          COPYRIGHT: EDF R&D / TELECOM ParisTech (ENST-TSI)             #
@@ -60,7 +60,7 @@ bool cc2DViewportLabel::fromFile_MeOnly(QFile& in, short dataVersion, int flags)
 	if (!cc2DViewportObject::fromFile_MeOnly(in, dataVersion, flags))
 		return false;
 
-	if (dataVersion<21)
+	if (dataVersion < 21)
 		return false;
 
 	//ROI (dataVersion>=21)
@@ -76,18 +76,27 @@ void cc2DViewportLabel::drawMeOnly(CC_DRAW_CONTEXT& context)
 	//2D foreground only
 	if (!MACRO_Foreground(context) || !MACRO_Draw2D(context))
 		return;
-
+	
+	//get the set of OpenGL functions (version 2.1)
+	QOpenGLFunctions_2_1 *glFunc = context.glFunctions<QOpenGLFunctions_2_1>();
+	assert( glFunc != nullptr );
+	
+	if ( glFunc == nullptr )
+		return;
+	
 	//test viewport parameters
-	const ccViewportParameters& params = context._win->getViewportParameters();
+	const ccViewportParameters& params = context.display->getViewportParameters();
 
 	//general parameters
-	if (params.perspectiveView != m_params.perspectiveView
-		|| params.objectCenteredView != m_params.objectCenteredView
-		|| params.pixelSize != m_params.pixelSize)
+	if (	params.perspectiveView != m_params.perspectiveView
+		||	params.objectCenteredView != m_params.objectCenteredView
+		||	params.pixelSize != m_params.pixelSize)
+	{
 			return;
+	}
 
 	//test base view matrix
-	for (unsigned i=0;i<12;++i)
+	for (unsigned i = 0; i < 12; ++i)
 		if (fabs(params.viewMat.data()[i] - m_params.viewMat.data()[i]) > ZERO_TOLERANCE)
 			return;
 
@@ -96,8 +105,8 @@ void cc2DViewportLabel::drawMeOnly(CC_DRAW_CONTEXT& context)
 		if (params.fov != m_params.fov || params.perspectiveAspectRatio != m_params.perspectiveAspectRatio)
 			return;
 
-		if (	(params.pivotPoint - m_params.pivotPoint).norm() > ZERO_TOLERANCE
-			||	(params.cameraCenter - m_params.cameraCenter).norm() > ZERO_TOLERANCE)
+		if ((params.pivotPoint - m_params.pivotPoint).norm() > ZERO_TOLERANCE
+			|| (params.cameraCenter - m_params.cameraCenter).norm() > ZERO_TOLERANCE)
 			return;
 	}
 	else
@@ -106,16 +115,16 @@ void cc2DViewportLabel::drawMeOnly(CC_DRAW_CONTEXT& context)
 			return;
 	}
 
-	glPushAttrib(GL_LINE_BIT);
+	glFunc->glPushAttrib(GL_LINE_BIT);
 
 	float relativeZoom = 1.0f;
 	float dx = 0, dy = 0;
 	if (!m_params.perspectiveView) //ortho mode
 	{
 		//Screen pan & pivot compensation
-		float totalZoom = m_params.zoom/m_params.pixelSize;
-		float winTotalZoom = params.zoom/params.pixelSize;
-		relativeZoom = winTotalZoom/totalZoom;
+		float totalZoom = m_params.zoom / m_params.pixelSize;
+		float winTotalZoom = params.zoom / params.pixelSize;
+		relativeZoom = winTotalZoom / totalZoom;
 
 		CCVector3d dC = m_params.cameraCenter - params.cameraCenter;
 
@@ -130,34 +139,34 @@ void cc2DViewportLabel::drawMeOnly(CC_DRAW_CONTEXT& context)
 	}
 
 	//thick dotted line
-	glLineWidth(2);
-	glLineStipple(1, 0xAAAA);
-	glEnable(GL_LINE_STIPPLE);
+	glFunc->glLineWidth(2);
+	glFunc->glLineStipple(1, 0xAAAA);
+	glFunc->glEnable(GL_LINE_STIPPLE);
 
 	const unsigned char* defaultColor = m_selected ? ccColor::red.rgba : context.textDefaultCol.rgb;
-	glColor3ubv(defaultColor); 
+	glFunc->glColor3ubv(defaultColor);
 
-	glBegin(GL_LINE_LOOP);
-	glVertex2f(dx+m_roi[0]*relativeZoom,dy+m_roi[1]*relativeZoom);
-	glVertex2f(dx+m_roi[2]*relativeZoom,dy+m_roi[1]*relativeZoom);
-	glVertex2f(dx+m_roi[2]*relativeZoom,dy+m_roi[3]*relativeZoom);
-	glVertex2f(dx+m_roi[0]*relativeZoom,dy+m_roi[3]*relativeZoom);
-	glEnd();
+	glFunc->glBegin(GL_LINE_LOOP);
+	glFunc->glVertex2f(dx + m_roi[0] * relativeZoom, dy + m_roi[1] * relativeZoom);
+	glFunc->glVertex2f(dx + m_roi[2] * relativeZoom, dy + m_roi[1] * relativeZoom);
+	glFunc->glVertex2f(dx + m_roi[2] * relativeZoom, dy + m_roi[3] * relativeZoom);
+	glFunc->glVertex2f(dx + m_roi[0] * relativeZoom, dy + m_roi[3] * relativeZoom);
+	glFunc->glEnd();
 
-	glPopAttrib();
+	glFunc->glPopAttrib();
 
 	//title
 	QString title(getName());
 	if (!title.isEmpty())
 	{
-		QFont titleFont(context._win->getTextDisplayFont()); //takes rendering zoom into account!
+		QFont titleFont(context.display->getTextDisplayFont()); //takes rendering zoom into account!
 		titleFont.setBold(true);
 		QFontMetrics titleFontMetrics(titleFont);
 		int titleHeight = titleFontMetrics.height();
 
-		int xStart = (int)(dx+0.5f*(float)context.glW+std::min<float>(m_roi[0],m_roi[2])*relativeZoom);
-		int yStart = (int)(dy+0.5f*(float)context.glH+std::min<float>(m_roi[1],m_roi[3])*relativeZoom);
+		int xStart = (int)(dx + 0.5f*(float)context.glW + std::min<float>(m_roi[0], m_roi[2])*relativeZoom);
+		int yStart = (int)(dy + 0.5f*(float)context.glH + std::min<float>(m_roi[1], m_roi[3])*relativeZoom);
 
-		context._win->displayText(title,xStart,yStart-5-titleHeight,ccGenericGLDisplay::ALIGN_DEFAULT,0,defaultColor,&titleFont);
+		context.display->displayText(title, xStart, yStart - 5 - titleHeight, ccGenericGLDisplay::ALIGN_DEFAULT, 0, defaultColor, &titleFont);
 	}
 }

@@ -26,12 +26,11 @@ file( GLOB_RECURSE source_list *.cpp )
 file( GLOB_RECURSE impl_list *.hpp)
 file( GLOB_RECURSE ui_list *.ui )
 
+qt5_wrap_ui(generated_ui_list ${ui_list})
 
-qt_wrap_ui(generated_ui_list ${ui_list})
+add_library( ${PROJECT_NAME} STATIC ${header_list} ${source_list} ${impl_list} ${generated_ui_list} )
 
-add_library( ${PROJECT_NAME} STATIC ${header_list} ${source_list} ${impl_list} ${moc_list} ${generated_ui_list} )
-
-# Add custom prepocessor definitions
+# Add custom preprocessor definitions
 if (WIN32 AND NOT ON_MXE)
 	set_property( TARGET ${PROJECT_NAME} APPEND PROPERTY COMPILE_DEFINITIONS CC_USE_AS_DLL QCC_DB_USE_AS_DLL )
 endif()
@@ -50,6 +49,6 @@ link_directories( ${PCL_LIBRARY_DIRS} )
 add_definitions( ${PCL_DEFINITIONS} )
 target_link_libraries( ${PROJECT_NAME} ${PCL_LIBRARIES})
 
-if ( USE_QT5 )
-	qt5_use_modules(${PROJECT_NAME} Core Gui Widgets)
-endif()
+# Qt
+qt5_use_modules(${PROJECT_NAME} Core Gui Widgets)
+

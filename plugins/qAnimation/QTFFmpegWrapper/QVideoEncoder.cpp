@@ -13,6 +13,7 @@ extern "C"
 	#include "libavutil/rational.h"
 	#include "libavutil/frame.h"
 	#include "libavutil/avstring.h"
+	#include "libavutil/imgutils.h"
 
 	#include "libswscale/swscale.h"
 }
@@ -157,7 +158,11 @@ bool QVideoEncoder::open(QString* errorString/*=0*/)
 	m_ff->codecContext->time_base.den = m_fps;
 	m_ff->codecContext->gop_size = m_gop;
 	m_ff->codecContext->max_b_frames = 1;
-	m_ff->codecContext->pix_fmt = PIX_FMT_YUV420P;
+	m_ff->codecContext->pix_fmt = AV_PIX_FMT_YUV420P;
+
+	//DGM: doesn't really change anything. We only get different warnings if we enabled this :(
+	//m_ff->codecContext->rc_buffer_size = m_bitrate * 2;
+	//m_ff->codecContext->rc_max_rate = m_bitrate;
 
 	if (codec_id == AV_CODEC_ID_H264)
 	{
@@ -187,6 +192,8 @@ bool QVideoEncoder::open(QString* errorString/*=0*/)
 	}
 	m_ff->videoStream->id = m_ff->formatContext->nb_streams-1;
 	m_ff->videoStream->codec = m_ff->codecContext;
+	m_ff->videoStream->time_base.num = 1;
+	m_ff->videoStream->time_base.den = m_fps;
 
 	//av_dump_format(m_ff->formatContext, 0, fileName.toStdString().c_str(), 1);
 
@@ -213,7 +220,14 @@ bool QVideoEncoder::open(QString* errorString/*=0*/)
 		return false;
 	}
 
-	avformat_write_header(m_ff->formatContext, NULL);
+	int	err = avformat_write_header(m_ff->formatContext, NULL);
+	
+	if ( err != 0 )
+	{
+		if (errorString)
+			*errorString = QString("Could not write header for '%1'").arg(m_filename);
+		return false;
+	}
 
 	m_isOpen = true;
 
@@ -263,7 +277,7 @@ bool QVideoEncoder::close()
 
 		write_frame(m_ff, &pkt);
 
-		av_free_packet(&pkt);
+		av_packet_unref(&pkt);
 	}
 
 	av_write_trailer(m_ff->formatContext);
@@ -339,7 +353,7 @@ bool QVideoEncoder::encodeImage(const QImage &image, int frameIndex, QString* er
 		}
 	}
 
-	av_free_packet(&pkt);
+	av_packet_unref(&pkt);
 	
 	return true;
 }
@@ -354,8 +368,10 @@ bool QVideoEncoder::convertImage_sws(const QImage &image, QString* errorString/*
 		return false;
 	}
 	
-	if (	image.format() != QImage::Format_RGB32
-		&&	image.format() != QImage::Format_ARGB32 )
+	QImage::Format format = image.format();
+	if (	format != QImage::Format_RGB32
+		&&	format != QImage::Format_ARGB32
+		&&	format != QImage::Format_ARGB32_Premultiplied )
 	{
 		if (errorString)
 			*errorString = "Wrong image format";
@@ -363,17 +379,17 @@ bool QVideoEncoder::convertImage_sws(const QImage &image, QString* errorString/*
 	}
 
 	//Check if context can be reused, otherwise reallocate a new one
-	m_ff->swsContext = sws_getCachedContext(	m_ff->swsContext,
-													m_width,
-													m_height,
-													PIX_FMT_BGRA,
-													m_width,
-													m_height,
-													PIX_FMT_YUV420P,
-													SWS_BICUBIC,
-													NULL,
-													NULL,
-													NULL);
+	m_ff->swsContext = sws_getCachedContext(m_ff->swsContext,
+											m_width,
+											m_height,
+											AV_PIX_FMT_BGRA,
+											m_width,
+											m_height,
+											AV_PIX_FMT_YUV420P,
+											SWS_BICUBIC,
+											NULL,
+											NULL,
+											NULL);
 
 	if (m_ff->swsContext == NULL)
 	{
@@ -382,7 +398,7 @@ bool QVideoEncoder::convertImage_sws(const QImage &image, QString* errorString/*
 		return false;
 	}
 
-	int num_bytes = avpicture_get_size(PIX_FMT_BGRA, m_width, m_height);
+	int num_bytes = av_image_get_buffer_size(AV_PIX_FMT_BGRA, m_width, m_height, 1);
 	if (num_bytes != image.byteCount())
 	{
 		if (errorString)

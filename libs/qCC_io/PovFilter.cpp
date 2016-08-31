@@ -1,14 +1,14 @@
 //##########################################################################
 //#                                                                        #
-//#                            CLOUDCOMPARE                                #
+//#                              CLOUDCOMPARE                              #
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU General Public License as published by  #
-//#  the Free Software Foundation; version 2 of the License.               #
+//#  the Free Software Foundation; version 2 or later of the License.      #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
 //#          COPYRIGHT: EDF R&D / TELECOM ParisTech (ENST-TSI)             #
@@ -163,17 +163,16 @@ CC_FILE_ERROR PovFilter::saveToFile(ccHObject* entity, QString filename, SavePar
 					result = fprintf(mainFile,"#END_POV\n");
 			}
 
-			/*if (++n==palier)
-			{
-				//cancel requested
-				if (pwin->isCancelRequested())
-					result=-1;
+			//if (++n == palier)
+			//{
+			//	//cancel requested
+			//	if (pwin->isCancelRequested())
+			//		result = -1;
 
-				percent += 1.0;
-				pwin->update(percent);
-				n = 0;
-			}
-			//*/
+			//	percent += 1.0;
+			//	pwin->update(percent);
+			//	n = 0;
+			//}
 		}
 	}
 
@@ -279,7 +278,9 @@ CC_FILE_ERROR PovFilter::loadFile(QString filename, ccHObject& container, LoadPa
 				fclose(fp);
 				return CC_FERR_UNKNOWN_FILE;
 			}
-			ccHObject* entities = FileIOFilter::LoadFromFile(QString("%0/%1").arg(path).arg(subFileName),parameters,filter);
+
+			CC_FILE_ERROR result = CC_FERR_NO_ERROR;
+			ccHObject* entities = FileIOFilter::LoadFromFile(QString("%0/%1").arg(path).arg(subFileName), parameters, filter, result);
 			if (entities)
 			{
 				ccGLMatrix rot;
@@ -360,7 +361,14 @@ CC_FILE_ERROR PovFilter::loadFile(QString filename, ccHObject& container, LoadPa
 			}
 			else
 			{
-				ccLog::Print("[PovFilter::loadFile] File (%s) not found or empty!",subFileName);
+				if (result == CC_FERR_CANCELED_BY_USER)
+				{
+					break;
+				}
+				else
+				{
+					ccLog::Print("[PovFilter::loadFile] File (%s) not found or empty!", subFileName);
+				}
 			}
 		}
 	}

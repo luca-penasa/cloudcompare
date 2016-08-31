@@ -4,14 +4,14 @@
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU General Public License as published by  #
-//#  the Free Software Foundation; version 2 of the License.               #
+//#  the Free Software Foundation; version 2 or later of the License.      #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
-//#                           COPYRIGHT: BRGM                              #
+//#                      COPYRIGHT: Thomas Dewez, BRGM                     #
 //#                                                                        #
 //##########################################################################
 
@@ -22,7 +22,6 @@
 #include <FastMarching.h>
 #include <GenericProgressCallback.h>
 #include <DistanceComputationTools.h>
-#include <DgmOctree.h>
 
 //qCC_db
 #include <ccAdvancedTypes.h>
@@ -80,8 +79,8 @@ public:
 								unsigned facetIndex);
 
 	//inherited methods (see FastMarchingAlgorithm)
-	int propagate();
-	bool setSeedCell(const Tuple3i& pos);
+	virtual int propagate() override;
+	virtual bool setSeedCell(const Tuple3i& pos) override;
 
 protected:
 
@@ -106,16 +105,16 @@ protected:
 		//! The local cell center
 		CCVector3 C;
 		//! the code of the equivalent cell in the octree
-		CCLib::DgmOctree::OctreeCellCodeType cellCode;
+		CCLib::DgmOctree::CellCode cellCode;
 		//! Cell planarity error
 		ScalarType planarError;
 	};
 
 	//inherited methods (see FastMarchingAlgorithm)
-	virtual float computeTCoefApprox(CCLib::FastMarching::Cell* currentCell, CCLib::FastMarching::Cell* neighbourCell) const;
-	virtual int step();
-	virtual void initTrialCells();
-	virtual bool instantiateGrid(unsigned size) { return instantiateGridTpl<PlanarCell*>(size); }
+	virtual float computeTCoefApprox(CCLib::FastMarching::Cell* currentCell, CCLib::FastMarching::Cell* neighbourCell) const override;
+	virtual int step() override;
+	virtual void initTrialCells() override;
+	virtual bool instantiateGrid(unsigned size) override { return instantiateGridTpl<PlanarCell*>(size); }
 
 	//! Sets the propagation timings as distances for each point
 	/** \return true if ok, false otherwise

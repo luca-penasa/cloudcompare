@@ -1,14 +1,14 @@
 //##########################################################################
 //#                                                                        #
-//#                            CLOUDCOMPARE                                #
+//#                              CLOUDCOMPARE                              #
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU General Public License as published by  #
-//#  the Free Software Foundation; version 2 of the License.               #
+//#  the Free Software Foundation; version 2 or later of the License.      #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
 //#          COPYRIGHT: EDF R&D / TELECOM ParisTech (ENST-TSI)             #
@@ -19,11 +19,10 @@
 #define CC_CLIP_BOX_HEADER
 
 //Local
-#include "qCC_db.h"
 #include "ccBBox.h"
 #include "ccHObject.h"
+#include "ccGenericPointCloud.h"
 #include "ccInteractor.h"
-#include "ccGLMatrix.h"
 
 //Qt
 #include <QObject>
@@ -47,11 +46,11 @@ public:
 	bool setAssociatedEntity(ccHObject* associatedEntity);
 
 	//inherited from ccHObject
-	virtual ccBBox getOwnBB(bool withGLFeatures = false);
+	virtual ccBBox getOwnBB(bool withGLFeatures = false) override;
 
 	//inherited from ccInteractor
-	virtual bool move2D(int x, int y, int dx, int dy, int screenWidth, int screenHeight);
-	virtual bool move3D(const CCVector3d& u);
+	virtual bool move2D(int x, int y, int dx, int dy, int screenWidth, int screenHeight) override;
+	virtual bool move3D(const CCVector3d& u) override;
 
 	//! Sets last clicked point (on screen)
 	void setClickedPoint(int x, int y, int screenWidth, int screenHeight, const ccGLMatrixd& viewMatrix);
@@ -80,47 +79,73 @@ public:
 	void setActiveComponent(int id);
 
 	//inherited from ccHObject
-	virtual CC_CLASS_ENUM getClassID() const { return CC_TYPES::CLIPPING_BOX; }
-	//virtual bool isSerializable() const { return false; }
+	inline virtual CC_CLASS_ENUM getClassID() const override { return CC_TYPES::CLIPPING_BOX; }
 
-	//! Returns current box
-	const ccBBox& getBox() const { return m_box; }
+	//! Returns the box extents
+	inline const ccBBox& getBox() const { return m_box; }
 
-	//! Sets current box
+	//! Whether to show the box or not
+	inline void showBox(bool state) { m_showBox = state; }
+
+	//! Sets the box extents
 	void setBox(const ccBBox& box);
 
-	//! Shifts current box
+	//! Shifts the current box
 	void shift(const CCVector3& v);
 
-	//! Updates associated entity 'visibility'
-	/** \param shrink Whether box is shrinking (faster) or not
+	//! Flags the points of the associated entity (cloud or mesh)
+	/** \warning The points entity should already have a valid visibility table instantiated!
+		\param shrink Whether the box is shrinking (faster) or not
 	**/
-	void update(bool shrink = false);
+	void flagPointsInside(bool shrink = false);
+
+	//! Flags the points of a given cloud depending on whether they are inside or outside of this clipping box
+	/** \param cloud point cloud
+		\param visTable visibility flags
+		\param shrink Whether the box is shrinking (faster) or not
+	**/
+	void flagPointsInside(	ccGenericPointCloud* cloud,
+							ccGenericPointCloud::VisibilityTableType* visTable,
+							bool shrink = false) const;
 
 	//! Resets box
 	void reset();
 
+	//! Manually sets the box parameters
+	void set(const ccBBox& extents, const ccGLMatrix& transformation);
+
+	//! Returns the box parameters
+	void get(ccBBox& extents, ccGLMatrix& transformation);
+
 	//! Associated entity
-	ccHObject* getAssociatedEntity() const { return m_associatedEntity; }
+	inline ccHObject* getAssociatedEntity() const { return m_associatedEntity; }
 
 signals:
 
 	//! Signal sent each time the box is modified
 	void boxModified(const ccBBox* box);
 
-protected:
+protected: //methods
+
+	//! Updates the associated entity clipping planes
+	void update();
 
 	//inherited from ccHObject
-	virtual void drawMeOnly(CC_DRAW_CONTEXT& context);
+	virtual void drawMeOnly(CC_DRAW_CONTEXT& context) override;
 
 	//! Computes arrows display scale
 	PointCoordinateType computeArrowsScale() const;
 
+protected: //members
+	
 	//! Associated entity
 	ccHObject* m_associatedEntity;
 
 	//! Clipping box
 	ccBBox m_box;
+
+	//! Show box
+	bool m_showBox;
 
 	//! Active component
 	Components m_activeComponent;

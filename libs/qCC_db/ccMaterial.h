@@ -1,14 +1,14 @@
 //##########################################################################
 //#                                                                        #
-//#                            CLOUDCOMPARE                                #
+//#                              CLOUDCOMPARE                              #
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU General Public License as published by  #
-//#  the Free Software Foundation; version 2 of the License.               #
+//#  the Free Software Foundation; version 2 or later of the License.      #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
 //#          COPYRIGHT: EDF R&D / TELECOM ParisTech (ENST-TSI)             #
@@ -19,15 +19,15 @@
 #define CC_MATERIAL_HEADER
 
 //Local
-#include "qCC_db.h"
 #include "ccSerializableObject.h"
 #include "ccColorTypes.h"
 
 //Qt
 #include <QImage>
-#include <QString>
 #include <QStringList>
 #include <QSharedPointer>
+
+class QOpenGLContext;
 
 //! Mesh (triangle) material
 class QCC_DB_LIB_API ccMaterial : public ccSerializableObject
@@ -92,7 +92,7 @@ public:
 	void setTransparency(float val);
 
 	//! Apply parameters (OpenGL)
-	void applyGL(bool lightEnabled, bool skipDiffuse) const;
+	void applyGL(const QOpenGLContext* context, bool lightEnabled, bool skipDiffuse) const;
 
 	//! Returns whether the material has an associated texture or not
 	bool hasTexture() const;
@@ -111,16 +111,29 @@ public:
 	//! Returns the texture (if any)
 	const QImage getTexture() const;
 
+	//! Returns the texture ID (if any)
+	GLuint getTextureID() const;
+
 	//! Helper: makes all active GL light sources neutral (i.e. 'gray')
 	/** WARNING: an OpenGL context must be active!
 	**/
-	static void MakeLightsNeutral();
+	static void MakeLightsNeutral(const QOpenGLContext* context);
 
 	//! Returns the texture image associated to a given name
 	static QImage GetTexture(QString absoluteFilename);
 
 	//! Adds a texture to the global texture DB
 	static void AddTexture(QImage image, QString absoluteFilename);
+
+	//! Release all texture objects
+	/** Should be called BEFORE the global shared context is destroyed.
+	**/
+	static void ReleaseTextures();
+
+	//! Release the texture
+	/** \warning Make sure no more materials are using this texture!
+	**/
+	void releaseTexture();
 
 	//! Compares this material with another one
 	/** \return true if both materials are equivalent or false otherwise

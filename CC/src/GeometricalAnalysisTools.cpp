@@ -4,11 +4,12 @@
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU Library General Public License as       #
-//#  published by the Free Software Foundation; version 2 of the License.  #
+//#  published by the Free Software Foundation; version 2 or later of the  #
+//#  License.                                                              #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
 //#          COPYRIGHT: EDF R&D / TELECOM ParisTech (ENST-TSI)             #
@@ -838,7 +839,6 @@ bool GeometricalAnalysisTools::refineSphereLS(	GenericIndexedCloudPersist* cloud
 	}
 	
 	CCVector3d c = CCVector3d::fromArray(center.u);
-	double r = radius;
 
 	unsigned count = cloud->size();
 
@@ -880,7 +880,7 @@ bool GeometricalAnalysisTools::refineSphereLS(	GenericIndexedCloudPersist* cloud
 		CCVector3d c0 = c;
 		//deduce new center
 		c = G - derivatives * meanNorm;
-		r = meanNorm;
+		double r = meanNorm;
 
 		double shift = (c-c0).norm();
 		double relativeShift = shift/r;
@@ -931,11 +931,14 @@ bool GeometricalAnalysisTools::detectSphereRobust(	GenericIndexedCloudPersist* c
 	NormalizedProgress nProgress(progressCb, m);
 	if (progressCb)
 	{
-		char buffer[64];
-		sprintf(buffer,"Least Median of Squares samples: %u",m);
-		progressCb->reset();
-		progressCb->setInfo(buffer);
-		progressCb->setMethodTitle("Detect sphere");
+		if (progressCb->textCanBeEdited())
+		{
+			char buffer[64];
+			sprintf(buffer, "Least Median of Squares samples: %u", m);
+			progressCb->setInfo(buffer);
+			progressCb->setMethodTitle("Detect sphere");
+		}
+		progressCb->update(0);
 		progressCb->start();
 	}
 
@@ -980,7 +983,7 @@ bool GeometricalAnalysisTools::detectSphereRobust(	GenericIndexedCloudPersist* c
 			PointCoordinateType error = (*cloud->getPoint(i) - thisCenter).norm() - thisRadius;
 			values[i] = error*error;
 		}
-		std::sort(values.begin(),values.end());
+		std::sort(values.begin(), values.end());
 
 		//the error is the median of the squared residuals
 		double error = values[n/2];

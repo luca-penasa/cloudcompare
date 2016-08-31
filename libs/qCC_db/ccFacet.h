@@ -1,14 +1,14 @@
 //##########################################################################
 //#                                                                        #
-//#                            CLOUDCOMPARE                                #
+//#                              CLOUDCOMPARE                              #
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU General Public License as published by  #
-//#  the Free Software Foundation; version 2 of the License.               #
+//#  the Free Software Foundation; version 2 or later of the License.      #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
 //#          COPYRIGHT: EDF R&D / TELECOM ParisTech (ENST-TSI)             #
@@ -19,14 +19,9 @@
 #define CC_FACET_HEADER
 
 //Local
-#include "qCC_db.h"
-#include "ccHObject.h"
 #include "ccMesh.h"
 #include "ccPolyline.h"
 #include "ccPointCloud.h"
-
-//CCLib
-#include <GenericIndexedCloudPersist.h>
 
 
 //! Facet
@@ -61,8 +56,8 @@ public:
 							const PointCoordinateType* planeEquation = 0);
 
 	//! Returns class ID
-	virtual CC_CLASS_ENUM getClassID() const { return CC_TYPES::FACET; }
-	virtual bool isSerializable() const { return true; }
+	virtual CC_CLASS_ENUM getClassID() const override { return CC_TYPES::FACET; }
+	virtual bool isSerializable() const override { return true; }
 
 	//! Sets the facet unique color
 	/** \param rgb RGB color
@@ -111,13 +106,13 @@ public:
 protected:
 
 	//inherited from ccDrawable
-	void drawMeOnly(CC_DRAW_CONTEXT& context);
+	virtual void drawMeOnly(CC_DRAW_CONTEXT& context) override;
 
 	//! Creates internal representation (polygon, polyline, etc.)
 	bool createInternalRepresentation(	CCLib::GenericIndexedCloudPersist* points,
 										const PointCoordinateType* planeEquation = 0);
 
-	//! Facet 
+	//! Facet
 	ccMesh* m_polygonMesh;
 	//! Facet contour
 	ccPolyline* m_contourPolyline;
@@ -126,9 +121,9 @@ protected:
 	//! Origin points
 	ccPointCloud* m_originPoints;
 
-	//! Plane equation
+	//! Plane equation - as usual in CC plane equation is ax + by + cz = d
 	PointCoordinateType m_planeEquation[4];
-	
+
 	//! Facet centroid
 	CCVector3 m_center;
 
@@ -145,8 +140,11 @@ protected:
 	bool m_showNormalVector;
 
 	//inherited from ccHObject
-	virtual bool toFile_MeOnly(QFile& out) const;
-	virtual bool fromFile_MeOnly(QFile& in, short dataVersion, int flags);
+	virtual bool toFile_MeOnly(QFile& out) const override;
+	virtual bool fromFile_MeOnly(QFile& in, short dataVersion, int flags) override;
+
+	// ccHObject interface
+	virtual void applyGLTransformation(const ccGLMatrix &trans) override;
 };
 
 #endif //CC_FACET_PRIMITIVE_HEADER

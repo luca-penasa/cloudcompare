@@ -1,14 +1,14 @@
 //##########################################################################
 //#                                                                        #
-//#                            CLOUDCOMPARE                                #
+//#                              CLOUDCOMPARE                              #
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU General Public License as published by  #
-//#  the Free Software Foundation; version 2 of the License.               #
+//#  the Free Software Foundation; version 2 or later of the License.      #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
 //#          COPYRIGHT: EDF R&D / TELECOM ParisTech (ENST-TSI)             #
@@ -26,20 +26,8 @@
 #include <string.h>
 #include <assert.h>
 
-// Max acceptable coordinate value
-#define MAX_COORDINATE_ABS_VALUE 1.0e5
-// Max acceptable diagonal length
-#define MAX_DIAGONAL_LENGTH 1.0e6
-
-double ccGlobalShiftManager::MaxCoordinateAbsValue()
-{
-	return MAX_COORDINATE_ABS_VALUE;
-}
-
-double ccGlobalShiftManager::MaxBoundgBoxDiagonal()
-{
-	return MAX_DIAGONAL_LENGTH;
-}
+double ccGlobalShiftManager::MAX_COORDINATE_ABS_VALUE = 1.0e4;
+double ccGlobalShiftManager::MAX_DIAGONAL_LENGTH = 1.0e6;
 
 bool ccGlobalShiftManager::NeedShift(const CCVector3d& P)
 {
@@ -80,7 +68,7 @@ bool ccGlobalShiftManager::Handle(	const CCVector3d& P,
 	//if we can't display a dialog and no usable shift is specified, there's nothing we can do...
 	if (mode == NO_DIALOG && !useInputCoordinatesShiftIfPossible)
 	{
-		coordinatesShift = CCVector3d(0,0,0);
+		coordinatesShift = CCVector3d(0, 0, 0);
 		if (coordinatesScale)
 		{
 			*coordinatesScale = 1.0;
@@ -95,7 +83,7 @@ bool ccGlobalShiftManager::Handle(	const CCVector3d& P,
 	}
 
 	//is shift necessary?
-	if ( needShift || needRescale || mode == ALWAYS_DISPLAY_DIALOG )
+	if ( needShift || useInputCoordinatesShiftIfPossible || needRescale || mode == ALWAYS_DISPLAY_DIALOG )
 	{
 		//shift information already provided? (typically from a previous entity)
 		if (useInputCoordinatesShiftIfPossible && mode != ALWAYS_DISPLAY_DIALOG)
@@ -138,7 +126,7 @@ bool ccGlobalShiftManager::Handle(	const CCVector3d& P,
 		}
 
 		scale = 1.0;
-		CCVector3d shift(0,0,0);
+		CCVector3d shift(0, 0, 0);
 		if (useInputCoordinatesShiftIfPossible)
 		{
 			//shift on load already provided? (typically from a previous file)
@@ -212,7 +200,7 @@ bool ccGlobalShiftManager::Handle(	const CCVector3d& P,
 		}
 	}
 
-	coordinatesShift = CCVector3d(0,0,0);
+	coordinatesShift = CCVector3d(0, 0, 0);
 	if (coordinatesScale)
 	{
 		*coordinatesScale = 1.0;

@@ -1,14 +1,14 @@
 //##########################################################################
 //#                                                                        #
-//#                            CLOUDCOMPARE                                #
+//#                              CLOUDCOMPARE                              #
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU General Public License as published by  #
-//#  the Free Software Foundation; version 2 of the License.               #
+//#  the Free Software Foundation; version 2 or later of the License.      #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
 //#          COPYRIGHT: EDF R&D / TELECOM ParisTech (ENST-TSI)             #
@@ -52,7 +52,7 @@ void CleanMatrix(ccGLMatrixd& mat)
 {
 	//make the transform a little bit cleaner (necessary as it's read from ASCII!)
 	{
-//#ifdef _DEBUG
+//#ifdef QT_DEBUG
 //		//test the matrix quality
 //		ccGLMatrixd before = mat;
 //		CCVector3d X0(before.getColumn(0));
@@ -72,7 +72,7 @@ void CleanMatrix(ccGLMatrixd& mat)
 		Y.normalize();
 		Z.normalize();
 		mat = ccGLMatrixd(X,Y,Z,T);
-//#ifdef _DEBUG
+//#ifdef QT_DEBUG
 //		double dot = CCVector3d(X).dot(X0);
 //		dot /= (normX0 * CCVector3d(X).norm());
 //		double alpha = acos(dot);
@@ -110,7 +110,7 @@ CC_FILE_ERROR PTXFilter::loadFile(	QString filename,
 
 	//progress dialog
 	ccProgressDialog pdlg(true, parameters.parentWidget);
-	pdlg.setMethodTitle("Loading PTX file");
+	pdlg.setMethodTitle(QObject::tr("Loading PTX file"));
 	pdlg.setAutoClose(false);
 
 	//progress dialog (for normals computation)
@@ -481,7 +481,7 @@ CC_FILE_ERROR PTXFilter::loadFile(	QString filename,
 
 			container.addChild(cloud);
 
-#ifdef _DEBUG
+#ifdef QT_DEBUG
 			//break;
 #endif
 		}

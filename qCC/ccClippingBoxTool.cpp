@@ -1,14 +1,14 @@
 //##########################################################################
 //#                                                                        #
-//#                            CLOUDCOMPARE                                #
+//#                              CLOUDCOMPARE                              #
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU General Public License as published by  #
-//#  the Free Software Foundation; version 2 of the License.               #
+//#  the Free Software Foundation; version 2 or later of the License.      #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
 //#          COPYRIGHT: EDF R&D / TELECOM ParisTech (ENST-TSI)             #
@@ -44,13 +44,22 @@
 #include <QInputDialog>
 #include <QElapsedTimer>
 
-//! Last contour unique ID
+//Last contour unique ID
 static std::vector<unsigned> s_lastContourUniqueIDs;
-//! Max edge length parameter (contour extraction)
+
+//Contour extraction parameters
 static double s_maxEdgeLength = -1.0;
 static bool s_splitContours = false;
 static bool s_multiPass = false;
 static double s_defaultGap = 0.0;
+
+// persistent map of the previous box used for each entity
+struct ccClipBoxParams
+{
+	ccBBox box;
+	ccGLMatrix trans;
+};
+static QMap< unsigned, ccClipBoxParams > s_lastBoxParams;
 
 ccClippingBoxTool::ccClippingBoxTool(QWidget* parent)
 	: ccOverlayDialog(parent)
@@ -65,9 +74,11 @@ ccClippingBoxTool::ccClippingBoxTool(QWidget* parent)
 	connect(exportButton,					SIGNAL(clicked()),				this, SLOT(exportSlice()));
 	connect(exportMultButton,				SIGNAL(clicked()),				this, SLOT(exportMultSlices()));
 	connect(resetButton,					SIGNAL(clicked()),				this, SLOT(reset()));
+	connect(restoreToolButton,				SIGNAL(clicked()),				this, SLOT(restoreLastBox()));
 	connect(closeButton,					SIGNAL(clicked()),				this, SLOT(closeDialog()));
 
-	connect(showInteractorsCheckBox,		SIGNAL(toggled(bool)),			this, SLOT(toggleInteractors(bool)));
+	connect(showBoxToolButton,				SIGNAL(toggled(bool)),			this, SLOT(toggleBox(bool)));
+	connect(showInteractorsToolButton,		SIGNAL(toggled(bool)),			this, SLOT(toggleInteractors(bool)));
 
 	connect(thickXDoubleSpinBox,			SIGNAL(valueChanged(double)),	this, SLOT(thicknessChanged(double)));
 	connect(thickYDoubleSpinBox,			SIGNAL(valueChanged(double)),	this, SLOT(thicknessChanged(double)));
@@ -105,12 +116,21 @@ void ccClippingBoxTool::editBox()
 	if (!m_clipBox)
 		return;
 
-	ccBBox box = m_clipBox->getBox();
+	ccBBox box;
+	ccGLMatrix transformation;
+	m_clipBox->get(box, transformation);
 
 	ccBoundingBoxEditorDlg bbeDlg(this);
-	bbeDlg.setBaseBBox(box,false);
+	bbeDlg.setBaseBBox(box, false);
 	bbeDlg.showInclusionWarning(false);
 	bbeDlg.setWindowTitle("Edit clipping box");
+	
+	//show the box 'axes' (orientation)
+	bbeDlg.showBoxAxes(true);
+	//transformation.invert();
+	bbeDlg.setBoxAxes(	transformation.getColumnAsVec3D(0),
+						transformation.getColumnAsVec3D(1),
+						transformation.getColumnAsVec3D(2) );
 
 	if (!bbeDlg.exec())
 		return;
@@ -118,10 +138,37 @@ void ccClippingBoxTool::editBox()
 	box = bbeDlg.getBox();
 	m_clipBox->setBox(box);
 
+	//construct the local box orientation matrix
+	{
+		CCVector3 X, Y, Z;
+		bbeDlg.getBoxAxes(X, Y, Z);
+		//make sure the vectors define an orthogonal basis
+		Z = X.cross(Y);
+		Y = Z.cross(X);
+
+		X.normalize();
+		Y.normalize();
+		Z.normalize();
+		ccGLMatrix rotMat;
+		rotMat.setColumn(0, X);
+		rotMat.setColumn(1, Y);
+		rotMat.setColumn(2, Z);
+
+		CCVector3 C = box.getCenter();
+		ccGLMatrix transMat;
+		transMat.setTranslation(-C);
+		transMat = rotMat.inverse() * transMat;
+		transMat.setTranslation(transMat.getTranslationAsVec3D() + C);
+
+		m_clipBox->setGLTransformation(transMat.inverse());
+	}
+
 	//onBoxModified(&box); //DGM: automatically called by 'm_clipBox'
 
 	if (m_associatedWin)
+	{
 		m_associatedWin->redraw();
+	}
 }
 
 void ccClippingBoxTool::toggleInteractors(bool state)
@@ -132,8 +179,17 @@ void ccClippingBoxTool::toggleInteractors(bool state)
 		m_associatedWin->redraw();
 }
 
+void ccClippingBoxTool::toggleBox(bool state)
+{
+	if (m_clipBox)
+		m_clipBox->showBox(state);
+	if (m_associatedWin)
+		m_associatedWin->redraw();
+}
+
 bool ccClippingBoxTool::setAssociatedEntity(ccHObject* entity)
 {
+	restoreToolButton->setEnabled(false);
 	if (!m_associatedWin || !m_clipBox)
 	{
 		ccLog::Error(QString("[Clipping box] No associated 3D view or no valid clipping box!"));
@@ -154,6 +210,11 @@ bool ccClippingBoxTool::setAssociatedEntity(ccHObject* entity)
 		return false;
 	}
 
+	if (s_lastBoxParams.contains(entity->getUniqueID()))
+	{
+		restoreToolButton->setEnabled(true);
+	}
+
 	contourGroupBox->setEnabled(entity->isKindOf(CC_TYPES::POINT_CLOUD));
 
 	//force visibility
@@ -161,14 +222,16 @@ bool ccClippingBoxTool::setAssociatedEntity(ccHObject* entity)
 	entity->setEnabled(true);
 
 	if (m_associatedWin)
+	{
 		m_associatedWin->redraw();
+	}
 
 	//set proper "steps" value for slice thickness editors
 	{
 		CCVector3 diag = entity->getOwnBB().getDiagVec();
-		thickXDoubleSpinBox->setSingleStep(static_cast<double>(diag.x) / 100.0);
-		thickYDoubleSpinBox->setSingleStep(static_cast<double>(diag.y) / 100.0);
-		thickZDoubleSpinBox->setSingleStep(static_cast<double>(diag.z) / 100.0);
+		thickXDoubleSpinBox->setSingleStep(diag.x / 100.0);
+		thickYDoubleSpinBox->setSingleStep(diag.y / 100.0);
+		thickZDoubleSpinBox->setSingleStep(diag.z / 100.0);
 	}
 
 	s_maxEdgeLength = -1.0;
@@ -202,7 +265,7 @@ bool ccClippingBoxTool::linkWith(ccGLWindow* win)
 			m_clipBox = new ccClipBox();
 			m_clipBox->setVisible(true);
 			m_clipBox->setEnabled(true);
-			m_clipBox->setSelected(showInteractorsCheckBox->isChecked());
+			m_clipBox->setSelected(showInteractorsToolButton->isChecked());
 			connect(m_clipBox, SIGNAL(boxModified(const ccBBox*)), this, SLOT(onBoxModified(const ccBBox*)));
 		}
 		m_associatedWin->addToOwnDB(m_clipBox);
@@ -231,6 +294,14 @@ bool ccClippingBoxTool::start()
 
 void ccClippingBoxTool::stop(bool state)
 {
+	if (state && m_clipBox && m_clipBox->getAssociatedEntity())
+	{
+		//save clip box parameters
+		ccClipBoxParams params;
+		m_clipBox->get(params.box, params.trans);
+		s_lastBoxParams[m_clipBox->getAssociatedEntity()->getUniqueID()] = params;
+	}
+
 	if (m_associatedWin)
 	{
 		m_associatedWin->setUnclosable(false);
@@ -278,14 +349,33 @@ ccHObject* GetSlice(ccHObject* obj, ccClipBox* clipBox, bool silent)
 
 	if (obj->isKindOf(CC_TYPES::POINT_CLOUD))
 	{
-		ccGenericPointCloud* cloud = ccHObjectCaster::ToGenericPointCloud(obj)->createNewCloudFromVisibilitySelection(false);
-		if (!cloud)
+		ccGenericPointCloud* inputCloud = ccHObjectCaster::ToGenericPointCloud(obj);
+
+		ccGenericPointCloud::VisibilityTableType* selectionTable = new ccGenericPointCloud::VisibilityTableType;
+		if (!selectionTable->resize(inputCloud->size()))
 		{
+			selectionTable->release();
+			selectionTable = 0;
+			
 			if (!silent)
+			{
 				ccLog::Error("Not enough memory!");
+			}
 			return 0;
 		}
-		return cloud;
+		clipBox->flagPointsInside(inputCloud, selectionTable);
+		
+		ccGenericPointCloud* sliceCloud = inputCloud->createNewCloudFromVisibilitySelection(false, selectionTable);
+		
+		//we don't need the table anymore
+		selectionTable->release();
+		selectionTable = 0;
+
+		if (!sliceCloud && !silent)
+		{
+			ccLog::Error("Not enough memory!");
+		}
+		return sliceCloud;
 	}
 	else if (obj->isKindOf(CC_TYPES::MESH))
 	{
@@ -298,7 +388,7 @@ ccHObject* GetSlice(ccHObject* obj, ccClipBox* clipBox, bool silent)
 		}
 
 		const ccBBox& cropBox = clipBox->getBox();
-		ccHObject* mesh = ccCropTool::Crop(obj,cropBox,true,_transformation);
+		ccHObject* mesh = ccCropTool::Crop(obj, cropBox, true, _transformation);
 		if (!mesh)
 		{
 			if (!silent)
@@ -320,7 +410,7 @@ void ccClippingBoxTool::exportSlice()
 	if (!obj)
 		return;
 
-	ccHObject* result = GetSlice(obj,m_clipBox,false);
+	ccHObject* result = GetSlice(obj, m_clipBox, false);
 
 	if (result)
 	{
@@ -460,12 +550,12 @@ void ccClippingBoxTool::extractSlicesAndContours(bool extractSlices, bool extrac
 					return;
 				}
 
-				PointCoordinateType a = (localBox.minCorner().u[d] - gridOrigin.u[d])/cellSizePlusGap.u[d]; //don't forget the user defined gap between 'cells'
-				PointCoordinateType b = (localBox.maxCorner().u[d] - gridOrigin.u[d])/cellSizePlusGap.u[d];
+				PointCoordinateType a = (localBox.minCorner().u[d] - gridOrigin.u[d]) / cellSizePlusGap.u[d]; //don't forget the user defined gap between 'cells'
+				PointCoordinateType b = (localBox.maxCorner().u[d] - gridOrigin.u[d]) / cellSizePlusGap.u[d];
 
-				indexMins[d] = static_cast<int>(floor(a+static_cast<PointCoordinateType>(1.0e-6)));
-				indexMaxs[d] = static_cast<int>(ceil(b-static_cast<PointCoordinateType>(1.0e-6)))-1;
-				
+				indexMins[d] = static_cast<int>(floor(a + static_cast<PointCoordinateType>(1.0e-6)));
+				indexMaxs[d] = static_cast<int>(ceil(b - static_cast<PointCoordinateType>(1.0e-6))) - 1;
+
 				assert(indexMaxs[d] >= indexMins[d]);
 				gridDim[d] = std::max(indexMaxs[d] - indexMins[d] + 1, 1);
 				cellCount *= static_cast<unsigned>(gridDim[d]);
@@ -502,7 +592,7 @@ void ccClippingBoxTool::extractSlicesAndContours(bool extractSlices, bool extrac
 			//single cloud: easy
 			assert(slices.size() == 1);
 
-			slices[0] = GetSlice(obj,m_clipBox,false);
+			slices[0] = GetSlice(obj, m_clipBox, false);
 			if (!slices[0])
 			{
 				//error message already issued
@@ -531,13 +621,13 @@ void ccClippingBoxTool::extractSlicesAndContours(bool extractSlices, bool extrac
 			{
 				unsigned pointCount = cloud->size(); 
 
-				ccProgressDialog pDlg(false,this);
-				pDlg.setInfo(qPrintable(QString("Points: %1").arg(pointCount)));
+				ccProgressDialog pDlg(false, this);
+				pDlg.setInfo(tr("Points: %1").arg(pointCount));
 				pDlg.start();
 				pDlg.show();
 				QApplication::processEvents();
 
-				CCLib::NormalizedProgress nProgress(&pDlg,pointCount);
+				CCLib::NormalizedProgress nProgress(&pDlg, pointCount);
 				for (unsigned i=0; i<pointCount; ++i)
 				{
 					CCVector3 P = *cloud->getPoint(i);
@@ -561,7 +651,7 @@ void ccClippingBoxTool::extractSlicesAndContours(bool extractSlices, bool extrac
 						&&	(P.y-static_cast<PointCoordinateType>(yi))*cellSizePlusGap.y <= cellSize.y
 						&&	(P.z-static_cast<PointCoordinateType>(zi))*cellSizePlusGap.z <= cellSize.z) )
 					{
-						int cloudIndex = ((zi-indexMins[2]) * static_cast<int>(gridDim[1]) + (yi-indexMins[1])) * static_cast<int>(gridDim[0]) + (xi-indexMins[0]);
+						int cloudIndex = ((zi - indexMins[2]) * static_cast<int>(gridDim[1]) + (yi - indexMins[1])) * static_cast<int>(gridDim[0]) + (xi - indexMins[0]);
 						assert(cloudIndex >= 0 && static_cast<size_t>(cloudIndex) < refClouds.size());
 
 						if (!refClouds[cloudIndex])
@@ -586,9 +676,9 @@ void ccClippingBoxTool::extractSlicesAndContours(bool extractSlices, bool extrac
 			{
 				sliceGroup = new ccHObject(QString("%1.slices").arg(cloud->getName()));
 
-				ccProgressDialog pDlg(true,this);
+				ccProgressDialog pDlg(true, this);
 				pDlg.setWindowTitle("Section extraction");
-				pDlg.setInfo(qPrintable(QString("Section(s): %1").arg(subCloudsCount)));
+				pDlg.setInfo(tr("Section(s): %1").arg(subCloudsCount));
 				pDlg.setMaximum(static_cast<int>(subCloudsCount));
 				pDlg.show();
 				QApplication::processEvents();
@@ -601,16 +691,16 @@ void ccClippingBoxTool::extractSlicesAndContours(bool extractSlices, bool extrac
 					{
 						for (int k=indexMins[2]; k<=indexMaxs[2]; ++k)
 						{
-							int cloudIndex = ((k-indexMins[2]) * static_cast<int>(gridDim[1]) + (j-indexMins[1])) * static_cast<int>(gridDim[0]) + (i-indexMins[0]);
+							int cloudIndex = ((k - indexMins[2]) * static_cast<int>(gridDim[1]) + (j - indexMins[1])) * static_cast<int>(gridDim[0]) + (i - indexMins[0]);
 							assert(cloudIndex >= 0 && static_cast<size_t>(cloudIndex) < refClouds.size());
 
 							if (refClouds[cloudIndex]) //some slices can be empty due to rounding issues!
 							{
 								//generate slice from previous selection
 								int warnings = 0;
-								ccPointCloud* sliceCloud = cloud->isA(CC_TYPES::POINT_CLOUD) ? static_cast<ccPointCloud*>(cloud)->partialClone(refClouds[cloudIndex],&warnings) : ccPointCloud::From(refClouds[cloudIndex],cloud);
+								ccPointCloud* sliceCloud = cloud->isA(CC_TYPES::POINT_CLOUD) ? static_cast<ccPointCloud*>(cloud)->partialClone(refClouds[cloudIndex], &warnings) : ccPointCloud::From(refClouds[cloudIndex], cloud);
 								warningsIssued |= (warnings != 0);
-							
+
 								if (sliceCloud)
 								{
 									if (generateRandomColors)
@@ -681,24 +771,24 @@ void ccClippingBoxTool::extractSlicesAndContours(bool extractSlices, bool extrac
 
 			sliceGroup = new ccHObject(QString("%1.slices").arg(obj->getName()));
 			
-			ccProgressDialog pDlg(true,this);
+			ccProgressDialog pDlg(true, this);
 			pDlg.setWindowTitle("Section extraction");
-			pDlg.setInfo(qPrintable(QString("Up to (%1 x %2 x %3) = %4 section(s)").arg(gridDim[0]).arg(gridDim[1]).arg(gridDim[2]).arg(cellCount)));
+			pDlg.setInfo(tr("Up to (%1 x %2 x %3) = %4 section(s)").arg(gridDim[0]).arg(gridDim[1]).arg(gridDim[2]).arg(cellCount));
 			pDlg.setMaximum(static_cast<int>(cellCount));
 			pDlg.show();
 			QApplication::processEvents();
 			
 			//now extract the slices
-			for (int i=indexMins[0]; i<=indexMaxs[0]; ++i)
+			for (int i = indexMins[0]; i <= indexMaxs[0]; ++i)
 			{
-				for (int j=indexMins[1]; j<=indexMaxs[1]; ++j)
+				for (int j = indexMins[1]; j <= indexMaxs[1]; ++j)
 				{
-					for (int k=indexMins[1]; k<=indexMaxs[2]; ++k)
+					for (int k = indexMins[1]; k <= indexMaxs[2]; ++k)
 					{
-						int sliceIndex = ((k-indexMins[2]) * static_cast<int>(gridDim[1]) + (j-indexMins[1])) * static_cast<int>(gridDim[0]) + (i-indexMins[0]);
-						
-						CCVector3 C = gridOrigin + CCVector3(i*cellSizePlusGap.x,j*cellSizePlusGap.y,k*cellSizePlusGap.z);
-						ccBBox cropBox(C,C+cellSize);
+						int sliceIndex = ((k - indexMins[2]) * static_cast<int>(gridDim[1]) + (j - indexMins[1])) * static_cast<int>(gridDim[0]) + (i - indexMins[0]);
+
+						CCVector3 C = gridOrigin + CCVector3(i*cellSizePlusGap.x, j*cellSizePlusGap.y, k*cellSizePlusGap.z);
+						ccBBox cropBox(C, C + cellSize);
 
 						ccHObject* croppedEnt = ccCropTool::Crop(obj, cropBox, true, _transformation);
 						if (croppedEnt)
@@ -726,14 +816,14 @@ void ccClippingBoxTool::extractSlicesAndContours(bool extractSlices, bool extrac
 							croppedEnt->setDisplay(cloud->getDisplay());
 
 							QString slicePosStr = QString("(%1 ; %2 ; %3)").arg(C.x).arg(C.y).arg(C.z);
-							croppedEnt->setName(QString("slice @ ")+slicePosStr);
+							croppedEnt->setName(QString("slice @ ") + slicePosStr);
 
 							//add slice to group
 							sliceGroup->addChild(croppedEnt);
 							assert(sliceIndex >= 0 && static_cast<size_t>(sliceIndex) < slices.size());
 							slices[sliceIndex] = croppedEnt;
 						}
-						
+
 						if (pDlg.wasCanceled())
 						{
 							error = true;
@@ -761,9 +851,9 @@ void ccClippingBoxTool::extractSlicesAndContours(bool extractSlices, bool extrac
 
 			ccHObject* contourGroup = new ccHObject(obj->getName() + QString(".contours"));
 
-			ccProgressDialog pDlg(true,this);
+			ccProgressDialog pDlg(true, this);
 			pDlg.setWindowTitle("Contour extraction");
-			pDlg.setInfo(qPrintable(QString("Contour(s): %1").arg(subCloudsCount)));
+			pDlg.setInfo(tr("Contour(s): %1").arg(subCloudsCount));
 			pDlg.setMaximum(static_cast<int>(subCloudsCount));
 			if (!visualDebugMode)
 			{
@@ -955,36 +1045,6 @@ void ccClippingBoxTool::thicknessChanged(double)
 		m_associatedWin->redraw();
 }
 
-void ccClippingBoxTool::shiftXMinus()
-{
-	shiftBox(0,true);
-}
-
-void ccClippingBoxTool::shiftXPlus()
-{
-	shiftBox(0,false);
-}
-
-void ccClippingBoxTool::shiftYMinus()
-{
-	shiftBox(1,true);
-}
-
-void ccClippingBoxTool::shiftYPlus()
-{
-	shiftBox(1,false);
-}
-
-void ccClippingBoxTool::shiftZMinus()
-{
-	shiftBox(2,true);
-}
-
-void ccClippingBoxTool::shiftZPlus()
-{
-	shiftBox(2,false);
-}
-
 void ccClippingBoxTool::shiftBox(unsigned char dim, bool minus)
 {
 	if (!m_clipBox || !m_clipBox->getBox().isValid())
@@ -993,7 +1053,7 @@ void ccClippingBoxTool::shiftBox(unsigned char dim, bool minus)
 	assert(dim<3);
 
 	PointCoordinateType width = (m_clipBox->getBox().maxCorner() - m_clipBox->getBox().minCorner()).u[dim];
-	CCVector3 shiftVec(0.0,0.0,0.0);
+	CCVector3 shiftVec(0, 0, 0);
 	shiftVec.u[dim] = (minus ? -width : width);
 	m_clipBox->shift(shiftVec);
 
@@ -1008,6 +1068,25 @@ void ccClippingBoxTool::reset()
 
 	if (m_associatedWin)
 		m_associatedWin->redraw();
+}
+
+void ccClippingBoxTool::restoreLastBox()
+{
+	if (!m_clipBox || !m_clipBox->getAssociatedEntity())
+	{
+		assert(false);
+		return;
+	}
+	
+	unsigned uniqueID = m_clipBox->getAssociatedEntity()->getUniqueID();
+	if (!s_lastBoxParams.contains(uniqueID))
+	{
+		assert(false);
+		return;
+	}
+
+	const ccClipBoxParams& params = s_lastBoxParams[uniqueID];
+	m_clipBox->set(params.box, params.trans);
 }
 
 void ccClippingBoxTool::closeDialog()

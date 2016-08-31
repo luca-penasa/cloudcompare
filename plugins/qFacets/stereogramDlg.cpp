@@ -4,14 +4,14 @@
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU General Public License as published by  #
-//#  the Free Software Foundation; version 2 of the License.               #
+//#  the Free Software Foundation; version 2 or later of the License.      #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
-//#                           COPYRIGHT: BRGM                              #
+//#                      COPYRIGHT: Thomas Dewez, BRGM                     #
 //#                                                                        #
 //##########################################################################
 
@@ -29,9 +29,6 @@
 #include <ccMainAppInterface.h>
 
 //qCC_db
-#include <ccHObject.h>
-#include <ccFacet.h>
-#include <ccNormalVectors.h>
 #include <ccColorScalesManager.h>
 #include <ccColorScaleSelector.h>
 #include <ccColorScaleEditorDlg.h>
@@ -122,8 +119,8 @@ bool StereogramWidget::init(double angularStep_deg,
 		return false;
 
 	ccProgressDialog pDlg(true);
-	pDlg.setMethodTitle("Stereogram");
-	pDlg.setInfo("Preparing polar display...");
+	pDlg.setMethodTitle(QObject::tr("Stereogram"));
+	pDlg.setInfo(QObject::tr("Preparing polar display..."));
 	pDlg.start();
 	QApplication::processEvents();
 

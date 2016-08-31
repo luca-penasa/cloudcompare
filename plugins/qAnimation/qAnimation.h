@@ -4,14 +4,14 @@
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU General Public License as published by  #
-//#  the Free Software Foundation; version 2 of the License.               #
+//#  the Free Software Foundation; version 2 or later of the License.      #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
-//#         COPYRIGHT: Ryan Wicks, 2G Robotics Inc., 2015				   #
+//#             COPYRIGHT: Ryan Wicks, 2G Robotics Inc., 2015              #
 //#                                                                        #
 //##########################################################################
 
@@ -24,19 +24,15 @@
 //Qt
 #include <QObject>
 
-#include "VideoStepItem.h"
-
 class ccGLWindow;
 
 // Animation plugin
 class qAnimation : public QObject, public ccStdPluginInterface
 {
 	Q_OBJECT
-		Q_INTERFACES(ccStdPluginInterface)
-#ifdef CC_QT5
-		//replace qDummy by the plugin name (IID should be unique - let's hope your plugin name is unique ;)
-		Q_PLUGIN_METADATA(IID "cccorp.cloudcompare.plugin.qAnimation")
-#endif
+
+	Q_INTERFACES(ccStdPluginInterface)
+	Q_PLUGIN_METADATA(IID "cccorp.cloudcompare.plugin.qAnimation")
 
 public:
 
@@ -44,26 +40,22 @@ public:
 	qAnimation(QObject* parent = 0);
 
 	//inherited from ccPluginInterface
-	virtual QString getName() const { return "qAnimationPlugin"; }
-	virtual QString getDescription() const { return "Animation plugin, used to build a movie from a series of views."; }
-	virtual QIcon getIcon() const;
+	virtual QString getName() const override { return "qAnimationPlugin"; }
+	virtual QString getDescription() const override { return "Animation plugin, used to build a movie from a series of views."; }
+	virtual QIcon getIcon() const override;
 
 	//inherited from ccStdPluginInterface
-	void onNewSelection(const ccHObject::Container& selectedEntities);
-	virtual void getActions(QActionGroup& group);
+	void onNewSelection(const ccHObject::Container& selectedEntities) override;
+	virtual void getActions(QActionGroup& group) override;
 
-	protected slots:
+protected slots:
 
-		void doAction();
+	void doAction();
 
 protected:
 
 	QAction* m_action;
 
-private:
-
-
 };
-
 
 #endif

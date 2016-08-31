@@ -1,14 +1,14 @@
 //##########################################################################
 //#                                                                        #
-//#                            CLOUDCOMPARE                                #
+//#                              CLOUDCOMPARE                              #
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU General Public License as published by  #
-//#  the Free Software Foundation; version 2 of the License.               #
+//#  the Free Software Foundation; version 2 or later of the License.      #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
 //#          COPYRIGHT: EDF R&D / TELECOM ParisTech (ENST-TSI)             #
@@ -21,16 +21,9 @@
 #include <ui_matchScalesDlg.h>
 
 //Local
-#include "mainwindow.h"
+#include "ccLibAlgorithms.h"
 
-//qCC_db
-#include <ccHObject.h>
 
-//Qt
-#include <QDialog>
-
-//system
-#include <vector>
 
 //! Scales matching tool dialog
 class ccMatchScalesDlg : public QDialog, public Ui::MatchScalesDialog
@@ -45,12 +38,10 @@ public:
 	int getSelectedIndex() const;
 
 	//! Sets the selected matching algorithm
-	void setSelectedAlgorithm(MainWindow::ScaleMatchingAlgorithm algorithm);
+	void setSelectedAlgorithm(ccLibAlgorithms::ScaleMatchingAlgorithm algorithm);
 
 	//! Returns the selected matching algorithm
-	MainWindow::ScaleMatchingAlgorithm getSelectedAlgorithm() const;
-
-
+	ccLibAlgorithms::ScaleMatchingAlgorithm getSelectedAlgorithm() const;
 };
 
 #endif //CC_ENTITY_PICKER_DIALOG_HEADER

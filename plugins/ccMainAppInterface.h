@@ -32,6 +32,7 @@ class ccColorScalesManager;
 class ccMainAppInterface
 {
 public:
+	virtual ~ccMainAppInterface() {}
 
 	//! Returns main window
 	virtual QMainWindow* getMainWindow() = 0;
@@ -42,7 +43,7 @@ public:
 	//! Returns the unique ID generator
 	virtual ccUniqueIDGenerator::Shared getUniqueIDGenerator() = 0;
 
-	//! Adds an entity to main db
+	//! Adds an entity to the main db
 	/** \param obj entity
 		\param updateZoom updates active GL display zoom to fit the whole scene, including this new entity (addToDisplay must be true)
 		\param autoExpandDBTree whether DB tree should automatically be expanded
@@ -53,7 +54,7 @@ public:
 							bool updateZoom = false,
 							bool autoExpandDBTree = true,
 							bool checkDimensions = false,
-							bool autoRedraw = true ) = 0;
+							bool autoRedraw = true) = 0;
 
 	//! Removes an entity from main db tree
 	/** Object is automatically detached from its parent.
@@ -72,9 +73,11 @@ public:
 	virtual const ccHObject::Container& getSelectedEntities() const = 0;
 
 	//! Console message level (see dispToConsole)
-	enum ConsoleMessageLevel {	STD_CONSOLE_MESSAGE = 0,
-								WRN_CONSOLE_MESSAGE = 1,
-								ERR_CONSOLE_MESSAGE = 2,
+	enum ConsoleMessageLevel
+	{
+		STD_CONSOLE_MESSAGE = 0,
+		WRN_CONSOLE_MESSAGE = 1,
+		ERR_CONSOLE_MESSAGE = 2,
 	};
 
 	//! Prints a message to console
@@ -127,7 +130,7 @@ public:
 										double minVal,
 										double maxVal,
 										QString title,
-										QString xAxisLabel ) = 0;
+										QString xAxisLabel) = 0;
 
 	//other usefull methods
 	virtual void setFrontView() = 0;
@@ -141,7 +144,6 @@ public:
 	virtual void toggleActiveWindowSunLight() = 0;
 	virtual void toggleActiveWindowViewerBasedPerspective() = 0;
 	virtual void zoomOnSelectedEntities() = 0;
-
 };
 
 #endif //CC_MAIN_APP_INTERFACE_HEADER

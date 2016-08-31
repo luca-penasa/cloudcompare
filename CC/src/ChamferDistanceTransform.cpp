@@ -4,11 +4,12 @@
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU Library General Public License as       #
-//#  published by the Free Software Foundation; version 2 of the License.  #
+//#  published by the Free Software Foundation; version 2 or later of the  #
+//#  License.                                                              #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
 //#          COPYRIGHT: EDF R&D / TELECOM ParisTech (ENST-TSI)             #
@@ -199,11 +200,14 @@ int ChamferDistanceTransform::propagateDistance(CC_CHAMFER_DISTANCE_TYPE type, G
 	NormalizedProgress normProgress(progressCb,m_innerSize.y*m_innerSize.z*2);
 	if (progressCb)
 	{
-		progressCb->setMethodTitle("Chamfer distance");
-		char buffer[256];
-		sprintf(buffer,"Box: [%u x %u x %u]",m_innerSize.x,m_innerSize.y,m_innerSize.z);
-		progressCb->setInfo(buffer);
-        progressCb->reset();
+		if (progressCb->textCanBeEdited())
+		{
+			progressCb->setMethodTitle("Chamfer distance");
+			char buffer[256];
+			sprintf(buffer, "Box: [%u x %u x %u]", m_innerSize.x, m_innerSize.y, m_innerSize.z);
+			progressCb->setInfo(buffer);
+		}
+        progressCb->update(0);
 		progressCb->start();
 	}
 

@@ -1,14 +1,14 @@
 //##########################################################################
 //#                                                                        #
-//#                            CLOUDCOMPARE                                #
+//#                              CLOUDCOMPARE                              #
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU General Public License as published by  #
-//#  the Free Software Foundation; version 2 of the License.               #
+//#  the Free Software Foundation; version 2 or later of the License.      #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
 //#          COPYRIGHT: EDF R&D / TELECOM ParisTech (ENST-TSI)             #
@@ -27,11 +27,11 @@ ccViewportParameters::ccViewportParameters()
 	, defaultLineWidth(1)
 	, perspectiveView(false)
 	, objectCenteredView(true)
-	, zNearCoef(0.001)
+	, zNearCoef(0.005)
 	, zNear(0)
 	, zFar(0)
-	, pivotPoint(0,0,0)
-	, cameraCenter(0,0,0)
+	, pivotPoint(0, 0, 0)
+	, cameraCenter(0, 0, 0)
 	, fov(30.0f)
 	, perspectiveAspectRatio(1.0f)
 	, orthoAspectRatio(1.0f)

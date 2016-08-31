@@ -1,14 +1,14 @@
 //##########################################################################
 //#                                                                        #
-//#                            CLOUDCOMPARE                                #
+//#                              CLOUDCOMPARE                              #
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU General Public License as published by  #
-//#  the Free Software Foundation; version 2 of the License.               #
+//#  the Free Software Foundation; version 2 or later of the License.      #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
 //#          COPYRIGHT: EDF R&D / TELECOM ParisTech (ENST-TSI)             #
@@ -43,7 +43,7 @@ public:
 	//! Default constructor
 	explicit ccPointPickingGenericInterface(QWidget* parent = 0) : ccOverlayDialog(parent) {}
 	//! Destructor
-	virtual ~ccPointPickingGenericInterface() {};
+	virtual ~ccPointPickingGenericInterface() {}
 
 	//inherited from ccOverlayDialog
 	virtual bool linkWith(ccGLWindow* win);
@@ -53,7 +53,7 @@ public:
 protected slots:
 
 	//! Slot to handle directly a picked point (OpenGL based picking)
-	virtual void handlePickedItem(ccHObject* entity, unsigned itemIdx, int x, int y);
+	virtual void handlePickedItem(ccHObject* entity, unsigned itemIdx, int x, int y, const CCVector3&);
 
 protected:
 

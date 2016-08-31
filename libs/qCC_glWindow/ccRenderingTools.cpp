@@ -1,14 +1,14 @@
 //##########################################################################
 //#                                                                        #
-//#                            CLOUDCOMPARE                                #
+//#                              CLOUDCOMPARE                              #
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU General Public License as published by  #
-//#  the Free Software Foundation; version 2 of the License.               #
+//#  the Free Software Foundation; version 2 or later of the License.      #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
 //#          COPYRIGHT: EDF R&D / TELECOM ParisTech (ENST-TSI)             #
@@ -86,11 +86,11 @@ void ccRenderingTools::ShowDepthBuffer(ccGBLSensor* sensor, QWidget* parent/*=0*
 		}
 	}
 
-	QImage bufferImage(depthBuffer.width,depthBuffer.height,QImage::Format_RGB32);
+	QImage bufferImage(depthBuffer.width, depthBuffer.height, QImage::Format_RGB32);
 	{
 		ccColorScale::Shared colorScale = ccColorScalesManager::GetDefaultScale();
 		assert(colorScale);
-		ScalarType coef = maxDist-minDist < ZERO_TOLERANCE ? 0 : static_cast<ScalarType>(ccColorScale::MAX_STEPS-1)/(maxDist-minDist);
+		ScalarType coef = maxDist - minDist < ZERO_TOLERANCE ? 0 : static_cast<ScalarType>(ccColorScale::MAX_STEPS - 1) / (maxDist - minDist);
 
 		const ScalarType* _zBuff = &(depthBuffer.zBuff.front());
 		for (unsigned y=0; y<depthBuffer.height; ++y)
@@ -98,7 +98,7 @@ void ccRenderingTools::ShowDepthBuffer(ccGBLSensor* sensor, QWidget* parent/*=0*
 			for (unsigned x=0; x<depthBuffer.width; ++x,++_zBuff)
 			{
 				const ccColor::Rgba& col = (*_zBuff >= minDist ? colorScale->getColorByIndex(static_cast<unsigned>((std::min(maxDist,*_zBuff)-minDist)*coef)) : ccColor::black);
-				bufferImage.setPixel(x,depthBuffer.height-1-y,qRgb(col.r,col.g,col.b));
+				bufferImage.setPixel(x, depthBuffer.height - 1 - y, qRgb(col.r, col.g, col.b));
 			}
 		}
 	}
@@ -106,7 +106,7 @@ void ccRenderingTools::ShowDepthBuffer(ccGBLSensor* sensor, QWidget* parent/*=0*
 	QDialog* dlg = new QDialog(parent);
 	dlg->setWindowTitle(QString("%0 depth buffer [%1 x %2]").arg(sensor->getParent()->getName()).arg(depthBuffer.width).arg(depthBuffer.height));
 
-	unsigned maxDBDim = std::max<unsigned>(depthBuffer.width,depthBuffer.height);
+	unsigned maxDBDim = std::max<unsigned>(depthBuffer.width, depthBuffer.height);
 	unsigned scale = 1;
 	while (maxDBDim > maxDim)
 	{
@@ -193,32 +193,38 @@ const double c_log10 = log(10.0);
 //Convert standard range to log scale
 void ConvertToLogScale(ScalarType& dispMin, ScalarType& dispMax)
 {
-	ScalarType absDispMin = ( dispMax < 0 ? std::min(-dispMax,-dispMin) : std::max<ScalarType>(dispMin,0) );
-	ScalarType absDispMax = std::max(fabs(dispMin),fabs(dispMax));
-	dispMin = log10(std::max(absDispMin,static_cast<ScalarType>(ZERO_TOLERANCE)));
-	dispMax = log10(std::max(absDispMax,static_cast<ScalarType>(ZERO_TOLERANCE)));
+	ScalarType absDispMin = (dispMax < 0 ? std::min(-dispMax, -dispMin) : std::max<ScalarType>(dispMin, 0));
+	ScalarType absDispMax = std::max(fabs(dispMin), fabs(dispMax));
+	dispMin = log10(std::max(absDispMin, static_cast<ScalarType>(ZERO_TOLERANCE)));
+	dispMax = log10(std::max(absDispMax, static_cast<ScalarType>(ZERO_TOLERANCE)));
 }
 
 void ccRenderingTools::DrawColorRamp(const CC_DRAW_CONTEXT& context)
 {
 	const ccScalarField* sf = context.sfColorScaleToDisplay;
-	ccGLWindow* win = static_cast<ccGLWindow*>(context._win);
+	ccGLWindow* display = static_cast<ccGLWindow*>(context.display);
 
-	DrawColorRamp(sf,win,context.glW,context.glH,context.renderZoom);
+	DrawColorRamp(context, sf, display, context.glW, context.glH, context.renderZoom);
 }
 
-void ccRenderingTools::DrawColorRamp(const ccScalarField* sf, ccGLWindow* win, int glW, int glH, float renderZoom/*=1.0f*/)
+void ccRenderingTools::DrawColorRamp(const CC_DRAW_CONTEXT& context, const ccScalarField* sf, ccGLWindow* win, int glW, int glH, float renderZoom/*=1.0f*/)
 {
-	if (!sf || !sf->getColorScale())
+	if (!sf || !sf->getColorScale() || !win)
+	{
 		return;
+	}
 
-	if (!win)
+	//get the set of OpenGL functions (version 2.1)
+	QOpenGLFunctions_2_1 *glFunc = context.glFunctions<QOpenGLFunctions_2_1>();
+	assert(glFunc != nullptr);
+
+	if (glFunc == nullptr)
 		return;
 
 	bool logScale = sf->logScale();
 	bool symmetricalScale = sf->symmetricalScale();
 	bool alwaysShowZero = sf->isZeroAlwaysShown();
-	
+
 	//set of particular values
 	//DGM: we work with doubles for maximum accuracy
 	ccColorScale::LabelSet keyValues;
@@ -231,7 +237,9 @@ void ccRenderingTools::DrawColorRamp(const ccScalarField* sf, ccGLWindow* win, i
 			keyValues = colorScale->customLabels();
 
 			if (alwaysShowZero)
+			{
 				keyValues.insert(0.0);
+			}
 
 			customLabels = true;
 		}
@@ -282,7 +290,7 @@ void ccRenderingTools::DrawColorRamp(const ccScalarField* sf, ccGLWindow* win, i
 	{
 		for (ccColorScale::LabelSet::iterator it = keyValues.begin(); it != keyValues.end(); ++it)
 		{
-#ifdef CC_WINDOWS
+#if defined(CC_WINDOWS) && defined(_MSC_VER)
 			if (!_finite(*it))
 #else
 			if (!std::isfinite(*it))
@@ -300,9 +308,9 @@ void ccRenderingTools::DrawColorRamp(const ccScalarField* sf, ccGLWindow* win, i
 	}
 
 	//Internally, the elements in a set are already sorted
-	//std::sort(keyValues.begin(),keyValues.end());
+	//std::sort(keyValues.begin(), keyValues.end());
 
-	if (!sf->areNaNValuesShownInGrey())
+	if (!customLabels && !sf->areNaNValuesShownInGrey())
 	{
 		//remove 'hidden' values
 		if (!logScale)
@@ -319,7 +327,7 @@ void ccRenderingTools::DrawColorRamp(const ccScalarField* sf, ccGLWindow* win, i
 				{
 					++it;
 				}
-		}
+			}
 		}
 		else
 		{
@@ -327,7 +335,7 @@ void ccRenderingTools::DrawColorRamp(const ccScalarField* sf, ccGLWindow* win, i
 			//(we can't do the opposite, otherwise we get accuracy/round-off issues!)
 			ScalarType dispMin = sf->displayRange().start();
 			ScalarType dispMax = sf->displayRange().stop();
-			ConvertToLogScale(dispMin,dispMax);
+			ConvertToLogScale(dispMin, dispMax);
 
 			for (ccColorScale::LabelSet::iterator it = keyValues.begin(); it != keyValues.end(); )
 			{
@@ -358,50 +366,69 @@ void ccRenderingTools::DrawColorRamp(const ccScalarField* sf, ccGLWindow* win, i
 	QFont font = win->getTextDisplayFont(); //takes rendering zoom into account!
 	const int strHeight = static_cast<int>(displayParams.defaultFontSize * renderZoom); //QFontMetrics(font).height() --> always returns the same value?!
 	const int scaleWidth = static_cast<int>(displayParams.colorScaleRampWidth * renderZoom);
-	const int scaleMaxHeight = (keyValues.size() > 1 ? std::max(glH-static_cast<int>(140 * renderZoom), 2*strHeight) : scaleWidth); //if 1 value --> we draw a cube
+	const int scaleMaxHeight = (keyValues.size() > 1 ? std::max(glH - static_cast<int>(140 * renderZoom), 2 * strHeight) : scaleWidth); //if 1 value --> we draw a cube
 
 	//centered orthoprojective view (-halfW,-halfH,halfW,halfH)
-	int halfW = (glW>>1);
-	int halfH = (glH>>1);
+	int halfW = (glW >> 1);
+	int halfH = (glH >> 1);
 
 	//top-right corner of the scale ramp
-	const int xShift = static_cast<int>(20 * renderZoom) + (showHistogram ? scaleWidth/2 : 0);
-	const int yShift = halfH-scaleMaxHeight/2 - static_cast<int>(10 * renderZoom);
+	const int xShift = static_cast<int>(20 * renderZoom) + (showHistogram ? scaleWidth / 2 : 0);
+	const int yShift = halfH - scaleMaxHeight / 2 - static_cast<int>(10 * renderZoom);
 
-	glPushAttrib(GL_DEPTH_BUFFER_BIT);
-	glDisable(GL_DEPTH_TEST);
-	
+	glFunc->glPushAttrib(GL_DEPTH_BUFFER_BIT);
+	glFunc->glDisable(GL_DEPTH_TEST);
+
 	std::vector<double> sortedKeyValues(keyValues.begin(),keyValues.end());
 	double maxRange = sortedKeyValues.back()-sortedKeyValues.front();
 
 	//display color ramp
 	{
+		glFunc->glPushAttrib(GL_LINE_BIT);
+		glFunc->glLineWidth(renderZoom);
+
 		//(x,y): current display area coordinates (top-left corner)
 		int x = halfW-xShift-scaleWidth;
 		int y = halfH-yShift-scaleMaxHeight;
 
 		if (keyValues.size() > 1)
 		{
-			int histoStart = x+scaleWidth+std::min(std::max(scaleWidth/8,3),static_cast<int>(15 * renderZoom));
+			int histoStart = x + scaleWidth + std::min(std::max(scaleWidth / 8, 3), static_cast<int>(15 * renderZoom));
 
-			glLineWidth(1.0f * renderZoom);
-			glBegin(GL_LINES);
+			glFunc->glBegin(GL_LINES);
 			for (int j=0; j<scaleMaxHeight; ++j)
 			{
-				double value = sortedKeyValues.front() + (j * maxRange) / scaleMaxHeight;
+				double baseValue = sortedKeyValues.front() + (j * maxRange) / scaleMaxHeight;
+				double value = baseValue;
 				if (logScale)
+				{
 					value = exp(value*c_log10);
+				}
 				const ColorCompType* col = sf->getColor(static_cast<ScalarType>(value));
-				glColor3ubv(col ? col : ccColor::lightGrey.rgba);
+				if (!col)
+				{
+					//special case: if we have user-defined labels, we want all the labels to be displayed with their associated color
+					if (customLabels)
+					{
+						assert(sf->getColorScale() && !sf->getColorScale()->isRelative());
+						col = sf->getColorScale()->getColorByValue(value, ccColor::lightGrey.rgba);
+					}
+					else
+					{
+						col = ccColor::lightGrey.rgba;
+					}
+				}
+				assert(col);
+				glFunc->glColor3ubv(col);
 
-				glVertex2i(x,y+j);
-				glVertex2i(x+scaleWidth,y+j);
-				
+				glFunc->glVertex2i(x,y+j);
+				glFunc->glVertex2i(x+scaleWidth,y+j);
+
 				if (showHistogram)
 				{
-					double bind = (value-sf->displayRange().min())*(histogram.size()-1)/sf->displayRange().maxRange();
+					double bind = (value - sf->displayRange().min())*(histogram.size() - 1) / sf->displayRange().maxRange();
 					int bin = static_cast<int>(floor(bind));
-					
+
 					double hVal = 0.0;
 					if (bin >= 0 && bin < static_cast<int>(histogram.size())) //in symmetrical case we can get values outside of the real SF range
 					{
@@ -415,11 +442,11 @@ void ccRenderingTools::DrawColorRamp(const ccScalarField* sf, ccGLWindow* win, i
 					}
 
 					int xSpan = std::max(static_cast<int>(hVal / histogram.maxValue * (scaleWidth/2)),1);
-					glVertex2i(histoStart,y+j);
-					glVertex2i(histoStart+xSpan,y+j);
+					glFunc->glVertex2i(histoStart,y+j);
+					glFunc->glVertex2i(histoStart+xSpan,y+j);
 				}
 			}
-			glEnd();
+			glFunc->glEnd();
 		}
 		else
 		{
@@ -428,28 +455,28 @@ void ccRenderingTools::DrawColorRamp(const ccScalarField* sf, ccGLWindow* win, i
 			if (logScale)
 				value = exp(value*c_log10);
 			const ColorCompType* col = sf->getColor(static_cast<ScalarType>(value));
-			glColor3ubv(col ? col : ccColor::lightGrey.rgba);
-			glBegin(GL_POLYGON);
-			glVertex2i(x,y);
-			glVertex2i(x+scaleWidth,y);
-			glVertex2i(x+scaleWidth,y+scaleMaxHeight-1);
-			glVertex2i(x,y+scaleMaxHeight-1);
-			glEnd();
+			glFunc->glColor3ubv(col ? col : ccColor::lightGrey.rgba);
+			glFunc->glBegin(GL_POLYGON);
+			glFunc->glVertex2i(x,y);
+			glFunc->glVertex2i(x+scaleWidth,y);
+			glFunc->glVertex2i(x+scaleWidth,y+scaleMaxHeight-1);
+			glFunc->glVertex2i(x,y+scaleMaxHeight-1);
+			glFunc->glEnd();
 		}
 
 		//scale border
-		glLineWidth(2.0f * renderZoom);
 		const ccColor::Rgbub& lineColor = textColor;
-		glColor3ubv(lineColor.rgb);
-		glPushAttrib(GL_LINE_BIT);
-		glEnable(GL_LINE_SMOOTH);
-		glBegin(GL_LINE_LOOP);
-		glVertex2i(x,y);
-		glVertex2i(x+scaleWidth,y);
-		glVertex2i(x+scaleWidth,y+scaleMaxHeight);
-		glVertex2i(x,y+scaleMaxHeight);
-		glEnd();
-		glPopAttrib();
+		glFunc->glColor3ubv(lineColor.rgb);
+		glFunc->glLineWidth(2.0f * renderZoom);
+		glFunc->glEnable(GL_LINE_SMOOTH);
+		glFunc->glBegin(GL_LINE_LOOP);
+		glFunc->glVertex2i(x,y);
+		glFunc->glVertex2i(x+scaleWidth,y);
+		glFunc->glVertex2i(x+scaleWidth,y+scaleMaxHeight);
+		glFunc->glVertex2i(x,y+scaleMaxHeight);
+		glFunc->glEnd();
+
+		glFunc->glPopAttrib();
 	}
 
 	//display labels
@@ -458,12 +485,12 @@ void ccRenderingTools::DrawColorRamp(const ccScalarField* sf, ccGLWindow* win, i
 		vlabelSet drawnLabels;
 
 		//add first label
-		drawnLabels.push_back(vlabel(0,0,strHeight,sortedKeyValues.front()));
+		drawnLabels.push_back(vlabel(0, 0, strHeight, sortedKeyValues.front()));
 
 		if (keyValues.size() > 1)
 		{
 			//add last label
-			drawnLabels.push_back(vlabel(scaleMaxHeight,scaleMaxHeight-strHeight,scaleMaxHeight,sortedKeyValues.back()));
+			drawnLabels.push_back(vlabel(scaleMaxHeight, scaleMaxHeight - strHeight, scaleMaxHeight, sortedKeyValues.back()));
 		}
 
 		//we try to display the other keyPoints (if any)
@@ -522,7 +549,7 @@ void ccRenderingTools::DrawColorRamp(const ccScalarField* sf, ccGLWindow* win, i
 		//display labels
 
 		//Some versions of Qt seem to need glColorf instead of glColorub! (see https://bugreports.qt-project.org/browse/QTBUG-6217)
-		glColor3f(textColor.r/255.0f,textColor.g/255.0f,textColor.b/255.0f);
+		glFunc->glColor3f(textColor.r / 255.0f, textColor.g / 255.0f, textColor.b / 255.0f);
 
 		//Scalar field name
 		const char* sfName = sf->getName();
@@ -569,12 +596,12 @@ void ccRenderingTools::DrawColorRamp(const ccScalarField* sf, ccGLWindow* win, i
 				value = exp(value*c_log10);
 
 			win->displayText(QString::number(value,format,precision), x, y+it->yPos, align, 0, 0, &font);
-			glBegin(GL_LINES);
-			glVertex2i(xTick,yTick+it->yPos);
-			glVertex2i(xTick+tickSize,yTick+it->yPos);
-			glEnd();
+			glFunc->glBegin(GL_LINES);
+			glFunc->glVertex2i(xTick,yTick+it->yPos);
+			glFunc->glVertex2i(xTick+tickSize,yTick+it->yPos);
+			glFunc->glEnd();
 		}
 	}
 
-	glPopAttrib();
+	glFunc->glPopAttrib();
 }

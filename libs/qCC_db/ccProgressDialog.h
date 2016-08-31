@@ -1,14 +1,14 @@
 //##########################################################################
 //#                                                                        #
-//#                            CLOUDCOMPARE                                #
+//#                              CLOUDCOMPARE                              #
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU General Public License as published by  #
-//#  the Free Software Foundation; version 2 of the License.               #
+//#  the Free Software Foundation; version 2 or later of the License.      #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
 //#          COPYRIGHT: EDF R&D / TELECOM ParisTech (ENST-TSI)             #
@@ -20,14 +20,10 @@
 
 //Local
 #include "qCC_db.h"
-#include "ccObject.h" //for CC_QT5 def
-
-//CCLib
-#include <CCConst.h>
 
 //Qt
 #include <QProgressDialog>
-#include <QMutex>
+#include <QAtomicInt>
 #include <QTimer>
 
 //CCLib
@@ -62,41 +58,38 @@ public:
 	virtual ~ccProgressDialog() {}
 
 	//inherited method
-	virtual void reset();
-	virtual void update(float percent);
-	virtual void setMethodTitle(const char* methodTitle);
-	virtual void setInfo(const char* infoStr);
-	inline virtual bool isCancelRequested() { return wasCanceled(); }
-	virtual void start();
-	virtual void stop();
+	virtual void update(float percent) override;
+	inline virtual void setMethodTitle(const char* methodTitle) override { setMethodTitle(QString(methodTitle)); }
+	inline virtual void setInfo(const char* infoStr) override { setInfo(QString(infoStr)); }
+	inline virtual bool isCancelRequested() override { return wasCanceled(); }
+	virtual void start() override;
+	virtual void stop() override;
 
-	//! Sets base 'refresh' interval (in percents - strictly positive)
-	void setMinRefreshInterval(int i);
+	//! setMethodTitle with a QString as argument
+	virtual void setMethodTitle(QString methodTitle);
+	//! setInfo with a QString as argument
+	virtual void setInfo(QString infoStr);
 
-public slots:
+protected slots:
 
-	//! Refreshes widget
+	//! Refreshes the progress
 	/** Should only be called in the main Qt thread!
-		--> Job automatically done by 'm_timer'
+		This slot is automatically called by 'update' (in Qt::QueuedConnection mode).
 	**/
 	void refresh();
+
+signals:
+
+	//! Schedules a call to refresh
+	void scheduleRefresh();
 
 protected:
 
 	//! Current progress value (percent)
-	int m_currentValue;
+	QAtomicInt m_currentValue;
 
 	//! Last displayed progress value (percent)
-	int m_lastValue;
-
-	//! Mutex for concurrent access
-	QMutex m_mutex;
-
-	//! Timer for automatic update
-	QTimer m_timer;
-
-	//! Minimum refresh interval (in percents)
-	int m_refreshInterval;
+	QAtomicInt m_lastRefreshValue;
 };
 
 #endif //CC_PROGRESS_DIALOG_HEADER

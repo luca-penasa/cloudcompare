@@ -4,11 +4,11 @@
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU General Public License as published by  #
-//#  the Free Software Foundation; version 2 of the License.               #
+//#  the Free Software Foundation; version 2 or later of the License.      #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
 //#                           COPYRIGHT: EDF                               #
@@ -43,11 +43,14 @@ void DxfProfilesExportDlg::initFromPersistentSettings()
 	QSettings settings;
 	settings.beginGroup("DxfProfilesExportDialog");
 
+	const QString	defaultVertProfile( QApplication::applicationDirPath() + "/vert_profiles.dxf" );
+	const QString	defaultHorizProfile( QApplication::applicationDirPath() + "/horiz_profiles.dxf" );
+	
 	//read parameters
 	bool vertEnabled		= settings.value("vertExportGroup",	true).toBool();
 	bool horizEnabled		= settings.value("horizExportGroup", true).toBool();
-	QString vertPath		= settings.value("vertExportPath",	QApplication::applicationDirPath()+QString("/vert_profiles.dxf")).toString();
-	QString horizPath		= settings.value("horizExportPath",	QApplication::applicationDirPath()+QString("/horiz_profiles.dxf")).toString();
+	QString vertPath		= settings.value("vertExportPath",	defaultVertProfile).toString();
+	QString horizPath		= settings.value("horizExportPath",	defaultHorizProfile).toString();
 	QString vertTitle		= settings.value("vertTitle",		vertTitleLineEdit->text()).toString();
 	QString horizTitle		= settings.value("horizTitle",		horizTitleLineEdit->text()).toString();
 	QString theoTitle		= settings.value("legendTheoTitle",	theoNameLineEdit->text()).toString();

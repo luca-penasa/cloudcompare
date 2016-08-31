@@ -1,14 +1,14 @@
 //##########################################################################
 //#                                                                        #
-//#                            CLOUDCOMPARE                                #
+//#                              CLOUDCOMPARE                              #
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU General Public License as published by  #
-//#  the Free Software Foundation; version 2 of the License.               #
+//#  the Free Software Foundation; version 2 or later of the License.      #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
 //#          COPYRIGHT: EDF R&D / TELECOM ParisTech (ENST-TSI)             #
@@ -146,7 +146,7 @@ protected:
 	std::vector<std::set<size_t> > m_vertexNeighbors;
 };
 
-static bool ResolveNormalsWithMST(ccPointCloud* cloud, const Graph& graph, CCLib::GenericProgressCallback* progressCb = 0)
+static bool ResolveNormalsWithMST(ccPointCloud* cloud, const Graph& graph, ccProgressDialog* progressCb = 0)
 {
 	assert(cloud && cloud->hasNormals());
 
@@ -184,12 +184,12 @@ static bool ResolveNormalsWithMST(ccPointCloud* cloud, const Graph& graph, CCLib
 	}
 
 	//progress notification
-	CCLib::NormalizedProgress nProgress(progressCb,static_cast<unsigned>(vertexCount));
+	CCLib::NormalizedProgress nProgress(progressCb, static_cast<unsigned>(vertexCount));
 	if (progressCb)
 	{
-		progressCb->reset();
-		progressCb->setMethodTitle("Orient normals (MST)");
-		progressCb->setInfo(qPrintable(QString("Compute Minimum spanning tree\nPoints: %1\nEdges: %2").arg(vertexCount).arg(graph.edgeCount())));
+		progressCb->update(0);
+		progressCb->setMethodTitle(QObject::tr("Orient normals (MST)"));
+		progressCb->setInfo(QObject::tr("Compute Minimum spanning tree\nPoints: %1\nEdges: %2").arg(vertexCount).arg(graph.edgeCount()));
 		progressCb->start();
 	}
 
@@ -396,7 +396,7 @@ bool ccMinimumSpanningTreeForNormsDirection::OrientNormals(	ccPointCloud* cloud,
 			return false;
 		}
 	}
-	ccOctree* octree = cloud->getOctree();
+	ccOctree::Shared octree = cloud->getOctree();
 	assert(octree);
 
 	unsigned char level = octree->findBestLevelForAGivenPopulationPerCell(kNN*2);

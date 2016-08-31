@@ -1,14 +1,14 @@
 //##########################################################################
 //#                                                                        #
-//#                            CLOUDCOMPARE                                #
+//#                              CLOUDCOMPARE                              #
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU General Public License as published by  #
-//#  the Free Software Foundation; version 2 of the License.               #
+//#  the Free Software Foundation; version 2 or later of the License.      #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
 //#          COPYRIGHT: EDF R&D / TELECOM ParisTech (ENST-TSI)             #
@@ -40,6 +40,10 @@ public:
 	static inline const QString DuplicatePointsMinDist      () { return "minDist"; }
 	static inline const QString HeightGridGeneration        () { return "HeightGridGeneration"; }
 	static inline const QString VolumeCalculation			() { return "VolumeCalculation"; }
+	static inline const QString Console                     () { return "Console"; }
+	static inline const QString GlobalShift                 () { return "GlobalShift"; }
+	static inline const QString MaxAbsCoord                 () { return "MaxAbsCoord"; }
+	static inline const QString MaxAbsDiag                  () { return "MaxAbsDiag"; }
 };
 
 #endif //CC_PERSISTENT_SETTINGS_HEADER

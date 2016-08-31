@@ -1,14 +1,14 @@
 //##########################################################################
 //#                                                                        #
-//#                            CLOUDCOMPARE                                #
+//#                              CLOUDCOMPARE                              #
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU General Public License as published by  #
-//#  the Free Software Foundation; version 2 of the License.               #
+//#  the Free Software Foundation; version 2 or later of the License.      #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
 //#          COPYRIGHT: EDF R&D / TELECOM ParisTech (ENST-TSI)             #
@@ -20,24 +20,18 @@
 
 //qCC_plugins
 #include <ccMainAppInterface.h>
+#include <ccPluginInfo.h>
 
 //Qt
 #include <QMainWindow>
-#include <QString>
-#include <QDialog>
 #include <QDir>
-#include <QActionGroup>
 
 //CCLib
-#include <PointProjectionTools.h>
 #include <AutoSegmentationTools.h>
+#include <PointProjectionTools.h>
 
 //GUI (generated with Qt Designer)
 #include <ui_mainWindow.h>
-
-//qCC_db
-#include <ccMesh.h>
-#include <ccGLMatrix.h>
 
 //qCC_io
 #include <FileIOFilter.h>
@@ -111,11 +105,11 @@ public:
 	static void DestroyInstance();
 
 	//! Returns active GL sub-window (if any)
-	virtual ccGLWindow* getActiveGLWindow();
+	virtual ccGLWindow* getActiveGLWindow() override;
 
 	//! Tries to load several files (and then pushes them into main DB)
 	/** \param filenames list of all filenames
-		\param fType file type
+		\param fileFilter selected file filter (i.e. type)
 		\param destWin destination window (0 = active one)
 	**/
 	virtual void addToDB(	const QStringList& filenames,
@@ -127,52 +121,32 @@ public:
 							bool updateZoom = false,
 							bool autoExpandDBTree = true,
 							bool checkDimensions = false,
-							bool autoRedraw = true);
+							bool autoRedraw = true) override;
 
-	virtual void removeFromDB(ccHObject* obj, bool autoDelete = true);
-	virtual void setSelectedInDB(ccHObject* obj, bool selected);
-	virtual void dispToConsole(QString message, ConsoleMessageLevel level = STD_CONSOLE_MESSAGE);
-	virtual void forceConsoleDisplay();
-	virtual ccHObject* dbRootObject();
-	inline virtual QMainWindow* getMainWindow() { return this; }
-	inline virtual const ccHObject::Container& getSelectedEntities() const { return m_selectedEntities; }
-	virtual ccUniqueIDGenerator::Shared getUniqueIDGenerator();
-	virtual ccColorScalesManager* getColorScalesManager();
-	virtual void spawnHistogramDialog(const std::vector<unsigned>& histoValues, double minVal, double maxVal, QString title, QString xAxisLabel);
+	virtual void removeFromDB(ccHObject* obj, bool autoDelete = true) override;
+	virtual void setSelectedInDB(ccHObject* obj, bool selected) override;
+	virtual void dispToConsole(QString message, ConsoleMessageLevel level = STD_CONSOLE_MESSAGE) override;
+	virtual void forceConsoleDisplay() override;
+	virtual ccHObject* dbRootObject() override;
+	inline virtual QMainWindow* getMainWindow() override { return this; }
+	inline virtual const ccHObject::Container& getSelectedEntities() const override { return m_selectedEntities; }
+	virtual ccUniqueIDGenerator::Shared getUniqueIDGenerator() override;
+	virtual ccColorScalesManager* getColorScalesManager() override;
+	virtual void spawnHistogramDialog(const std::vector<unsigned>& histoValues,
+												 double minVal, double maxVal,
+												 QString title, QString xAxisLabel) override;
 
 	//! Returns real 'dbRoot' object
 	virtual ccDBRoot* db();
 
-	/*** CCLib "standalone" algorithms ***/
-	
-	//CCLib algorithms handled by the 'ApplyCCLibAlgortihm' method
-	enum CC_LIB_ALGORITHM { CCLIB_ALGO_CURVATURE		= 1,
-							CCLIB_ALGO_SF_GRADIENT		= 2,
-							CCLIB_ALGO_ROUGHNESS		= 3,
-							CCLIB_ALGO_APPROX_DENSITY	= 4,
-							CCLIB_ALGO_ACCURATE_DENSITY	= 5,
-							CCLIB_SPHERICAL_NEIGHBOURHOOD_EXTRACTION_TEST = 255,
-	};
-
-	//! Applies a standard CCLib algorithm (see CC_LIB_ALGORITHM) on a set of entities
-	static bool ApplyCCLibAlgortihm(CC_LIB_ALGORITHM algo,
-									ccHObject::Container& entities,
-									QWidget* parent = 0,
-									void** additionalParameters = 0);
-
-	//! Scale matching algorithms
-	enum ScaleMatchingAlgorithm { BB_MAX_DIM, BB_VOLUME, PCA_MAX_DIM, ICP_SCALE };
-
-	//! Applies a standard CCLib algorithm (see CC_LIB_ALGORITHM) on a set of entities
-	static bool ApplyScaleMatchingAlgortihm(ScaleMatchingAlgorithm algo,
-											ccHObject::Container& entities,
-											double icpRmsDiff,
-											int icpFinalOverlap,
-											unsigned refEntityIndex = 0,
-											QWidget* parent = 0);
-
 	//! Returns MDI area subwindow corresponding to a given 3D view
 	QMdiSubWindow* getMDISubWindow(ccGLWindow* win);
+
+	//! Returns a given views
+	ccGLWindow* getGLWindow(int index) const;
+
+	//! Returns the number of 3D views
+	int getGLWindowCount() const;
 
 	//! Backup "context" for an object
 	/** Used with removeObjectTemporarilyFromDBTree/putObjectBackIntoDBTree.
@@ -204,6 +178,9 @@ public:
 	**/
 	ccPointCloud* askUserToSelectACloud(ccHObject* defaultCloudEntity = 0, QString inviteMessage = QString());
 
+	//! Dispatches the (loaded) plugins in the UI
+	void dispatchPlugins(const tPluginInfoList& plugins, const QStringList& pluginPaths);
+	
 protected slots:
 
 	//! Creates a new 3D GL sub-window
@@ -214,8 +191,6 @@ protected slots:
 	//! Zooms out (current 3D view)
 	void zoomOut();
 
-	//! Displays 'about' dialog
-	void doActionShawAboutDialog();
 	//! Displays 'help' dialog
 	void doActionShowHelpDialog();
 	//! Displays 'about plugins' dialog
@@ -224,6 +199,10 @@ protected slots:
 	void doActionLoadFile();
 	//! Displays file save dialog
 	void doActionSaveFile();
+	//! Displays the Global Shift settings dialog
+	void doActionGlobalShiftSeetings();
+	//! Toggles the 'show Qt warnings in Console' option
+	void doEnableQtWarnings(bool);
 
 	//! Clones currently selected entities
 	void doActionClone();
@@ -237,36 +216,37 @@ protected slots:
 	void onExclusiveFullScreenToggled(bool);
 
 	//inherited from ccMainAppInterface
-	virtual void freezeUI(bool state);
-	virtual void redrawAll(bool only2D = false);
-	virtual void refreshAll(bool only2D = false);
-	virtual void enableAll();
-	virtual void disableAll();
-	virtual void disableAllBut(ccGLWindow* win);
-	virtual void updateUI();
-	virtual void setFrontView();
-	virtual void setBottomView();
-	virtual void setTopView();
-	virtual void setBackView();
-	virtual void setLeftView();
-	virtual void setRightView();
-	virtual void setIsoView1();
-	virtual void setIsoView2();
+	virtual void freezeUI(bool state) override;
+	virtual void redrawAll(bool only2D = false) override;
+	virtual void refreshAll(bool only2D = false) override;
+	virtual void enableAll() override;
+	virtual void disableAll() override;
+	virtual void disableAllBut(ccGLWindow* win) override;
+	virtual void updateUI() override;
+	virtual void setFrontView() override;
+	virtual void setBottomView() override;
+	virtual void setTopView() override;
+	virtual void setBackView() override;
+	virtual void setLeftView() override;
+	virtual void setRightView() override;
 	virtual void toggleActiveWindowStereoVision(bool);
-	virtual void toggleActiveWindowCenteredPerspective();
-	virtual void toggleActiveWindowCustomLight();
-	virtual void toggleActiveWindowSunLight();
-	virtual void toggleActiveWindowViewerBasedPerspective();
-	virtual void toggleRotationAboutVertAxis();
-	virtual void doActionEnableBubbleViewMode();
-	virtual void setGlobalZoom();
-	virtual void zoomOnSelectedEntities();
-	virtual void setPivotAlwaysOn();
-	virtual void setPivotRotationOnly();
-	virtual void setPivotOff();
-	virtual void setOrthoView();
-	virtual void setCenteredPerspectiveView();
-	virtual void setViewerPerspectiveView();
+	virtual void toggleActiveWindowCenteredPerspective() override;
+	virtual void toggleActiveWindowCustomLight() override;
+	virtual void toggleActiveWindowSunLight() override;
+	virtual void toggleActiveWindowViewerBasedPerspective() override;
+	virtual void zoomOnSelectedEntities() override;
+
+	void setIsoView1();
+	void setIsoView2();
+	void toggleRotationAboutVertAxis();
+	void doActionEnableBubbleViewMode();
+	void setGlobalZoom();
+	void setPivotAlwaysOn();
+	void setPivotRotationOnly();
+	void setPivotOff();
+	void setOrthoView();
+	void setCenteredPerspectiveView();
+	void setViewerPerspectiveView();
 
 	//! Handles new label
 	void handleNewLabel(ccHObject*);
@@ -353,7 +333,7 @@ protected slots:
 	// Picking opeations
 	void enablePickingOperation(ccGLWindow* win, QString message);
 	void cancelPreviousPickingOperation(bool aborted);
-	void processPickedPoint(ccHObject*, unsigned, int, int);
+	void processPickedPoint(ccHObject*, unsigned, int, int, const CCVector3&);
 
 	// For rotation center picking
 	void doPickRotationCenter();
@@ -377,11 +357,12 @@ protected slots:
 	void doActionComputeDistToBestFitQuadric3D();
 	void doActionMeasureMeshSurface();
 	void doActionMeasureMeshVolume();
-	void doActionFlagMeshVetices();
+	void doActionFlagMeshVertices();
 	void doActionSmoothMeshLaplacian();
 	void doActionSubdivideMesh();
 	void doActionComputeCPS();
 	void doActionDeleteAllSF();
+	void doActionShowWaveDialog();
 	void doActionKMeans();
 	void doActionFrontPropagation();
 	void doActionApplyScale();
@@ -395,7 +376,7 @@ protected slots:
 	void doActionCreateCameraSensor();
 	void doActionModifySensor();
 	void doActionProjectUncertainty();
-	void doActionCheckPointsInsideFrustrum();
+	void doActionCheckPointsInsideFrustum();
 	void doActionComputeDistancesFromSensor();
 	void doActionComputeScatteringAngles();
 	void doActionSetViewFromSensor();
@@ -473,7 +454,7 @@ protected slots:
 	//! Setups 3D mouse (if any)
 	void setup3DMouse(bool);
 
-	//! Removes all entiites currently loaded in the DB tree
+	//! Removes all entities currently loaded in the DB tree
 	void closeAll();
 
 	//! Batch export some pieces of info from a set of selected clouds
@@ -490,20 +471,10 @@ protected:
 	//! Apply transformation to the selected entities
 	void applyTransformation(const ccGLMatrixd& transMat);
 
-	//! Normals conversion destinations
-	enum NORMAL_CONVERSION_DEST	{ HSV_COLORS, DIP_DIR_SFS };
-	//! Converts a cloud's normals
-	void doActionConvertNormalsTo(NORMAL_CONVERSION_DEST dest);
-
 	//! Removes from a list all elements that are sibling of others
 	/** List is updated in place.
 	**/
 	static void RemoveSiblingsFromCCObjectList(ccHObject::Container& ccObjects);
-
-	//! Returns a default first guess for algorithms kernel size (one cloud)
-	static PointCoordinateType GetDefaultCloudKernelSize(ccGenericPointCloud* cloud, unsigned knn = 12);
-	//! Returns a default first guess for algorithms kernel size (several clouds)
-	static PointCoordinateType GetDefaultCloudKernelSize(const ccHObject::Container& entities, unsigned knn = 12);
 
 	//! Creates point clouds from multiple 'components'
 	void createComponentsClouds(ccGenericPointCloud* cloud,
@@ -520,36 +491,13 @@ protected:
 	void setCenteredPerspectiveView(ccGLWindow* win, bool autoRedraw = true);
 	void setViewerPerspectiveView(ccGLWindow* win);
 
-	void closeEvent(QCloseEvent* event);
-	void moveEvent(QMoveEvent* event);
-	void resizeEvent(QResizeEvent* event);
-
-	void loadPlugins();
-	bool dispatchPlugin(QObject* plugin);
-	ccPluginInterface* getValidPlugin(QObject* plugin);
+	virtual void showEvent(QShowEvent* event) override;
+	virtual void closeEvent(QCloseEvent* event) override;
+	virtual void moveEvent(QMoveEvent* event) override;
+	virtual void resizeEvent(QResizeEvent* event) override;
 
 	//! Makes the window including an entity zoom on it (helper)
 	void zoomOn(ccHObject* object);
-
-	//! Clear property process fork
-	/** - prop=0 : COLOR
-		- prop=1 : NORMALS
-		- prop=2 : SCALAR FIELD
-		- prop=3 : ALL SCALAR FIELDS
-		\param prop property id
-	**/
-	void doActionClearProperty(int prop);
-
-	//! Toggles selected entities properties
-	/** - prop=0 : VISIBILITY
-		- prop=1 : COLOR
-		- prop=2 : NORMALS
-		- prop=3 : SCALAR FIELD
-		- prop=4 : MATERIAL/TEXTURE
-		- prop=5 : NAME (IN 3D)
-		\param prop property id
-	**/
-	void toggleSelectedEntitiesProp(int prop);
 
 	//! Active SF action fork
 	/** - action=0 : toggle SF color scale
@@ -563,11 +511,6 @@ protected:
 	/** \param type triangulation type
 	**/
 	void doActionComputeMesh(CC_TRIANGULATION_TYPES type);
-
-	//! Apply a specific process to a mesh scalar field
-	/** \param process process
-	**/
-	void doMeshSFAction(ccMesh::MESH_SCALAR_FIELD_PROCESS process);
 
 	//! Computes the orientation of an entity
 	/** Either fit a plane or a 'facet' (2D polygon)
@@ -679,12 +622,13 @@ protected:
 	ccPrimitiveFactoryDlg* m_pfDlg;
 
 	/*** plugins ***/
-	QString m_pluginsPath;
-	QStringList m_pluginFileNames;
+	QStringList m_pluginPaths;
+	tPluginInfoList m_pluginInfoList;
 	QList<ccStdPluginInterface*> m_stdPlugins;
 	QList<QToolBar*> m_stdPluginsToolbars;
 	QActionGroup m_glFilterActions;
 
+	bool	m_FirstShow;
 };
 
 #endif

@@ -1,14 +1,14 @@
 //##########################################################################
 //#                                                                        #
-//#                            CLOUDCOMPARE                                #
+//#                              CLOUDCOMPARE                              #
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU General Public License as published by  #
-//#  the Free Software Foundation; version 2 of the License.               #
+//#  the Free Software Foundation; version 2 or later of the License.      #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
 //#          COPYRIGHT: EDF R&D / TELECOM ParisTech (ENST-TSI)             #
@@ -1301,7 +1301,7 @@ CC_FILE_ERROR FBXFilter::loadFile(QString filename, ccHObject& container, LoadPa
 					nodes.pop_back();
 
 					const char* nodeName = lNode->GetName();
-#ifdef _DEBUG
+#ifdef QT_DEBUG
 					ccLog::Print(QString("Node: %1 - %2 properties").arg(nodeName).arg(lNode->GetNodeAttributeCount()));
 #endif
 					// scan the node's attributes.
@@ -1309,7 +1309,7 @@ CC_FILE_ERROR FBXFilter::loadFile(QString filename, ccHObject& container, LoadPa
 					{
 						FbxNodeAttribute* pAttribute = lNode->GetNodeAttributeByIndex(i);
 						FbxNodeAttribute::EType type = pAttribute->GetAttributeType();
-#ifdef _DEBUG
+#ifdef QT_DEBUG
 						ccLog::Print(QString("\tProp. #%1").arg(GetAttributeTypeName(type)));
 #endif
 

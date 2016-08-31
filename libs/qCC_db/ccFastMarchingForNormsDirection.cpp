@@ -1,14 +1,14 @@
 //##########################################################################
 //#                                                                        #
-//#                            CLOUDCOMPARE                                #
+//#                              CLOUDCOMPARE                              #
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU General Public License as published by  #
-//#  the Free Software Foundation; version 2 of the License.               #
+//#  the Free Software Foundation; version 2 or later of the License.      #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
 //#          COPYRIGHT: EDF R&D / TELECOM ParisTech (ENST-TSI)             #
@@ -189,7 +189,7 @@ void ccFastMarchingForNormsDirection::resolveCellOrientation(unsigned index)
 	assert(theCell->signConfidence > 0);
 }
 
-#ifdef _DEBUG
+#ifdef QT_DEBUG
 //for debug purposes only
 static unsigned s_cellIndex = 0;
 #endif
@@ -208,7 +208,7 @@ int ccFastMarchingForNormsDirection::step()
 
 	if (minTCell->T < Cell::T_INF())
 	{
-#ifdef _DEBUG
+#ifdef QT_DEBUG
 		if (s_cellIndex == 0)
 		{
 			//process seed cells first!
@@ -314,7 +314,7 @@ unsigned ccFastMarchingForNormsDirection::updateResolvedTable(	ccGenericPointClo
 				theNorms->setValue(index,ccNormalVectors::GetNormIndex(-N));
 			}
 
-#ifdef _DEBUG
+#ifdef QT_DEBUG
 			cloud->setPointScalarValue(index,aCell->T);
 			//cloud->setPointScalarValue(index,aCell->signConfidence);
 			//cloud->setPointScalarValue(index,aCell->scalar);
@@ -384,7 +384,7 @@ int ccFastMarchingForNormsDirection::OrientNormals(	ccPointCloud* cloud,
 			return false;
 		}
 	}
-	ccOctree* octree = cloud->getOctree();
+	ccOctree::Shared octree = cloud->getOctree();
 	assert(octree);
 
 	//temporary SF
@@ -425,7 +425,7 @@ int ccFastMarchingForNormsDirection::OrientNormals(	ccPointCloud* cloud,
 	//Fast Marching propagation
 	ccFastMarchingForNormsDirection fm;
 
-	int result = fm.init(cloud, theNorms, octree, octreeLevel);
+	int result = fm.init(cloud, theNorms, octree.data(), octreeLevel);
 	if (result < 0)
 	{
 		ccLog::Error("[orientNormalsWithFM] Something went wrong during initialization...");
@@ -438,9 +438,12 @@ int ccFastMarchingForNormsDirection::OrientNormals(	ccPointCloud* cloud,
 	//progress notification
 	if (progressCb)
 	{
-		progressCb->reset();
-		progressCb->setMethodTitle("Norms direction");
-		progressCb->setInfo(qPrintable(QString("Octree level: %1\nPoints: %2").arg(octreeLevel).arg(numberOfPoints)));
+		if (progressCb->textCanBeEdited())
+		{
+			progressCb->setMethodTitle("Norms direction");
+			progressCb->setInfo(qPrintable(QString("Octree level: %1\nPoints: %2").arg(octreeLevel).arg(numberOfPoints)));
+		}
+		progressCb->update(0);
 		progressCb->start();
 	}
 
@@ -470,12 +473,12 @@ int ccFastMarchingForNormsDirection::OrientNormals(	ccPointCloud* cloud,
 		//its corresponding cell in fact ;)
 		const CCVector3 *thePoint = cloud->getPoint(lastProcessedPoint);
 		Tuple3i cellPos;
-		octree->getTheCellPosWhichIncludesThePoint(thePoint,cellPos,octreeLevel);
+		octree->getTheCellPosWhichIncludesThePoint(thePoint, cellPos, octreeLevel);
 
 		//clipping (in case the octree is not 'complete')
-		cellPos.x = std::min(octreeWidth,cellPos.x);
-		cellPos.y = std::min(octreeWidth,cellPos.y);
-		cellPos.z = std::min(octreeWidth,cellPos.z);
+		cellPos.x = std::min(octreeWidth, cellPos.x);
+		cellPos.y = std::min(octreeWidth, cellPos.y);
+		cellPos.z = std::min(octreeWidth, cellPos.z);
 
 		//set corresponding FM cell as 'seed'
 		fm.setSeedCell(cellPos);
@@ -512,7 +515,7 @@ int ccFastMarchingForNormsDirection::OrientNormals(	ccPointCloud* cloud,
 	resolved = 0;
 
 	cloud->showNormals(true);
-#ifdef _DEBUG
+#ifdef QT_DEBUG
 	cloud->setCurrentDisplayedScalarField(sfIdx);
 	cloud->getCurrentDisplayedScalarField()->computeMinAndMax();
 	cloud->showSF(true);

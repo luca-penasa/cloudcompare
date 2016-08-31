@@ -1,12 +1,26 @@
+//##########################################################################
+//#                                                                        #
+//#                              CLOUDCOMPARE                              #
+//#                                                                        #
+//#  This program is free software; you can redistribute it and/or modify  #
+//#  it under the terms of the GNU General Public License as published by  #
+//#  the Free Software Foundation; version 2 or later of the License.      #
+//#                                                                        #
+//#  This program is distributed in the hope that it will be useful,       #
+//#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
+//#  GNU General Public License for more details.                          #
+//#                                                                        #
+//#                    COPYRIGHT: CloudCompare project                     #
+//#                                                                        #
+//##########################################################################
+
 #ifndef JACOBI_EIGEN_HEADER
 #define JACOBI_EIGEN_HEADER
 
 //Local
 #include "SquareMatrix.h"
 
-//System
-#include <vector>
-#include <assert.h>
 
 //! Jacobi eigen vectors/values decomposition
 template <typename Scalar> class Jacobi
@@ -270,8 +284,8 @@ public:
 	//! Returns the smallest eigenvalue and its associated eigenvector
 	/** \param eigenVectors eigenvectors (as a square matrix)
 		\param eigenValues eigenvalues
-		\param maxEigenValue smallest eigenvalue
-		\param maxEigenVector eigenvector vector corresponding to the smallest eigenvalue
+		\param minEigenValue smallest eigenvalue
+		\param minEigenVector eigenvector vector corresponding to the smallest eigenvalue
 		\return success
 	**/
 	static bool GetMinEigenValueAndVector(const SquareMatrix& eigenVectors, const EigenValues& eigenValues, Scalar& minEigenValue, Scalar minEigenVector[])

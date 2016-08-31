@@ -4,11 +4,12 @@
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU Library General Public License as       #
-//#  published by the Free Software Foundation; version 2 of the License.  #
+//#  published by the Free Software Foundation; version 2 or later of the  #
+//#  License.                                                              #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
 //#          COPYRIGHT: EDF R&D / TELECOM ParisTech (ENST-TSI)             #
@@ -19,7 +20,6 @@
 #define GENERIC_CLOUD_HEADER
 
 //Local
-#include "CCCoreLib.h"
 #include "CCGeom.h"
 #include "CCConst.h"
 
@@ -33,7 +33,7 @@ class CC_CORE_LIB_API GenericCloud
 public:
 
 		//! Default destructor
-		virtual ~GenericCloud() {};
+		virtual ~GenericCloud() {}
 
 		//! Generic function applied to a point (used by foreach)
 		typedef void genericPointAction(const CCVector3&, ScalarType&);
@@ -67,7 +67,7 @@ public:
 			\param P the 3D point to test
 			\return visibility (default: POINT_VISIBLE)
 		**/
-		virtual inline unsigned char testVisibility(const CCVector3& P) const { return POINT_VISIBLE; };
+		virtual inline unsigned char testVisibility(const CCVector3& P) const { return POINT_VISIBLE; }
 
 		//! Sets the cloud iterator at the begining
 		/**	Virtual method to handle the cloud global iterator

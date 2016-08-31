@@ -4,11 +4,12 @@
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU Library General Public License as       #
-//#  published by the Free Software Foundation; version 2 of the License.  #
+//#  published by the Free Software Foundation; version 2 or later of the  #
+//#  License.                                                              #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
 //#          COPYRIGHT: EDF R&D / TELECOM ParisTech (ENST-TSI)             #
@@ -18,8 +19,6 @@
 #ifndef LOCAL_MODEL_HEADER
 #define LOCAL_MODEL_HEADER
 
-#include "CCConst.h"
-#include "CCGeom.h"
 #include "Neighbourhood.h"
 
 namespace CCLib
@@ -47,19 +46,20 @@ public:
 	virtual ~LocalModel() {}
 
 	//! Returns the model type
-	virtual CC_LOCAL_MODEL_TYPES getType() = 0;
+	virtual CC_LOCAL_MODEL_TYPES getType() const = 0;
 
 	//! Returns the model center
-	inline const CCVector3& getCenter() const  { return m_modelCenter; }
+	inline const CCVector3& getCenter() const { return m_modelCenter; }
 
 	//! Returns the model max radius (squared)
 	inline PointCoordinateType getSquareSize() const { return m_squaredRadius; }
 
 	//! Compute the (unsigned) distance between a 3D point and this model
-	/** \param P the query point
-		\return the (unsigned) distance (or HIDDEN_VALUE if computation failed)
+	/** \param[in] P the query point
+		\param[out] nearestPoint returns the nearest point (optional)
+		\return the (unsigned) distance (or NAN_VALUE if the computation failed)
 	**/
-	virtual ScalarType computeDistanceFromModelToPoint(const CCVector3* P) const = 0;
+	virtual ScalarType computeDistanceFromModelToPoint(const CCVector3* P, CCVector3* nearestPoint = 0) const = 0;
 
 protected:
 

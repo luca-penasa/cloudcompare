@@ -1,10 +1,26 @@
+//##########################################################################
+//#                                                                        #
+//#                              CLOUDCOMPARE                              #
+//#                                                                        #
+//#  This program is free software; you can redistribute it and/or modify  #
+//#  it under the terms of the GNU General Public License as published by  #
+//#  the Free Software Foundation; version 2 or later of the License.      #
+//#                                                                        #
+//#  This program is distributed in the hope that it will be useful,       #
+//#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
+//#  GNU General Public License for more details.                          #
+//#                                                                        #
+//#                    COPYRIGHT: CloudCompare project                     #
+//#                                                                        #
+//##########################################################################
+
 #ifndef SAITO_SQUARED_DISTANCE_TRANSFORM_HEADER
 #define SAITO_SQUARED_DISTANCE_TRANSFORM_HEADER
 
 // Inspired from bil_edt.cxx (VXL) by Ricardo Fabbri (rfabbri), Brown University  (rfabbri@lems.brown.edu)
 
 //Local
-#include "CCCoreLib.h"
 #include "Grid3D.h"
 #include "MathTools.h"
 
@@ -14,6 +30,7 @@ namespace CCLib
 	class GenericProgressCallback;
 	class NormalizedProgress;
 	class GenericIndexedMesh;
+	class GenericCloud;
 
 	//! Class to compute a Squared Distance Field with the Saito algorithm on a 3D grid
 	class CC_CORE_LIB_API SaitoSquaredDistanceTransform : public Grid3D<unsigned>, public MathTools
@@ -39,6 +56,15 @@ namespace CCLib
 							GenericProgressCallback* progressCb = 0)
 		{
 			return intersecthWith(mesh, cellLength, gridMinCorner, 1, progressCb);
+		}
+
+		//! Initializes the distance transform with a cloud
+		inline bool initDT(	GenericCloud* cloud,
+							PointCoordinateType cellLength,
+							const CCVector3& gridMinCorner,
+							GenericProgressCallback* progressCb = 0)
+		{
+			return intersecthWith(cloud, cellLength, gridMinCorner, 1, progressCb);
 		}
 
 		//! Computes the exact Squared Distance Transform on the whole grid

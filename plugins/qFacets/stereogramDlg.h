@@ -4,14 +4,14 @@
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU General Public License as published by  #
-//#  the Free Software Foundation; version 2 of the License.               #
+//#  the Free Software Foundation; version 2 or later of the License.      #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
-//#                           COPYRIGHT: BRGM                              #
+//#                      COPYRIGHT: Thomas Dewez, BRGM                     #
 //#                                                                        #
 //##########################################################################
 
@@ -25,10 +25,7 @@
 #include <ccColorScale.h>
 
 // Qt
-#include <QLabel>
-#include <QPaintEvent>
 #include <QDialog>
-#include <QHBoxLayout>
 
 //system
 #include <utility>
@@ -89,7 +86,7 @@ public:
 	void setTicksFreq(int freq) { m_ticksFreq = freq; }
 
 	//! Whether to show the 'HSV' ring or not
-	void showHSVRing(bool state) { m_showHSVRing = state; };
+	void showHSVRing(bool state) { m_showHSVRing = state; }
 
 	//! Enables or not the mouse tracking mode
 	void enableMouseTracking(bool state, double dipSpan_deg = 30, double dipDirSpan_deg = 30);

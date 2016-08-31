@@ -1,14 +1,14 @@
 //##########################################################################
 //#                                                                        #
-//#                            CLOUDCOMPARE                                #
+//#                              CLOUDCOMPARE                              #
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU General Public License as published by  #
-//#  the Free Software Foundation; version 2 of the License.               #
+//#  the Free Software Foundation; version 2 or later of the License.      #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
 //#          COPYRIGHT: EDF R&D / TELECOM ParisTech (ENST-TSI)             #
@@ -24,8 +24,6 @@
 //CCLib
 #include <PointProjectionTools.h>
 
-//system
-#include <vector>
 
 //! Controur extractor (with debug GUI)
 class ccContourExtractor
@@ -44,6 +42,7 @@ public:
 		\param preferredUpDir to specifiy a preferred up direction for the polyline extraction (preferredNormDim must be defined as well and must be normal to this 'up' direction)
 		\param contourType to specify a type of contour (you should define a 'up' direction to get proper lower and upper contours)
 		\param[out] originalPointIndexes to get the indexes (relatively to the input cloud) of the output polyline vertices
+		\param enableVisualDebugMode whether to display a (debug) window to represent the algorithm process
 		\param maxAngleDeg max angle between segments (angle between 0 and 180, in degrees)
 		\return contour polyline (or 0 if an error occurred)
 	**/
@@ -66,6 +65,7 @@ public:
 		\param[out] parts output polyline parts
 		\param allowSplitting whether the polyline can be split or not
 		\param preferredNormDim to specifiy a preferred (normal) direction for the polyline extraction
+		\param enableVisualDebugMode whether to display a (debug) window to represent the algorithm process
 		\return success
 	**/
 	static bool ExtractFlatContour(	CCLib::GenericIndexedCloudPersist* points,
@@ -86,8 +86,10 @@ protected:
 		but with partial contour support and visual debug mode.
 		\param points input set of points
 		\param hullPoints output points (on the convex hull)
+		\param contourType type of contour (above / below / full)
 		\param allowMultiPass whether to allow multi-pass process (with longer edges potentially generated so as 'disturb' the initial guess)
 		\param maxSquareLength maximum square length (ignored if <= 0, in which case the method simply returns the convex hull!)
+		\param enableVisualDebugMode whether to display a (debug) window to represent the algorithm process
 		\param maxAngleDeg max angle between segments (angle between 0 and 180, in degrees)
 		\return success
 	**/

@@ -4,11 +4,12 @@
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU Library General Public License as       #
-//#  published by the Free Software Foundation; version 2 of the License.  #
+//#  published by the Free Software Foundation; version 2 or later of the  #
+//#  License.                                                              #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
 //#          COPYRIGHT: EDF R&D / TELECOM ParisTech (ENST-TSI)             #
@@ -36,6 +37,7 @@
 #include "ChunkedPointCloud.h"
 #include "Garbage.h"
 #include "Jacobi.h"
+#include "SortAlgo.h"
 
 //system
 #include <time.h>
@@ -154,20 +156,11 @@ struct DataCloud
 ICPRegistrationTools::RESULT_TYPE ICPRegistrationTools::Register(	GenericIndexedCloudPersist* inputModelCloud,
 																	GenericIndexedMesh* inputModelMesh,
 																	GenericIndexedCloudPersist* inputDataCloud,
+																	const Parameters& params,
 																	ScaledTransformation& transform,
-																	CONVERGENCE_TYPE convType,
-																	double minRMSDecrease,
-																	unsigned nbMaxIterations,
 																	double& finalRMS,
 																	unsigned& finalPointCount,
-																	bool adjustScale/*=false*/,
-																	GenericProgressCallback* progressCb/*=0*/,
-																	bool filterOutFarthestPoints/*=false*/,
-																	unsigned samplingLimit/*=20000*/,
-																	double finalOverlapRatio/*=1.0*/,
-																	ScalarField* inputModelWeights/*=0*/,
-																	ScalarField* inputDataWeights/*=0*/,
-																	int filters/*=SKIP_NONE*/)
+																	GenericProgressCallback* progressCb/*=0*/)
 {
 	if (!inputModelCloud || !inputDataCloud)
 	{
@@ -186,12 +179,12 @@ ICPRegistrationTools::RESULT_TYPE ICPRegistrationTools::Register(	GenericIndexed
 	DataCloud data;
 	{
 		//we also want to use the same number of points for registration as initially defined by the user!
-		unsigned dataSamplingLimit = finalOverlapRatio != 1.0 ? static_cast<unsigned>(samplingLimit / finalOverlapRatio) : samplingLimit;
+		unsigned dataSamplingLimit = params.finalOverlapRatio != 1.0 ? static_cast<unsigned>(params.samplingLimit / params.finalOverlapRatio) : params.samplingLimit;
 
 		//we resample the cloud if it's too big (speed increase)
 		if (inputDataCloud->size() > dataSamplingLimit)
 		{
-			data.cloud = CloudSamplingTools::subsampleCloudRandomly(inputDataCloud,dataSamplingLimit);
+			data.cloud = CloudSamplingTools::subsampleCloudRandomly(inputDataCloud, dataSamplingLimit);
 			if (!data.cloud)
 			{
 				return ICP_ERROR_NOT_ENOUGH_MEMORY;
@@ -199,7 +192,7 @@ ICPRegistrationTools::RESULT_TYPE ICPRegistrationTools::Register(	GenericIndexed
 			cloudGarbage.add(data.cloud);
 
 			//if we need to resample the weights as well
-			if (inputDataWeights)
+			if (params.dataWeights)
 			{
 				data.weights = new ScalarField("ResampledDataWeights");
 				sfGarbage.add(data.weights);
@@ -210,7 +203,7 @@ ICPRegistrationTools::RESULT_TYPE ICPRegistrationTools::Register(	GenericIndexed
 					for (unsigned i = 0; i < destCount; ++i)
 					{
 						unsigned pointIndex = data.cloud->getPointGlobalIndex(i);
-						data.weights->setValue(i,inputDataWeights->getValue(pointIndex));
+						data.weights->setValue(i, params.dataWeights->getValue(pointIndex));
 					}
 					data.weights->computeMinAndMax();
 				}
@@ -226,13 +219,13 @@ ICPRegistrationTools::RESULT_TYPE ICPRegistrationTools::Register(	GenericIndexed
 			//we still create a 'fake' reference cloud with all the points
 			data.cloud = new ReferenceCloud(inputDataCloud);
 			cloudGarbage.add(data.cloud);
-			if (!data.cloud->addPointIndex(0,inputDataCloud->size()))
+			if (!data.cloud->addPointIndex(0, inputDataCloud->size()))
 			{
 				//not enough memory
 				return ICP_ERROR_NOT_ENOUGH_MEMORY;
 			}
 			//we use the input weights
-			data.weights = inputDataWeights;
+			data.weights = params.dataWeights;
 		}
 
 		//eventually we'll need a scalar field on the data cloud
@@ -251,8 +244,7 @@ ICPRegistrationTools::RESULT_TYPE ICPRegistrationTools::Register(	GenericIndexed
 	ModelCloud model;
 	if (inputModelMesh)
 	{
-		assert(!inputModelWeights);
-		inputModelWeights = 0; //just in case
+		assert(!params.modelWeights);
 
 		//we'll use the mesh vertices to estimate the right octree level
 		DgmOctree dataOctree(data.cloud);
@@ -268,9 +260,9 @@ ICPRegistrationTools::RESULT_TYPE ICPRegistrationTools::Register(	GenericIndexed
 	else /*if (inputModelCloud)*/
 	{
 		//we resample the cloud if it's too big (speed increase)
-		if (inputModelCloud->size() > samplingLimit)
+		if (inputModelCloud->size() > params.samplingLimit)
 		{
-			ReferenceCloud* subModelCloud = CloudSamplingTools::subsampleCloudRandomly(inputModelCloud,samplingLimit);
+			ReferenceCloud* subModelCloud = CloudSamplingTools::subsampleCloudRandomly(inputModelCloud, params.samplingLimit);
 			if (!subModelCloud)
 			{
 				//not enough memory
@@ -279,7 +271,7 @@ ICPRegistrationTools::RESULT_TYPE ICPRegistrationTools::Register(	GenericIndexed
 			cloudGarbage.add(subModelCloud);
 			
 			//if we need to resample the weights as well
-			if (inputModelWeights)
+			if (params.modelWeights)
 			{
 				model.weights = new ScalarField("ResampledModelWeights");
 				sfGarbage.add(model.weights);
@@ -290,7 +282,7 @@ ICPRegistrationTools::RESULT_TYPE ICPRegistrationTools::Register(	GenericIndexed
 					for (unsigned i = 0; i < destCount; ++i)
 					{
 						unsigned pointIndex = subModelCloud->getPointGlobalIndex(i);
-						model.weights->setValue(i,inputModelWeights->getValue(pointIndex));
+						model.weights->setValue(i, params.modelWeights->getValue(pointIndex));
 					}
 					model.weights->computeMinAndMax();
 				}
@@ -306,7 +298,7 @@ ICPRegistrationTools::RESULT_TYPE ICPRegistrationTools::Register(	GenericIndexed
 		{
 			//we use the input cloud and weights
 			model.cloud = inputModelCloud;
-			model.weights = inputModelWeights;
+			model.weights = params.modelWeights;
 		}
 		assert(model.cloud);
 	}
@@ -314,7 +306,7 @@ ICPRegistrationTools::RESULT_TYPE ICPRegistrationTools::Register(	GenericIndexed
 	//for partial overlap
 	unsigned maxOverlapCount = 0;
 	std::vector<ScalarType> overlapDistances;
-	if (finalOverlapRatio < 1.0)
+	if (params.finalOverlapRatio < 1.0)
 	{
 		//we pre-allocate the memory to sort distance values later
 		try
@@ -326,7 +318,7 @@ ICPRegistrationTools::RESULT_TYPE ICPRegistrationTools::Register(	GenericIndexed
 			//not enough memory
 			return ICP_ERROR_NOT_ENOUGH_MEMORY;
 		}
-		maxOverlapCount = static_cast<unsigned>(finalOverlapRatio*data.cloud->size());
+		maxOverlapCount = static_cast<unsigned>(params.finalOverlapRatio*data.cloud->size());
 		assert(maxOverlapCount != 0);
 	}
 
@@ -358,7 +350,8 @@ ICPRegistrationTools::RESULT_TYPE ICPRegistrationTools::Register(	GenericIndexed
 		DistanceComputationTools::Cloud2MeshDistanceComputationParams c2mDistParams;
 		c2mDistParams.octreeLevel = meshDistOctreeLevel;
 		c2mDistParams.CPSet = data.CPSetPlain;
-		if (DistanceComputationTools::computeCloud2MeshDistance(data.cloud,inputModelMesh,c2mDistParams,progressCb) < 0)
+		c2mDistParams.maxThreadCount = params.maxThreadCount;
+		if (DistanceComputationTools::computeCloud2MeshDistance(data.cloud, inputModelMesh, c2mDistParams, progressCb) < 0)
 		{
 			//an error occurred during distances computation...
 			return ICP_ERROR_DIST_COMPUTATION;
@@ -369,7 +362,8 @@ ICPRegistrationTools::RESULT_TYPE ICPRegistrationTools::Register(	GenericIndexed
 		assert(data.CPSetRef);
 		DistanceComputationTools::Cloud2CloudDistanceComputationParams c2cDistParams;
 		c2cDistParams.CPSet = data.CPSetRef;
-		if (DistanceComputationTools::computeCloud2CloudDistance(data.cloud,model.cloud,c2cDistParams,progressCb) < 0)
+		c2cDistParams.maxThreadCount = params.maxThreadCount;
+		if (DistanceComputationTools::computeCloud2CloudDistance(data.cloud, model.cloud, c2cDistParams, progressCb) < 0)
 		{
 			//an error occurred during distances computation...
 			return ICP_ERROR_DIST_COMPUTATION;
@@ -381,7 +375,7 @@ ICPRegistrationTools::RESULT_TYPE ICPRegistrationTools::Register(	GenericIndexed
 	}
 
 	FILE* fTraceFile = 0;
-#ifdef _DEBUG
+#ifdef QT_DEBUG
 	fTraceFile = fopen("registration_trace_log.csv","wt");
 	if (fTraceFile)
 		fprintf(fTraceFile,"Iteration; RMS; Point count;\n");
@@ -401,7 +395,7 @@ ICPRegistrationTools::RESULT_TYPE ICPRegistrationTools::Register(	GenericIndexed
 
 		//shall we remove the farthest points?
 		bool pointOrderHasBeenChanged = false;
-		if (filterOutFarthestPoints)
+		if (params.filterOutFarthestPoints)
 		{
 			NormalDistribution N;
 			N.computeParameters(data.cloud);
@@ -492,7 +486,7 @@ ICPRegistrationTools::RESULT_TYPE ICPRegistrationTools::Register(	GenericIndexed
 				overlapDistances[i] = data.cloud->getPointScalarValue(i);
 				assert(overlapDistances[i] == overlapDistances[i]);
 			}
-			std::sort(overlapDistances.begin(),overlapDistances.begin()+pointCount);
+			SortAlgo(overlapDistances.begin(), overlapDistances.begin() + pointCount);
 
 			assert(maxOverlapCount != 0);
 			ScalarType maxOverlapDist = overlapDistances[maxOverlapCount-1];
@@ -598,9 +592,9 @@ ICPRegistrationTools::RESULT_TYPE ICPRegistrationTools::Register(	GenericIndexed
 							continue;
 						wi = fabs(w);
 					}
-					double Vd = wi * static_cast<double>(V);
-					wiSum += wi*wi;
-					meanSquareValue += Vd*Vd;
+					double Vd = wi * V;
+					wiSum += wi * wi;
+					meanSquareValue += Vd * Vd;
 				}
 			}
 
@@ -609,9 +603,9 @@ ICPRegistrationTools::RESULT_TYPE ICPRegistrationTools::Register(	GenericIndexed
 
 			double rms = sqrt(meanSquareError);
 
-#ifdef _DEBUG
+#ifdef QT_DEBUG
 			if (fTraceFile)
-				fprintf(fTraceFile,"%u; %f; %u;\n",iteration,rms,data.cloud->size());
+				fprintf(fTraceFile, "%u; %f; %u;\n", iteration, rms, data.cloud->size());
 #endif
 			if (iteration == 0)
 			{
@@ -619,11 +613,14 @@ ICPRegistrationTools::RESULT_TYPE ICPRegistrationTools::Register(	GenericIndexed
 				if (progressCb)
 				{
 					//on the first iteration, we init/show the dialog
-					progressCb->reset();
-					progressCb->setMethodTitle("Clouds registration");
-					char buffer[256];
-					sprintf(buffer,"Initial RMS = %f\n",rms);
-					progressCb->setInfo(buffer);
+					if (progressCb->textCanBeEdited())
+					{
+						progressCb->setMethodTitle("Clouds registration");
+						char buffer[256];
+						sprintf(buffer, "Initial RMS = %f\n", rms);
+						progressCb->setInfo(buffer);
+					}
+					progressCb->update(0);
 					progressCb->start();
 				}
 
@@ -663,7 +660,7 @@ ICPRegistrationTools::RESULT_TYPE ICPRegistrationTools::Register(	GenericIndexed
 					transform.T = currentTrans.R * transform.T;
 				}
 
-				if (adjustScale)
+				if (params.adjustScale)
 				{
 					transform.s *= currentTrans.s;
 					transform.T *= currentTrans.s;
@@ -675,8 +672,8 @@ ICPRegistrationTools::RESULT_TYPE ICPRegistrationTools::Register(	GenericIndexed
 				finalPointCount = data.cloud->size();
 
 				//stop criterion
-				if (	(convType == MAX_ERROR_CONVERGENCE && deltaRMS < minRMSDecrease) //convergence reached
-					||	(convType == MAX_ITER_CONVERGENCE && iteration >= nbMaxIterations) //max iteration reached
+				if (	(params.convType == MAX_ERROR_CONVERGENCE && deltaRMS < params.minRMSDecrease) //convergence reached
+					||	(params.convType == MAX_ITER_CONVERGENCE && iteration >= params.nbMaxIterations) //max iteration reached
 					)
 				{
 					result = ICP_APPLY_TRANSFO;
@@ -686,10 +683,13 @@ ICPRegistrationTools::RESULT_TYPE ICPRegistrationTools::Register(	GenericIndexed
 				//progress notification
 				if (progressCb)
 				{
-					char buffer[256];
 
-					sprintf(buffer,"RMS = %f [-%f]\n",rms,deltaRMS);
-					progressCb->setInfo(buffer);
+					if (progressCb->textCanBeEdited())
+					{
+						char buffer[256];
+						sprintf(buffer, "RMS = %f [-%f]\n", rms, deltaRMS);
+						progressCb->setInfo(buffer);
+					}
 					if (iteration == 1)
 					{
 						initialDeltaRMS = deltaRMS;
@@ -698,7 +698,7 @@ ICPRegistrationTools::RESULT_TYPE ICPRegistrationTools::Register(	GenericIndexed
 					else
 					{
 						assert(initialDeltaRMS >= 0.0);
-						float progressPercent = static_cast<float>((initialDeltaRMS-deltaRMS)/(initialDeltaRMS-minRMSDecrease)*100.0);
+						float progressPercent = static_cast<float>((initialDeltaRMS - deltaRMS) / (initialDeltaRMS - params.minRMSDecrease)*100.0);
 						progressCb->update(progressPercent);
 					}
 				}
@@ -712,7 +712,7 @@ ICPRegistrationTools::RESULT_TYPE ICPRegistrationTools::Register(	GenericIndexed
 		if (!RegistrationTools::RegistrationProcedure(	data.cloud,
 														data.CPSetRef ? static_cast<CCLib::GenericCloud*>(data.CPSetRef) : static_cast<CCLib::GenericCloud*>(data.CPSetPlain),
 														currentTrans,
-														adjustScale,
+														params.adjustScale,
 														coupleWeights))
 		{
 			result = ICP_ERROR_REGISTRATION_STEP;
@@ -733,10 +733,10 @@ ICPRegistrationTools::RESULT_TYPE ICPRegistrationTools::Register(	GenericIndexed
 		}
 
 		//shall we filter some components of the resulting transformation?
-		if (filters != SKIP_NONE)
+		if (params.transformationFilters != SKIP_NONE)
 		{
 			//filter translation (in place)
-			FilterTransformation(currentTrans,filters,currentTrans);
+			FilterTransformation(currentTrans, params.transformationFilters, currentTrans);
 		}
 
 		//get rotated data cloud
@@ -759,7 +759,7 @@ ICPRegistrationTools::RESULT_TYPE ICPRegistrationTools::Register(	GenericIndexed
 			//update data.cloud
 			data.cloud->clear(false);
 			data.cloud->setAssociatedCloud(data.rotatedCloud);
-			if (!data.cloud->addPointIndex(0,data.rotatedCloud->size()))
+			if (!data.cloud->addPointIndex(0, data.rotatedCloud->size()))
 			{
 				//not enough memory
 				result = ICP_ERROR_NOT_ENOUGH_MEMORY;
@@ -780,7 +780,8 @@ ICPRegistrationTools::RESULT_TYPE ICPRegistrationTools::Register(	GenericIndexed
 			DistanceComputationTools::Cloud2MeshDistanceComputationParams c2mDistParams;
 			c2mDistParams.octreeLevel = meshDistOctreeLevel;
 			c2mDistParams.CPSet = data.CPSetPlain;
-			if (DistanceComputationTools::computeCloud2MeshDistance(data.cloud,inputModelMesh,c2mDistParams) < 0)
+			c2mDistParams.maxThreadCount = params.maxThreadCount;
+			if (DistanceComputationTools::computeCloud2MeshDistance(data.cloud, inputModelMesh, c2mDistParams) < 0)
 			{
 				//an error occurred during distances computation...
 				result = ICP_ERROR_REGISTRATION_STEP;
@@ -791,7 +792,8 @@ ICPRegistrationTools::RESULT_TYPE ICPRegistrationTools::Register(	GenericIndexed
 		{
 			DistanceComputationTools::Cloud2CloudDistanceComputationParams c2cDistParams;
 			c2cDistParams.CPSet = data.CPSetRef;
-			if (DistanceComputationTools::computeCloud2CloudDistance(data.cloud,model.cloud,c2cDistParams) < 0)
+			c2cDistParams.maxThreadCount = params.maxThreadCount;
+			if (DistanceComputationTools::computeCloud2CloudDistance(data.cloud, model.cloud, c2cDistParams) < 0)
 			{
 				//an error occurred during distances computation...
 				result = ICP_ERROR_REGISTRATION_STEP;
@@ -825,7 +827,7 @@ bool HornRegistrationTools::FindAbsoluteOrientation(GenericCloud* lCloud,
 													ScaledTransformation& trans,
 													bool fixedScale/*=false*/)
 {
-	return RegistrationProcedure(lCloud,rCloud,trans,!fixedScale);
+	return RegistrationProcedure(lCloud, rCloud, trans, !fixedScale);
 }
 
 double HornRegistrationTools::ComputeRMS(GenericCloud* lCloud,
@@ -833,7 +835,7 @@ double HornRegistrationTools::ComputeRMS(GenericCloud* lCloud,
 										 const ScaledTransformation& trans)
 {
 	assert(rCloud && lCloud);
-	if (!rCloud || !lCloud || rCloud->size() != lCloud->size() || rCloud->size()<3)
+	if (!rCloud || !lCloud || rCloud->size() != lCloud->size() || rCloud->size() < 3)
 		return false;
 
 	double rms = 0.0;
@@ -848,14 +850,14 @@ double HornRegistrationTools::ComputeRMS(GenericCloud* lCloud,
 		const CCVector3* Li = lCloud->getNextPoint();
 		CCVector3 Lit = (trans.R.isValid() ? trans.R * (*Li) : (*Li))*trans.s + trans.T;
 
-//#ifdef _DEBUG
+//#ifdef QT_DEBUG
 //		double dist = (*Ri-Lit).norm();
 //#endif
 
-		rms += (*Ri-Lit).norm2();
+		rms += (*Ri - Lit).norm2();
 	}
 
-	return sqrt(rms/(double)count);
+	return sqrt(rms / count);
 }
 
 bool RegistrationTools::RegistrationProcedure(	GenericCloud* P, //data
@@ -1129,15 +1131,17 @@ bool FPCSRegistrationTools::RegisterClouds(	GenericIndexedCloud* modelCloud,
 											GenericProgressCallback* progressCb,
 											unsigned nbMaxCandidates)
 {
-	/*DGM: KDTree::buildFromCloud will call reset right away!
-	if (progressCb)
-	{
-		progressCb->reset();
-		progressCb->setMethodTitle("Clouds registration");
-		progressCb->setInfo("Starting 4PCS");
-		progressCb->start();
-	}
-	//*/
+	//DGM: KDTree::buildFromCloud will call reset right away!
+	//if (progressCb)
+	//{
+	//	if (progressCb->textCanBeEdited())
+	//	{
+	//		progressCb->setMethodTitle("Clouds registration");
+	//		progressCb->setInfo("Starting 4PCS");
+	//	}
+	//	progressCb->update(0);
+	//	progressCb->start();
+	//}
 
 	//Initialize random seed with current time
 	srand(static_cast<unsigned>(time(0)));
@@ -1239,10 +1243,13 @@ bool FPCSRegistrationTools::RegisterClouds(	GenericIndexedCloud* modelCloud,
 
 		if (progressCb)
 		{
-			char buffer[256];
-			sprintf(buffer,"Trial %u/%u [best score = %u]\n",i+1,nbBases,bestScore);
-			progressCb->setInfo(buffer);
-			progressCb->update(((float)(i+1)*100.0f)/(float)nbBases);
+			if (progressCb->textCanBeEdited())
+			{
+				char buffer[256];
+				sprintf(buffer, "Trial %u/%u [best score = %u]\n", i + 1, nbBases, bestScore);
+				progressCb->setInfo(buffer);
+				progressCb->update(((i + 1)*100.0f) / nbBases);
+			}
 
 			if (progressCb->isCancelRequested())
 			{
@@ -1258,7 +1265,9 @@ bool FPCSRegistrationTools::RegisterClouds(	GenericIndexedCloud* modelCloud,
 	delete modelTree;
 
 	if (progressCb)
+	{
 		progressCb->stop();
+	}
 
 	return (bestScore > 0);
 }

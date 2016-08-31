@@ -1,14 +1,14 @@
 //##########################################################################
 //#                                                                        #
-//#                            CLOUDCOMPARE                                #
+//#                              CLOUDCOMPARE                              #
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU General Public License as published by  #
-//#  the Free Software Foundation; version 2 of the License.               #
+//#  the Free Software Foundation; version 2 or later of the License.      #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
 //#          COPYRIGHT: EDF R&D / TELECOM ParisTech (ENST-TSI)             #
@@ -21,7 +21,7 @@
 #include <CCPlatform.h>
 
 //qCC_gl
-#include <ccGLWindow.h>
+#include <ccGLWidget.h>
 
 //Qt
 #include <QCoreApplication>
@@ -29,14 +29,14 @@
 //system
 #include <assert.h>
 #if defined(CC_WINDOWS)
-#include <Windows.h>
+#include <windows.h>
 #else
 #include <time.h>
 #include <unistd.h>
 #endif
 
 ccContourExtractorDlg::ccContourExtractorDlg(QWidget* parent/*=0*/)
-	: QDialog(parent, Qt::WindowMaximizeButtonHint)
+	: QDialog(parent, Qt::WindowMaximizeButtonHint | Qt::WindowCloseButtonHint)
 	, Ui::ContourExtractorDlg()
 	, m_skipped(false)
 	, m_glWindow(0)
@@ -59,8 +59,11 @@ void ccContourExtractorDlg::init()
 	nextPushButton->setFocus();
 
 	//create 3D window
-	m_glWindow = new ccGLWindow(this);
 	{
+		QWidget* glWidget = 0;
+		CreateGLWindow(m_glWindow, glWidget, false, true);
+		assert(m_glWindow && glWidget);
+
 		ccGui::ParamStruct params = m_glWindow->getDisplayParameters();
 		//black (text) & white (background) display by default
 		params.backgroundCol = ccColor::white;
@@ -76,7 +79,7 @@ void ccContourExtractorDlg::init()
 		m_glWindow->setPickingMode(ccGLWindow::NO_PICKING);
 		m_glWindow->displayOverlayEntities(true);
 		viewFrame->setLayout(new QHBoxLayout);
-		viewFrame->layout()->addWidget(m_glWindow);
+		viewFrame->layout()->addWidget(glWidget);
 	}
 }
 

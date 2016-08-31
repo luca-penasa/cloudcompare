@@ -4,11 +4,11 @@
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU General Public License as published by  #
-//#  the Free Software Foundation; version 2 of the License.               #
+//#  the Free Software Foundation; version 2 or later of the License.      #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
 //#                           COPYRIGHT: EDF                               #
@@ -56,9 +56,9 @@ public:
 	void clearLabelArray();
 
 	//! inherited from ccPointCloud
-	virtual bool reserve(unsigned numberOfPoints);
-	virtual bool resize(unsigned numberOfPoints);
-	virtual void clear();
+	virtual bool reserve(unsigned numberOfPoints) override;
+	virtual bool resize(unsigned numberOfPoints) override;
+	virtual void clear() override;
 
 	//! Sets symbol size
 	void setSymbolSize(double size) { m_symbolSize = size; }
@@ -90,10 +90,7 @@ public:
 protected:
 
 	//inherited from ccPointCloud
-	virtual void drawMeOnly(CC_DRAW_CONTEXT& context);
-
-	//! Displays a symbol at a given (2D) position
-	void drawSymbolAt(const double& xp, const double& yp) const;
+	virtual void drawMeOnly(CC_DRAW_CONTEXT& context) override;
 
 	//! Labels array
 	std::vector<QString> m_labels;
@@ -112,6 +109,9 @@ protected:
 
 	//! Default label alignment flags
 	unsigned char m_labelAlignFlags;
+
+	//! Last 3D rendering parameters
+	ccGLCameraParameters m_lastCameraParams;
 };
 
 #endif //QSRA_SYMBOL_CLOUD_HEADER

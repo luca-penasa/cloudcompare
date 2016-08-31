@@ -1,14 +1,14 @@
 //##########################################################################
 //#                                                                        #
-//#                            CLOUDCOMPARE                                #
+//#                              CLOUDCOMPARE                              #
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU General Public License as published by  #
-//#  the Free Software Foundation; version 2 of the License.               #
+//#  the Free Software Foundation; version 2 or later of the License.      #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
 //#          COPYRIGHT: EDF R&D / TELECOM ParisTech (ENST-TSI)             #
@@ -19,17 +19,12 @@
 #define CC_GROUND_LIDAR_SENSOR_HEADER
 
 //Local
-#include "qCC_db.h"
 #include "ccSensor.h"
-#include "ccGLMatrix.h"
 #include "ccAdvancedTypes.h"
 
 //CCLib
 #include <GenericCloud.h>
-#include <CCGeom.h>
 
-//System
-#include <vector>
 
 class ccPointCloud;
 
@@ -62,16 +57,16 @@ public:
 	ccGBLSensor(const ccGBLSensor& sensor);
 
 	//! Destructor
-	virtual ~ccGBLSensor() {};
+	virtual ~ccGBLSensor() {}
 
 	//inherited from ccHObject
-	virtual CC_CLASS_ENUM getClassID() const { return CC_TYPES::GBL_SENSOR; }
-	virtual bool isSerializable() const { return true; }
-	virtual ccBBox getOwnBB(bool withGLFeatures = false);
-	virtual ccBBox getOwnFitBB(ccGLMatrix& trans);
+	virtual CC_CLASS_ENUM getClassID() const override { return CC_TYPES::GBL_SENSOR; }
+	virtual bool isSerializable() const override { return true; }
+	virtual ccBBox getOwnBB(bool withGLFeatures = false) override;
+	virtual ccBBox getOwnFitBB(ccGLMatrix& trans) override;
 
 	//inherited from ccSensor
-	virtual bool applyViewport(ccGenericGLDisplay* win = 0);
+	virtual bool applyViewport(ccGenericGLDisplay* win = 0) override;
 
 	//! Determines a 3D point "visibility" relatively to the sensor field of view
 	/** Relies on the sensor associated depth map (see ccGBLSensor::computeDepthBuffer).
@@ -83,7 +78,7 @@ public:
 		\param P the point to test
 		\return the point's visibility (POINT_VISIBLE, POINT_HIDDEN, POINT_OUT_OF_RANGE or POINT_OUT_OF_FOV)
 	**/
-	virtual unsigned char checkVisibility(const CCVector3& P) const;
+	virtual unsigned char checkVisibility(const CCVector3& P) const override;
 
 	//! Computes angular parameters automatically (all but the angular steps!)
 	/** WARNING: this method uses the cloud global iterator.
@@ -214,7 +209,7 @@ public: //depth buffer management
 		This array corresponds roughly to what have been "seen" by the sensor during
 		acquisition (the 3D points are simply projected in the sensor frame).
 	**/
-    struct QCC_DB_LIB_API DepthBuffer
+	struct QCC_DB_LIB_API DepthBuffer
 	{
 		//! Z-Buffer grid
 		std::vector<PointCoordinateType> zBuff;
@@ -230,7 +225,7 @@ public: //depth buffer management
 		//! Default constructor
 		DepthBuffer();
 		//! Destructor
-        ~DepthBuffer();
+		~DepthBuffer();
 
 		//! Clears the buffer
 		void clear();
@@ -262,9 +257,9 @@ public: //depth buffer management
 protected:
 
 	//Inherited from ccHObject
-	virtual bool toFile_MeOnly(QFile& out) const;
-	virtual bool fromFile_MeOnly(QFile& in, short dataVersion, int flags);
-	virtual void drawMeOnly(CC_DRAW_CONTEXT& context);
+	virtual bool toFile_MeOnly(QFile& out) const override;
+	virtual bool fromFile_MeOnly(QFile& in, short dataVersion, int flags) override;
+	virtual void drawMeOnly(CC_DRAW_CONTEXT& context) override;
 
 	//! Converts 2D angular coordinates (yaw,pitch) in integer depth buffer coordinates
 	bool convertToDepthMapCoords(PointCoordinateType yaw, PointCoordinateType pitch, unsigned& i, unsigned& j) const;

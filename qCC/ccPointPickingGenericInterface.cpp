@@ -1,14 +1,14 @@
 //##########################################################################
 //#                                                                        #
-//#                            CLOUDCOMPARE                                #
+//#                              CLOUDCOMPARE                              #
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU General Public License as published by  #
-//#  the Free Software Foundation; version 2 of the License.               #
+//#  the Free Software Foundation; version 2 or later of the License.      #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
 //#          COPYRIGHT: EDF R&D / TELECOM ParisTech (ENST-TSI)             #
@@ -48,7 +48,7 @@ bool ccPointPickingGenericInterface::linkWith(ccGLWindow* win)
 	//then we can connect the new window 'point picked' signal
 	if (m_associatedWin)
 	{
-		connect(m_associatedWin, SIGNAL(itemPicked(ccHObject*, unsigned, int, int)), this, SLOT(handlePickedItem(ccHObject*, unsigned, int, int)));
+		connect(m_associatedWin, SIGNAL(itemPicked(ccHObject*, unsigned, int, int, const CCVector3&)), this, SLOT(handlePickedItem(ccHObject*, unsigned, int, int, const CCVector3&)));
 	}
 
 	return true;
@@ -86,7 +86,7 @@ void ccPointPickingGenericInterface::stop(bool state)
 	ccOverlayDialog::stop(state);
 }
 
-void ccPointPickingGenericInterface::handlePickedItem(ccHObject* entity, unsigned itemIdx, int x, int y)
+void ccPointPickingGenericInterface::handlePickedItem(ccHObject* entity, unsigned itemIdx, int x, int y, const CCVector3& P)
 {
 	if (!m_processing || !entity)
 		return;
@@ -102,16 +102,7 @@ void ccPointPickingGenericInterface::handlePickedItem(ccHObject* entity, unsigne
 			ccLog::Warning("[Item picking] Picked point is not in pickable entities DB?!");
 			return;
 		}
-
-		const CCVector3* P = cloud->getPoint(itemIdx);
-		if (P)
-		{
-			processPickedPoint(cloud, itemIdx, x, y);
-		}
-		else
-		{
-			ccLog::Warning("[Item picking] Invalid point index!");
-		}
+		processPickedPoint(cloud, itemIdx, x, y);
 	}
 	else if (entity->isKindOf(CC_TYPES::MESH))
 	{

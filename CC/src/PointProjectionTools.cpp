@@ -4,11 +4,12 @@
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU Library General Public License as       #
-//#  published by the Free Software Foundation; version 2 of the License.  #
+//#  published by the Free Software Foundation; version 2 or later of the  #
+//#  License.                                                              #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
 //#          COPYRIGHT: EDF R&D / TELECOM ParisTech (ENST-TSI)             #
@@ -61,14 +62,17 @@ SimpleCloud* PointProjectionTools::developCloudOnCylinder(GenericCloud* cloud,
 		center = &C;
 	}
 
-	NormalizedProgress nprogress(progressCb,count);
+	NormalizedProgress nprogress(progressCb, count);
 	if (progressCb)
 	{
-		progressCb->reset();
-		progressCb->setMethodTitle("Develop");
-		char buffer[256];
-		sprintf(buffer,"Number of points = %u",count);
-		progressCb->setInfo(buffer);
+		if (progressCb->textCanBeEdited())
+		{
+			progressCb->setMethodTitle("Develop");
+			char buffer[256];
+			sprintf(buffer, "Number of points = %u", count);
+			progressCb->setInfo(buffer);
+		}
+		progressCb->update(0);
 		progressCb->start();
 	}
 
@@ -119,15 +123,17 @@ SimpleCloud* PointProjectionTools::developCloudOnCone(GenericCloud* cloud, unsig
 
 	cloud->placeIteratorAtBegining();
 
-	NormalizedProgress* nprogress = 0;
+	NormalizedProgress nprogress(progressCb, count);
 	if (progressCb)
 	{
-		progressCb->reset();
-		progressCb->setMethodTitle("DevelopOnCone");
-		char buffer[256];
-		sprintf(buffer,"Number of points = %u",count);
-		nprogress = new NormalizedProgress(progressCb,count);
-		progressCb->setInfo(buffer);
+		if (progressCb->textCanBeEdited())
+		{
+			progressCb->setMethodTitle("DevelopOnCone");
+			char buffer[256];
+			sprintf(buffer, "Number of points = %u", count);
+			progressCb->setInfo(buffer);
+		}
+		progressCb->update(0);
 		progressCb->start();
 	}
 
@@ -161,15 +167,12 @@ SimpleCloud* PointProjectionTools::developCloudOnCone(GenericCloud* cloud, unsig
 
 		outCloud->addPoint(CCVector3(lon*baseRadius,lat+center[dim],alt));
 
-		if (nprogress && !nprogress->oneStep())
+		if (progressCb && !nprogress.oneStep())
+		{
 			break;
+		}
 	}
 
-	if (nprogress)
-	{
-		delete nprogress;
-		nprogress = 0;
-	}
 	if (progressCb)
 	{
 		progressCb->stop();
@@ -188,15 +191,17 @@ SimpleCloud* PointProjectionTools::applyTransformation(GenericCloud* cloud, Tran
 	if (!transformedCloud->reserve(count))
 		return 0; //not enough memory
 
-	NormalizedProgress* nprogress = 0;
+	NormalizedProgress nprogress(progressCb, count);
 	if (progressCb)
 	{
-		progressCb->reset();
-		progressCb->setMethodTitle("ApplyTransformation");
-		nprogress = new NormalizedProgress(progressCb,count);
-		char buffer[256];
-		sprintf(buffer,"Number of points = %u",count);
-		progressCb->setInfo(buffer);
+		if (progressCb->textCanBeEdited())
+		{
+			progressCb->setMethodTitle("ApplyTransformation");
+			char buffer[256];
+			sprintf(buffer, "Number of points = %u", count);
+			progressCb->setInfo(buffer);
+		}
+		progressCb->update(0);
 		progressCb->start();
 	}
 
@@ -212,8 +217,10 @@ SimpleCloud* PointProjectionTools::applyTransformation(GenericCloud* cloud, Tran
 
 			transformedCloud->addPoint(newP);
 
-			if (nprogress && !nprogress->oneStep())
+			if (progressCb && !nprogress.oneStep())
+			{
 				break;
+			}
 		}
 	}
 	else
@@ -225,13 +232,17 @@ SimpleCloud* PointProjectionTools::applyTransformation(GenericCloud* cloud, Tran
 
 			transformedCloud->addPoint(newP);
 
-			if (nprogress && !nprogress->oneStep())
+			if (progressCb && !nprogress.oneStep())
+			{
 				break;
+			}
 		}
 	}
 
 	if (progressCb)
+	{
 		progressCb->stop();
+	}
 
 	return transformedCloud;
 }

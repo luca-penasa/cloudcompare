@@ -4,11 +4,12 @@
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU Library General Public License as       #
-//#  published by the Free Software Foundation; version 2 of the License.  #
+//#  published by the Free Software Foundation; version 2 or later of the  #
+//#  License.                                                              #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
 //#          COPYRIGHT: EDF R&D / TELECOM ParisTech (ENST-TSI)             #
@@ -19,14 +20,12 @@
 #define SQUARE_MATRIX_HEADER
 
 //local
-#include "CCCoreLib.h"
 #include "CCGeom.h"
 
 //system
 #include <assert.h>
 #include <string.h>
 #include <stdio.h>
-#include <algorithm>
 #include <vector>
 
 namespace CCLib
@@ -185,7 +184,7 @@ namespace CCLib
 			return *this;
 		}
 
-		//! Substraction
+		//! Subtraction
 		SquareMatrixTpl operator - (const SquareMatrixTpl& B) const
 		{
 			SquareMatrixTpl C = *this;
@@ -194,7 +193,7 @@ namespace CCLib
 			return C;
 		}
 
-		//! In-place substraction
+		//! In-place subtraction
 		const SquareMatrixTpl& operator -= (const SquareMatrixTpl& B)
 		{
 			assert(B.size() == m_matrixSize);
@@ -251,25 +250,6 @@ namespace CCLib
 
 			return *this;
 		}
-
-		//! In-place multiplication by a vector
-		/** Vec must have the same size as matrix. Returns Vec = M.Vec.
-		**/
-		//DGM: deprecated, too slow!
-		/*inline void apply(Scalar Vec[]) const
-		{
-			//we apply matrix to Vec and get the result in a (temporary) vector
-			Scalar* V = new Scalar[m_matrixSize];
-			if (V)
-			{
-				apply(Vec,V);
-				//we copy the result to Vec
-				memcpy(Vec,V,sizeof(Scalar)*m_matrixSize);
-				//we release temp vector
-				delete[] V;
-			}
-		}
-		//*/
 
 		//! Multiplication by a vector
 		/** Vec must have the same size as matrix.
@@ -365,8 +345,8 @@ namespace CCLib
 						if (++j >= m_matrixSize)
 						{
 							//non inversible matrix!
-							for (unsigned j=0; j<m_matrixSize; j++)
-								delete[] tempM[j];
+							for (unsigned k=0; k<m_matrixSize; ++k)
+								delete[] tempM[k];
 							delete[] tempM;
 							return SquareMatrixTpl();
 						}
@@ -382,8 +362,8 @@ namespace CCLib
 					if (tempM[i][i] != 1.0)
 					{
 						const Scalar& tmpVal = tempM[i][i];
-						for (unsigned j=i; j<2*m_matrixSize; j++)
-							tempM[i][j] /= tmpVal;
+						for (unsigned k=i; k<2*m_matrixSize; ++k)
+							tempM[i][k] /= tmpVal;
 					}
 
 					//after the pivot value, all elements are set to zero
@@ -493,7 +473,6 @@ namespace CCLib
 		//! Creates a rotation matrix from a quaternion (float version)
 		/** Shortcut to double version of initFromQuaternion)
 			\param q normalized quaternion (4 float values)
-			\return a 3x3 rotation matrix
 		**/
 		void initFromQuaternion(const float q[])
 		{
@@ -509,7 +488,6 @@ namespace CCLib
 		/** Quaternion is composed of 4 values: an angle (cos(alpha/2))
 			and an axis (sin(alpha/2)*unit vector).
 			\param q normalized quaternion (w,x,y,z)
-			\return a 3x3 rotation matrix
 		**/
 		void initFromQuaternion(const double q[])
 		{

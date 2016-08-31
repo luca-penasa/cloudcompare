@@ -1,14 +1,14 @@
 //##########################################################################
 //#                                                                        #
-//#                            CLOUDCOMPARE                                #
+//#                              CLOUDCOMPARE                              #
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU General Public License as published by  #
-//#  the Free Software Foundation; version 2 of the License.               #
+//#  the Free Software Foundation; version 2 or later of the License.      #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
 //#          COPYRIGHT: EDF R&D / TELECOM ParisTech (ENST-TSI)             #
@@ -216,16 +216,16 @@ namespace ccColor
 		**/
 		static Rgb hsv2rgb(float H, float S, float V)
 		{
-			int hi = ((static_cast<int>(H)/60) % 6);
-			double f = 0;
-			modf(H/60.0, &f);
-			float l = static_cast<float>(V*(1.0-S));
-			float m = static_cast<float>(V*(1.0-f*S));
-			float n = static_cast<float>(V*(1.0-(1.0-f)*S));
+			double hi = 0;
+			double f = modf(H/60.0, &hi);
+
+			float l = static_cast<float>(V*(1.0 - S));
+			float m = static_cast<float>(V*(1.0 - f*S));
+			float n = static_cast<float>(V*(1.0 - (1.0 - f)*S));
 
 			Rgbf rgb(0,0,0);
 
-			switch (hi)
+			switch (static_cast<int>(hi) % 6)
 			{
 			case 0:
 				rgb.r=V; rgb.g=n; rgb.b=l;
@@ -253,24 +253,24 @@ namespace ccColor
 		}
 
 	protected:
-		
+
 		//! Method used by hsl2rgb
 		static float hue2rgb(float m1, float m2, float hue)
 		{
 			if (hue < 0)
 				hue += 1.0f;
-            else if (hue > 1.0f)
+			else if (hue > 1.0f)
 				hue -= 1.0f;
 
-			if (6*hue < 1.0f)
+			if (6 * hue < 1.0f)
 				return m1 + (m2 - m1) * hue * 6;
-            else if (2 * hue < 1.0f)
+			else if (2 * hue < 1.0f)
 				return m2;
-            else if (3 * hue < 2.0f)
+			else if (3 * hue < 2.0f)
 				return m1 + (m2 - m1) * (4.0f - hue * 6);
 			else
 				return m1;
-        }
+		}
 
 
 	};

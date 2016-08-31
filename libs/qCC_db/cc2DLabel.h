@@ -1,14 +1,14 @@
 //##########################################################################
 //#                                                                        #
-//#                            CLOUDCOMPARE                                #
+//#                              CLOUDCOMPARE                              #
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU General Public License as published by  #
-//#  the Free Software Foundation; version 2 of the License.               #
+//#  the Free Software Foundation; version 2 or later of the License.      #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
 //#          COPYRIGHT: EDF R&D / TELECOM ParisTech (ENST-TSI)             #
@@ -19,13 +19,10 @@
 #define CC_2D_LABEL_HEADER
 
 //Local
-#include "qCC_db.h"
 #include "ccHObject.h"
 #include "ccInteractor.h"
 
 //Qt
-#include <QString>
-#include <QStringList>
 #include <QFontMetrics>
 
 class ccGenericPointCloud;
@@ -39,10 +36,10 @@ public:
 	cc2DLabel(QString name = QString("label"));
 
 	//inherited from ccObject
-	virtual QString getName() const;
+	virtual QString getName() const override;
 	//inherited from ccHObject
-	inline virtual CC_CLASS_ENUM getClassID() const { return CC_TYPES::LABEL_2D; }
-	inline virtual bool isSerializable() const { return true; }
+	inline virtual CC_CLASS_ENUM getClassID() const override { return CC_TYPES::LABEL_2D; }
+	inline virtual bool isSerializable() const override { return true; }
 
 	//! Returns 'raw' name (no replacement of default keywords)
 	inline QString getRawName() const { return m_name; }
@@ -60,8 +57,8 @@ public:
 	QString getTitle(int precision) const;
 
 	//inherited from ccInteractor
-	virtual bool acceptClick(int x, int y, Qt::MouseButton button);
-	virtual bool move2D(int x, int y, int dx, int dy, int screenWidth, int screenHeight);
+	virtual bool acceptClick(int x, int y, Qt::MouseButton button) override;
+	virtual bool move2D(int x, int y, int dx, int dy, int screenWidth, int screenHeight) override;
 
 	//! Sets relative position
 	void setPosition(float x, float y);
@@ -87,14 +84,14 @@ public:
 	//! Whether to collapse label or not
 	inline void setCollapsed(bool state) { m_showFullBody = !state; }
 
-	//! Returns Whether the label is collapsed or not
+	//! Returns whether the label is collapsed or not
 	inline bool isCollapsed() const { return !m_showFullBody; }
 
-	//! Whether to display the label in 3D (title only)
-	inline void setDisplayedIn3D(bool state) { m_dispIn3D = state; }
+	//! Whether to display the point(s) legend (title only)
+	inline void displayPointLegend(bool state) { m_dispPointsLegend = state; }
 
-	//! Returns whether the label is displayed in 3D (title only)
-	inline bool isDisplayedIn3D() const { return m_dispIn3D; }
+	//! Returns whether the point(s) legend is displayed
+	inline bool isPointLegendDisplayed() const { return m_dispPointsLegend; }
 
 	//! Whether to display the label in 2D
 	inline void setDisplayedIn2D(bool state) { m_dispIn2D = state; }
@@ -107,21 +104,27 @@ public:
 	**/
 	struct PickedPoint
 	{
-		//! cloud
+		//! Cloud
 		ccGenericPointCloud* cloud;
-		//! index
+		//! Index
 		unsigned index;
+		//! Last known '2D' position (i.e. in screen space)
+		/** This position is updated on each call to drawMeOnly3D
+		**/
+		CCVector3d pos2D;
 
 		//! Default constructor
 		PickedPoint()
 			: cloud(0)
 			, index(0)
+			, pos2D(0, 0, 0)
 		{}
 
 		//! Constructor from a point and its index
 		PickedPoint(ccGenericPointCloud* _cloud, unsigned _index)
 			: cloud(_cloud)
 			, index(_index)
+			, pos2D(0, 0, 0)
 		{}
 	};
 
@@ -225,15 +228,15 @@ protected:
 	void getLabelInfo3(LabelInfo3& info) const;
 
 	//inherited from ccHObject
-	virtual bool toFile_MeOnly(QFile& out) const;
-	virtual bool fromFile_MeOnly(QFile& in, short dataVersion, int flags);
-	virtual void drawMeOnly(CC_DRAW_CONTEXT& context);
-	virtual void onDeletionOf(const ccHObject* obj);
+	virtual bool toFile_MeOnly(QFile& out) const override;
+	virtual bool fromFile_MeOnly(QFile& in, short dataVersion, int flags) override;
+	virtual void drawMeOnly(CC_DRAW_CONTEXT& context) override;
+	virtual void onDeletionOf(const ccHObject* obj) override;
 
 	//! Draws the entity only (not its children) - 2D version
-	virtual void drawMeOnly2D(CC_DRAW_CONTEXT& context);
+	void drawMeOnly2D(CC_DRAW_CONTEXT& context);
 	//! Draws the entity only (not its children) - 3D version
-	virtual void drawMeOnly3D(CC_DRAW_CONTEXT& context);
+	void drawMeOnly3D(CC_DRAW_CONTEXT& context);
 
 	//! Picked points
 	std::vector<PickedPoint> m_points;
@@ -262,8 +265,8 @@ protected:
 	//! Label position at last display (absolute)
 	int m_lastScreenPos[2];
 
-	//! Whether to display the label in 3D (title only)
-	bool m_dispIn3D;
+	//! Whether to display the point(s) legend
+	bool m_dispPointsLegend;
 
 	//! Whether to display the label in 2D
 	bool m_dispIn2D;

@@ -4,11 +4,12 @@
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU Library General Public License as       #
-//#  published by the Free Software Foundation; version 2 of the License.  #
+//#  published by the Free Software Foundation; version 2 or later of the  #
+//#  License.                                                              #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
 //#          COPYRIGHT: EDF R&D / TELECOM ParisTech (ENST-TSI)             #
@@ -74,7 +75,9 @@ NormalizedProgress::NormalizedProgress(	GenericProgressCallback* callback,
 NormalizedProgress::~NormalizedProgress()
 {
 	if (m_counter)
+	{
 		delete m_counter;
+	}
 }
 
 void NormalizedProgress::scale(	unsigned totalSteps,
@@ -118,13 +121,17 @@ void NormalizedProgress::reset()
 	m_percent = 0;
 	m_counter->store(0);
 	if (progressCallback)
+	{
 		progressCallback->update(0);
+	}
 }
 
 bool NormalizedProgress::oneStep()
 {
 	if (!progressCallback)
+	{
 		return true;
+	}
 
 	unsigned currentCount = static_cast<unsigned>(m_counter->fetchAndAddRelaxed(1)) + 1;
 	if ((currentCount % m_step) == 0)
@@ -139,7 +146,9 @@ bool NormalizedProgress::oneStep()
 bool NormalizedProgress::steps(unsigned n)
 {
 	if (!progressCallback)
+	{
 		return true;
+	}
 
 	unsigned currentCount = static_cast<unsigned>(m_counter->fetchAndAddRelaxed(n)) + n;
 	unsigned d1 = currentCount / m_step;

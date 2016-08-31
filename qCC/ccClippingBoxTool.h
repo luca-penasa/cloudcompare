@@ -1,14 +1,14 @@
 //##########################################################################
 //#                                                                        #
-//#                            CLOUDCOMPARE                                #
+//#                              CLOUDCOMPARE                              #
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU General Public License as published by  #
-//#  the Free Software Foundation; version 2 of the License.               #
+//#  the Free Software Foundation; version 2 or later of the License.      #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
 //#          COPYRIGHT: EDF R&D / TELECOM ParisTech (ENST-TSI)             #
@@ -24,7 +24,6 @@
 #include <ui_clippingBoxDlg.h>
 
 //qCC_db
-#include <ccGLMatrix.h>
 #include <ccGLUtils.h>
 
 class ccGLWindow;
@@ -57,13 +56,13 @@ public:
 	**/
 	bool setAssociatedEntity(ccHObject* anObject);
 
-public slots:
-
-	void toggleInteractors(bool);
-
 protected slots:
 
+	void toggleInteractors(bool);
+	void toggleBox(bool);
+
 	void editBox();
+	void restoreLastBox();
 	void reset();
 	void closeDialog();
 	void extractContour();
@@ -75,12 +74,12 @@ protected slots:
 
 	void thicknessChanged(double);
 
-	void shiftXMinus();
-	void shiftXPlus();
-	void shiftYMinus();
-	void shiftYPlus();
-	void shiftZMinus();
-	void shiftZPlus();
+	inline void shiftXMinus() { shiftBox(0, true);  }
+	inline void shiftXPlus()  { shiftBox(0, false); }
+	inline void shiftYMinus() { shiftBox(1, true);  }
+	inline void shiftYPlus()  { shiftBox(1, false); }
+	inline void shiftZMinus() { shiftBox(2, true);  }
+	inline void shiftZPlus()  { shiftBox(2, false); }
 
 	void setFrontView();
 	void setBottomView();

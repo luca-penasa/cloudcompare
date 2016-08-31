@@ -1,14 +1,14 @@
 //##########################################################################
 //#                                                                        #
-//#                            CLOUDCOMPARE                                #
+//#                              CLOUDCOMPARE                              #
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU General Public License as published by  #
-//#  the Free Software Foundation; version 2 of the License.               #
+//#  the Free Software Foundation; version 2 or later of the License.      #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
 //#          COPYRIGHT: EDF R&D / TELECOM ParisTech (ENST-TSI)             #
@@ -30,10 +30,12 @@
 //qCC_db
 #include <ccHObject.h>
 
+//Qt
+#include <QThread>
+
 //system
 #include <assert.h>
 
-//semi-persistent options
 static bool     s_adjustScale = false;
 static unsigned s_randomSamplingLimit = 50000;
 static double   s_rmsDifference = 1.0e-5;
@@ -41,7 +43,9 @@ static int      s_maxIterationCount = 20;
 static bool     s_useErrorDifferenceCriterion = true;
 static int      s_finalOverlap = 100;
 static int      s_rotComboIndex = 0;
-static bool     s_transCheckboxes[3] = {true, true, true};
+static bool     s_transCheckboxes[3] = { true, true, true };
+static int		s_maxThreadCount = 0;
+
 
 ccRegistrationDlg::ccRegistrationDlg(ccHObject *data, ccHObject *model, QWidget* parent/*=0*/)
 	: QDialog(parent, Qt::Tool)
@@ -52,7 +56,9 @@ ccRegistrationDlg::ccRegistrationDlg(ccHObject *data, ccHObject *model, QWidget*
 	modelEntity = model;
 
 	setupUi(this);
-	rmsDifferenceLineEdit->setValidator(new QDoubleValidator(rmsDifferenceLineEdit));
+	QDoubleValidator* rmsValidator = new QDoubleValidator(rmsDifferenceLineEdit);
+	rmsValidator->setRange(1.0e-7, 1.0);
+	rmsDifferenceLineEdit->setValidator(rmsValidator);
 
 	setColorsAndLabels();
 
@@ -61,20 +67,32 @@ ccRegistrationDlg::ccRegistrationDlg(ccHObject *data, ccHObject *model, QWidget*
 	ccQtHelpers::SetButtonColor(dataColorButton,qRed);
 	ccQtHelpers::SetButtonColor(modelColorButton,qYellow);
 
+	int idealThreadCount = QThread::idealThreadCount();
+	maxThreadCountSpinBox->setRange(1, idealThreadCount);
+	maxThreadCountSpinBox->setSuffix(QString(" / %1").arg(idealThreadCount));
+
 	//restore semi-persistent settings
-	adjustScaleCheckBox->setChecked(s_adjustScale);
-	randomSamplingLimitSpinBox->setValue(s_randomSamplingLimit);
-	rmsDifferenceLineEdit->setText(QString::number(s_rmsDifference,'e',1));
-	maxIterationCount->setValue(s_maxIterationCount);
-	if (s_useErrorDifferenceCriterion)
-		errorCriterion->setChecked(true);
-	else
-		iterationsCriterion->setChecked(true);
-	overlapSpinBox->setValue(s_finalOverlap);
-	rotComboBox->setCurrentIndex(s_rotComboIndex);
-	TxCheckBox->setChecked(s_transCheckboxes[0]);
-	TyCheckBox->setChecked(s_transCheckboxes[1]);
-	TzCheckBox->setChecked(s_transCheckboxes[2]);
+	{
+		//semi-persistent options
+		if (s_maxThreadCount == 0)
+		{
+			s_maxThreadCount = idealThreadCount;
+		}
+		maxThreadCountSpinBox->setValue(s_maxThreadCount);
+		adjustScaleCheckBox->setChecked(s_adjustScale);
+		randomSamplingLimitSpinBox->setValue(s_randomSamplingLimit);
+		rmsDifferenceLineEdit->setText(QString::number(s_rmsDifference, 'e', 1));
+		maxIterationCount->setValue(s_maxIterationCount);
+		if (s_useErrorDifferenceCriterion)
+			errorCriterion->setChecked(true);
+		else
+			iterationsCriterion->setChecked(true);
+		overlapSpinBox->setValue(s_finalOverlap);
+		rotComboBox->setCurrentIndex(s_rotComboIndex);
+		TxCheckBox->setChecked(s_transCheckboxes[0]);
+		TyCheckBox->setChecked(s_transCheckboxes[1]);
+		TzCheckBox->setChecked(s_transCheckboxes[2]);
+	}
 
 	connect(swapButton, SIGNAL(clicked()), this, SLOT(swapModelAndData()));
 }
@@ -97,6 +115,7 @@ ccRegistrationDlg::~ccRegistrationDlg()
 
 void ccRegistrationDlg::saveParameters() const
 {
+	s_maxThreadCount = getMaxThreadCount();
 	s_adjustScale = adjustScale();
 	s_randomSamplingLimit = randomSamplingLimit();
 	s_rmsDifference = getMinRMSDecrease();
@@ -152,6 +171,11 @@ unsigned ccRegistrationDlg::getMaxIterationCount() const
 unsigned ccRegistrationDlg::getFinalOverlap() const
 {
 	return static_cast<unsigned>(std::max(10,overlapSpinBox->value()));
+}
+
+int ccRegistrationDlg::getMaxThreadCount() const
+{
+	return maxThreadCountSpinBox->value();
 }
 
 double ccRegistrationDlg::getMinRMSDecrease() const

@@ -1,4 +1,8 @@
-cmake_minimum_required(VERSION 2.8)
+cmake_minimum_required(VERSION 3.0)
+
+#Anytime we use COMPILE_DEFINITIONS_XXX we must define this policy!
+#(and setting it outside of this file doesn't seem to work...)
+cmake_policy(SET CMP0043 OLD)
 
 add_subdirectory( MiscLib )
 
@@ -16,6 +20,10 @@ file( GLOB source_list *.cpp GfxTL/*.cpp )
 
 add_library( ${PROJECT_NAME} STATIC ${header_list} ${source_list} )
 
-# Add prepocessor definitions
+# Add preprocessor definitions
 set_property( TARGET ${PROJECT_NAME} APPEND PROPERTY COMPILE_DEFINITIONS _CRT_SECURE_NO_DEPRECATE _CRT_SECURE_NO_WARNINGS _SCL_SECURE_NO_WARNINGS TIMINGLEVEL0 _LIB )
 set_property( TARGET ${PROJECT_NAME} APPEND PROPERTY COMPILE_DEFINITIONS_RELEASE TIMINGLEVEL1)
+
+if (OPENMP_FOUND AND NOT WIN32) #DGM: OpenMP doesn't work with Visual at least (the process loops infinitely)
+	#set_property( TARGET ${PROJECT_NAME} APPEND PROPERTY COMPILE_DEFINITIONS DOPARALLEL )
+endif()

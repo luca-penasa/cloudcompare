@@ -1,14 +1,14 @@
 //##########################################################################
 //#                                                                        #
-//#                            CLOUDCOMPARE                                #
+//#                              CLOUDCOMPARE                              #
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU General Public License as published by  #
-//#  the Free Software Foundation; version 2 of the License.               #
+//#  the Free Software Foundation; version 2 or later of the License.      #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
 //#          COPYRIGHT: EDF R&D / TELECOM ParisTech (ENST-TSI)             #
@@ -123,9 +123,10 @@ void ccShiftAndScaleCloudDlg::init()
 	m_ui = new Ui_GlobalShiftAndScaleDlg;
 	m_ui->setupUi(this);
 
-	m_ui->shiftX->setRange(-1.0e9,1.0e9);
-	m_ui->shiftY->setRange(-1.0e9,1.0e9);
-	m_ui->shiftZ->setRange(-1.0e9,1.0e9);
+	//DGM: we sometimes need to input values > 1.0e9 (for georeferenced clouds expressed in mm!)
+	m_ui->shiftX->setRange(-1.0e12, 1.0e12);
+	m_ui->shiftY->setRange(-1.0e12, 1.0e12);
+	m_ui->shiftZ->setRange(-1.0e12, 1.0e12);
 
 	updateGlobalAndLocalSystems();
 

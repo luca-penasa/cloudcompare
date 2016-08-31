@@ -4,11 +4,12 @@
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU Library General Public License as       #
-//#  published by the Free Software Foundation; version 2 of the License.  #
+//#  published by the Free Software Foundation; version 2 or later of the  #
+//#  License.                                                              #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
 //#          COPYRIGHT: EDF R&D / TELECOM ParisTech (ENST-TSI)             #
@@ -19,9 +20,8 @@
 #define AUTO_SEGMENTATION_TOOLS_HEADER
 
 //Local
-#include "CCCoreLib.h"
 #include "CCToolbox.h"
-#include "ReferenceCloud.h"
+#include "CCTypes.h"
 
 namespace CCLib
 {
@@ -29,6 +29,7 @@ namespace CCLib
 class GenericIndexedCloudPersist;
 class GenericProgressCallback;
 class DgmOctree;
+class ReferenceCloud;
 
 //! A standard container to store several subsets of points
 /** Several algorithms of the AutoSegmentationTools toolbox return a collection of subsets of points

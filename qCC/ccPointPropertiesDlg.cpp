@@ -1,14 +1,14 @@
 //##########################################################################
 //#                                                                        #
-//#                            CLOUDCOMPARE                                #
+//#                              CLOUDCOMPARE                              #
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU General Public License as published by  #
-//#  the Free Software Foundation; version 2 of the License.               #
+//#  the Free Software Foundation; version 2 or later of the License.      #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
 //#          COPYRIGHT: EDF R&D / TELECOM ParisTech (ENST-TSI)             #
@@ -102,8 +102,8 @@ bool ccPointPropertiesDlg::linkWith(ccGLWindow* win)
 	{
 		m_associatedWin->addToOwnDB(m_label);
 		m_associatedWin->addToOwnDB(m_rect2DLabel);
-		connect(m_associatedWin, SIGNAL(mouseMoved(int,int,Qt::MouseButtons)), this, SLOT(update2DZone(int,int,Qt::MouseButtons)));
-		connect(m_associatedWin, SIGNAL(leftButtonClicked(int,int)), this, SLOT(processClickedPoint(int,int)));
+		connect(m_associatedWin, SIGNAL(mouseMoved(int, int, Qt::MouseButtons)), this, SLOT(update2DZone(int, int, Qt::MouseButtons)));
+		connect(m_associatedWin, SIGNAL(leftButtonClicked(int, int)), this, SLOT(processClickedPoint(int, int)));
 		connect(m_associatedWin, SIGNAL(buttonReleased()), this, SLOT(close2DZone()));
 	}
 
@@ -218,9 +218,12 @@ void ccPointPropertiesDlg::exportCurrentLabel()
 	if (m_pickingMode == RECT_ZONE)
 		labelObject = (m_rect2DLabel->isSelected() && m_rect2DLabel->isVisible() ? m_rect2DLabel : 0);
 	else
-		labelObject = (m_label && m_label->size()>0 ? m_label : 0);
+		labelObject = (m_label && m_label->size() > 0 ? m_label : 0);
+	
 	if (!labelObject)
+	{
 		return;
+	}
 
 	//detach current label from window
 	if (m_associatedWin)
@@ -276,28 +279,40 @@ void ccPointPropertiesDlg::processPickedPoint(ccPointCloud* cloud, unsigned poin
 		return; //we don't use this slot for 2D mode
 	}
 
-	m_label->addPoint(cloud,pointIndex);
+	m_label->addPoint(cloud, pointIndex);
 	m_label->setVisible(true);
+	m_label->displayPointLegend(m_label->size() == 3); //we need to display 'A', 'B' and 'C' for 3-points labels
 	if (m_label->size() == 1 && m_associatedWin)
-		m_label->setPosition(static_cast<float>(x+20)/m_associatedWin->width(),static_cast<float>(y+20)/m_associatedWin->height());
+		m_label->setPosition(static_cast<float>(x + 20) / m_associatedWin->width(), static_cast<float>(y + 20) / m_associatedWin->height());
 
 	//output info to Console
 	QStringList body = m_label->getLabelContent(ccGui::Parameters().displayedNumPrecision);
-	ccLog::Print(QString("[Picked] ")+m_label->getName());
-	for (int i=0; i<body.size(); ++i)
-		ccLog::Print(QString("[Picked]\t- ")+body[i]);
+	ccLog::Print(QString("[Picked] ") + m_label->getName());
+	for (int i = 0; i < body.size(); ++i)
+	{
+		ccLog::Print(QString("[Picked]\t- ") + body[i]);
+	}
 
 	if (m_associatedWin)
+	{
 		m_associatedWin->redraw();
+	}
 }
 
 void ccPointPropertiesDlg::processClickedPoint(int x, int y)
 {
 	if (m_pickingMode != RECT_ZONE)
+	{
 		return;
+	}
 
-	assert(m_rect2DLabel);
-	assert(m_associatedWin);
+	if (!m_rect2DLabel || !m_associatedWin)
+	{
+		assert(false);
+		return;
+	}
+	x = x - m_associatedWin->width() / 2;
+	y = m_associatedWin->height() / 2 - y;
 
 	if (m_rect2DLabel->isSelected()) //already closed? we start a new label
 	{
@@ -306,7 +321,9 @@ void ccPointPropertiesDlg::processClickedPoint(int x, int y)
 						0,0};
 
 		if (m_associatedWin)
+		{
 			m_rect2DLabel->setParameters(m_associatedWin->getViewportParameters());
+		}
 		m_rect2DLabel->setVisible(false);	//=invalid
 		m_rect2DLabel->setSelected(false);	//=not closed
 		m_rect2DLabel->setRoi(roi);
@@ -324,7 +341,9 @@ void ccPointPropertiesDlg::processClickedPoint(int x, int y)
 	}
 
 	if (m_associatedWin)
+	{
 		m_associatedWin->redraw(true, false);
+	}
 }
 
 void ccPointPropertiesDlg::update2DZone(int x, int y, Qt::MouseButtons buttons)
@@ -339,8 +358,9 @@ void ccPointPropertiesDlg::update2DZone(int x, int y, Qt::MouseButtons buttons)
 		return;
 	}
 
-	if (!m_associatedWin || !m_associatedWin->hasFBO()) //we need fast rendering (with FBO) for live update of the rectangle!
+	if (!m_associatedWin)
 	{
+		assert(false);
 		return;
 	}
 

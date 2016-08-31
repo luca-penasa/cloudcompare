@@ -4,11 +4,12 @@
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU Library General Public License as       #
-//#  published by the Free Software Foundation; version 2 of the License.  #
+//#  published by the Free Software Foundation; version 2 or later of the  #
+//#  License.                                                              #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
 //#          COPYRIGHT: EDF R&D / TELECOM ParisTech (ENST-TSI)             #
@@ -39,16 +40,23 @@ public:
 	LSLocalModel(const PointCoordinateType eq[4], const CCVector3 &center, PointCoordinateType squaredRadius)
 		: LocalModel(center, squaredRadius)
 	{
-		memcpy(m_eq,eq,sizeof(PointCoordinateType)*4);
+		memcpy(m_eq, eq, sizeof(PointCoordinateType) * 4);
 	}
 
 	//inherited from LocalModel
-	virtual CC_LOCAL_MODEL_TYPES getType() { return LS; }
+	virtual CC_LOCAL_MODEL_TYPES getType() const { return LS; }
 
 	//inherited from LocalModel
-	virtual ScalarType computeDistanceFromModelToPoint(const CCVector3* P) const
+	virtual ScalarType computeDistanceFromModelToPoint(const CCVector3* P, CCVector3* nearestPoint = 0) const
 	{
-		return fabs( DistanceComputationTools::computePoint2PlaneDistance(P,m_eq) );
+		ScalarType dist = DistanceComputationTools::computePoint2PlaneDistance(P, m_eq);
+
+		if (nearestPoint)
+		{
+			*nearestPoint = *P - dist * CCVector3(m_eq);
+		}
+
+		return fabs(dist);
 	}
 
 protected:
@@ -74,10 +82,10 @@ public:
 	virtual ~DelaunayLocalModel() { if (m_tri) delete m_tri; }
 
 	//inherited from LocalModel
-	virtual CC_LOCAL_MODEL_TYPES getType() { return TRI; }
+	virtual CC_LOCAL_MODEL_TYPES getType() const { return TRI; }
 
 	//inherited from LocalModel
-	virtual ScalarType computeDistanceFromModelToPoint(const CCVector3* P) const
+	virtual ScalarType computeDistanceFromModelToPoint(const CCVector3* P, CCVector3* nearestPoint = 0) const
 	{
 		ScalarType minDist2 = NAN_VALUE;
 		if (m_tri)
@@ -87,9 +95,12 @@ public:
 			for (unsigned i=0; i<numberOfTriangles; ++i)
 			{
 				GenericTriangle* tri = m_tri->_getNextTriangle();
-				ScalarType dist2 = DistanceComputationTools::computePoint2TriangleDistance(P,tri,false);
+				ScalarType dist2 = DistanceComputationTools::computePoint2TriangleDistance(P, tri, false, nearestPoint);
 				if (dist2 < minDist2 || i == 0)
+				{
+					//keep track of the smallest distance
 					minDist2 = dist2;
+				}
 			}
 		}
 
@@ -126,21 +137,28 @@ public:
 		, m_Z(Z)
 		, m_gravityCenter(gravityCenter)
 	{
-		memcpy(m_eq,eq,sizeof(PointCoordinateType)*6);
+		memcpy(m_eq, eq, sizeof(PointCoordinateType) * 6);
 	}
 
 	//inherited from LocalModel
-	virtual CC_LOCAL_MODEL_TYPES getType() { return QUADRIC; }
+	virtual CC_LOCAL_MODEL_TYPES getType() const { return QUADRIC; }
 
 	//inherited from LocalModel
-	virtual ScalarType computeDistanceFromModelToPoint(const CCVector3* _P) const
+	virtual ScalarType computeDistanceFromModelToPoint(const CCVector3* _P, CCVector3* nearestPoint = 0) const
 	{
 		CCVector3 P = *_P - m_gravityCenter;
 
 		//height = h0 + h1.x + h2.y + h3.x^2 + h4.x.y + h5.y^2
 		PointCoordinateType z = m_eq[0] + m_eq[1]*P.u[m_X] + m_eq[2]*P.u[m_Y] + m_eq[3]*P.u[m_X]*P.u[m_X] + m_eq[4]*P.u[m_X]*P.u[m_Y] + m_eq[5]*P.u[m_Y]*P.u[m_Y];
 
-		return static_cast<ScalarType>( fabs(P.u[m_Z] - z) );
+		if (nearestPoint)
+		{
+			nearestPoint->u[m_X] = P.u[m_X];
+			nearestPoint->u[m_Y] = P.u[m_Y];
+			nearestPoint->u[m_Z] = z;
+		}
+
+		return static_cast<ScalarType>(fabs(P.u[m_Z] - z));
 	}
 
 protected:
@@ -164,52 +182,52 @@ LocalModel::LocalModel(const CCVector3 &center, PointCoordinateType squaredRadiu
 {}
 
 LocalModel* LocalModel::New(CC_LOCAL_MODEL_TYPES type,
-							Neighbourhood& subset,
-							const CCVector3 &center,
-							PointCoordinateType squaredRadius)
+	Neighbourhood& subset,
+	const CCVector3 &center,
+	PointCoordinateType squaredRadius)
 {
-	switch(type)
+	switch (type)
 	{
 	case NO_MODEL:
 		assert(false);
 		break;
 
 	case LS:
+	{
+		const PointCoordinateType* lsPlane = subset.getLSPlane();
+		if (lsPlane)
 		{
-			const PointCoordinateType* lsPlane = subset.getLSPlane();
-			if (lsPlane)
-			{
-				return new LSLocalModel(lsPlane,center,squaredRadius);
-			}
+			return new LSLocalModel(lsPlane, center, squaredRadius);
 		}
-		break;
+	}
+	break;
 
 	case TRI:
+	{
+		GenericMesh* tri = subset.triangulateOnPlane(true); //'subset' is potentially associated to a volatile ReferenceCloud, so we must duplicate vertices!
+		if (tri)
 		{
-			GenericMesh* tri = subset.triangulateOnPlane(true); //'subset' is potentially associated to a volatile ReferenceCloud, so we must duplicate vertices!
-			if (tri)
-			{
-				return new DelaunayLocalModel(tri,center,squaredRadius);
-			}
+			return new DelaunayLocalModel(tri, center, squaredRadius);
 		}
-		break;
+	}
+	break;
 
 	case QUADRIC:
+	{
+		Tuple3ub dims;
+		const PointCoordinateType* eq = subset.getQuadric(&dims);
+		if (eq)
 		{
-			Tuple3ub dims;
-			const PointCoordinateType* eq = subset.getQuadric(&dims);
-			if (eq)
-			{
-				return new QuadricLocalModel(	eq,
-												dims.x,
-												dims.y,
-												dims.z,
-												*subset.getGravityCenter(), //should be ok as the quadric computation succeeded!
-												center,
-												squaredRadius );
-			}
+			return new QuadricLocalModel(	eq,
+											dims.x,
+											dims.y,
+											dims.z,
+											*subset.getGravityCenter(), //should be ok as the quadric computation succeeded!
+											center,
+											squaredRadius);
 		}
-		break;
+	}
+	break;
 	}
 
 	//invalid input type or computation failed!

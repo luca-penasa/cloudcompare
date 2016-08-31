@@ -4,11 +4,12 @@
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU Library General Public License as       #
-//#  published by the Free Software Foundation; version 2 of the License.  #
+//#  published by the Free Software Foundation; version 2 or later of the  #
+//#  License.                                                              #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
 //#          COPYRIGHT: EDF R&D / TELECOM ParisTech (ENST-TSI)             #
@@ -156,18 +157,18 @@ bool CCMiscTools::TriBoxOverlap(const CCVector3& boxcenter, const CCVector3& box
 	/*  the triangle against the AABB */
 
 	/* test in 0-direction */
-	FINDMINMAX(v0[0],v1[0],v2[0],minV,maxV);
-	if (minV>boxhalfSize.x || maxV<-boxhalfSize.x)
+	FINDMINMAX(v0[0], v1[0], v2[0], minV, maxV);
+	if (minV > boxhalfSize.x || maxV<-boxhalfSize.x)
 		return false;
 
 	/* test in 1-direction */
-	FINDMINMAX(v0[1],v1[1],v2[1],minV,maxV);
+	FINDMINMAX(v0[1], v1[1], v2[1], minV, maxV);
 	if (minV>boxhalfSize.y || maxV<-boxhalfSize.y)
 		return false;
 
 	/* test in 2-direction */
-	FINDMINMAX(v0[2],v1[2],v2[2],minV,maxV);
-	if (minV>boxhalfSize.z || maxV<-boxhalfSize.z)
+	FINDMINMAX(v0[2], v1[2], v2[2], minV, maxV);
+	if (minV>boxhalfSize.z || maxV < -boxhalfSize.z)
 		return false;
 
 	/* Bullet 2: */

@@ -1,14 +1,14 @@
 //##########################################################################
 //#                                                                        #
-//#                            CLOUDCOMPARE                                #
+//#                              CLOUDCOMPARE                              #
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU General Public License as published by  #
-//#  the Free Software Foundation; version 2 of the License.               #
+//#  the Free Software Foundation; version 2 or later of the License.      #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
 //#          COPYRIGHT: EDF R&D / TELECOM ParisTech (ENST-TSI)             #
@@ -22,9 +22,11 @@
 
 //combo-box items order
 const int COMBO_INDEX_RED_BLUE  = 0;
-const int COMBO_INDEX_RED_CYAN  = 1;
-const int COMBO_INDEX_NV_VISION = 2;
-const int COMBO_INDEX_OCULUS    = 3;
+const int COMBO_INDEX_BLUE_RED  = 1;
+const int COMBO_INDEX_RED_CYAN  = 2;
+const int COMBO_INDEX_CYAN_RED  = 3;
+const int COMBO_INDEX_NV_VISION = 4;
+const int COMBO_INDEX_OCULUS    = 5;
 
 ccStereoModeDlg::ccStereoModeDlg(QWidget* parent)
 	: QDialog(parent, Qt::Tool)
@@ -39,7 +41,47 @@ ccStereoModeDlg::ccStereoModeDlg(QWidget* parent)
 
 void ccStereoModeDlg::glassTypeChanged(int index)
 {
-	NVVisionWarningTextEdit->setVisible(index == COMBO_INDEX_NV_VISION);
+	switch (index)
+	{
+	case COMBO_INDEX_RED_BLUE:
+	case COMBO_INDEX_RED_CYAN:
+	case COMBO_INDEX_BLUE_RED:
+	case COMBO_INDEX_CYAN_RED:
+		paramsGroupBox->setEnabled(true);
+		warningTextEdit->setVisible(false);
+		break;
+	case COMBO_INDEX_NV_VISION:
+		paramsGroupBox->setEnabled(true);
+		warningTextEdit->setVisible(true);
+		warningTextEdit->setHtml(
+			"To make this mode work properly make sure that:\
+			<ul>\
+			<li>the NVidia Vision IR emitter is plugged and enabled (<i>dim green light</i>)</li>\
+			<li>3D stereo mode is activated in the NVidia Control Pannel</li>\
+			<li><b>the screen frequency is set to 120Hz</b></li>\
+			<li>the glasses are switched on</li>\
+			</ul>\
+			Note: the current 3D view will be automatically displayed in exclusive full screen mode (<i>press F11 to quit this mode</i>)"
+			);
+		break;
+	case COMBO_INDEX_OCULUS:
+		paramsGroupBox->setEnabled(false);
+		warningTextEdit->setVisible(true);
+		warningTextEdit->setText(
+			"To use the Oculus Rift make sure that:\
+			<ul>\
+			<li>the entities units are expressed in <b>meters</b> (<i>use the 'Edit > Scale' tool if necessary</i>)</li>\
+			<li>position the headset in a neutral position before clicking on 'OK'</li>\
+			</ul>\
+			Note: this mode works best in 'bubble view' mode"
+			);
+		break;
+	default:
+		assert(false);
+		paramsGroupBox->setEnabled(false);
+		warningTextEdit->setVisible(false);
+		break;
+	}
 }
 
 ccGLWindow::StereoParams ccStereoModeDlg::getParameters() const
@@ -52,9 +94,15 @@ ccGLWindow::StereoParams ccStereoModeDlg::getParameters() const
 	case COMBO_INDEX_RED_BLUE:
 		params.glassType = ccGLWindow::StereoParams::RED_BLUE;
 		break;
+	case COMBO_INDEX_BLUE_RED:
+		params.glassType = ccGLWindow::StereoParams::BLUE_RED;
+		break;
 	case COMBO_INDEX_RED_CYAN:
 	default:
 		params.glassType = ccGLWindow::StereoParams::RED_CYAN;
+		break;
+	case COMBO_INDEX_CYAN_RED:
+		params.glassType = ccGLWindow::StereoParams::CYAN_RED;
 		break;
 	case COMBO_INDEX_NV_VISION:
 		params.glassType = ccGLWindow::StereoParams::NVIDIA_VISION;
@@ -82,8 +130,14 @@ void ccStereoModeDlg::setParameters(const ccGLWindow::StereoParams& params)
 	case ccGLWindow::StereoParams::RED_BLUE:
 		glassTypeComboBox->setCurrentIndex(COMBO_INDEX_RED_BLUE);
 		break;
+	case ccGLWindow::StereoParams::BLUE_RED:
+		glassTypeComboBox->setCurrentIndex(COMBO_INDEX_BLUE_RED);
+		break;
 	case ccGLWindow::StereoParams::RED_CYAN:
 		glassTypeComboBox->setCurrentIndex(COMBO_INDEX_RED_CYAN);
+		break;
+	case ccGLWindow::StereoParams::CYAN_RED:
+		glassTypeComboBox->setCurrentIndex(COMBO_INDEX_CYAN_RED);
 		break;
 	case ccGLWindow::StereoParams::NVIDIA_VISION:
 		glassTypeComboBox->setCurrentIndex(COMBO_INDEX_NV_VISION);

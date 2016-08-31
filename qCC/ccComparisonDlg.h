@@ -1,14 +1,14 @@
 //##########################################################################
 //#                                                                        #
-//#                            CLOUDCOMPARE                                #
+//#                              CLOUDCOMPARE                              #
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU General Public License as published by  #
-//#  the Free Software Foundation; version 2 of the License.               #
+//#  the Free Software Foundation; version 2 or later of the License.      #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
 //#          COPYRIGHT: EDF R&D / TELECOM ParisTech (ENST-TSI)             #
@@ -18,10 +18,12 @@
 #ifndef CC_COMPARISON_DIALOG_HEADER
 #define CC_COMPARISON_DIALOG_HEADER
 
+//qCC_db
+#include <ccOctree.h>
+
+//Qt
 #include <QDialog>
 #include <QString>
-
-#include <DgmOctree.h>
 
 #include <ui_comparisonDlg.h>
 
@@ -84,7 +86,7 @@ protected:
 	//! Compared entity equivalent cloud
 	ccPointCloud* m_compCloud;
 	//! Compared entity's octree
-	CCLib::DgmOctree* m_compOctree;
+	ccOctree::Shared m_compOctree;
 	//! Whether the compared entity octree is partial or not
 	bool m_compOctreeIsPartial;
 	//! Initial compared entity visibility
@@ -97,7 +99,7 @@ protected:
 	//! Reference entity equivalent mesh (if any)
 	ccGenericMesh* m_refMesh;
 	//! Reference entity's octree
-	CCLib::DgmOctree* m_refOctree;
+	ccOctree::Shared m_refOctree;
 	//! Whether the reference entity octree is partial or not
 	bool m_refOctreeIsPartial;
 	//! Initial reference entity visibility
@@ -111,9 +113,6 @@ protected:
 
 	//! Initial SF name enabled on the compared entity
 	QString m_oldSfName;
-
-	//! Whether the current SF is a distance field or not
-	bool m_currentSFIsDistance;
 
 	//! Whether a display is active (and should be refreshed) or not
 	bool m_noDisplay;

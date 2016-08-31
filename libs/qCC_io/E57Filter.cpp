@@ -1,14 +1,14 @@
 //##########################################################################
 //#                                                                        #
-//#                            CLOUDCOMPARE                                #
+//#                              CLOUDCOMPARE                              #
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU General Public License as published by  #
-//#  the Free Software Foundation; version 2 of the License.               #
+//#  the Free Software Foundation; version 2 or later of the License.      #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
 //#          COPYRIGHT: EDF R&D / TELECOM ParisTech (ENST-TSI)             #
@@ -452,8 +452,8 @@ bool SaveScan(ccPointCloud* cloud, e57::StructureNode& scanNode, e57::ImageFile&
 	CCLib::NormalizedProgress nprogress(progressDlg, pointCount);
 	if (progressDlg)
 	{
-		progressDlg->setMethodTitle("Write E57 file");
-		progressDlg->setInfo(qPrintable(QString("Scan #%1 - %2 points").arg(s_absoluteScanIndex).arg(pointCount)));
+		progressDlg->setMethodTitle(QObject::tr("Write E57 file"));
+		progressDlg->setInfo(QObject::tr("Scan #%1 - %2 points").arg(s_absoluteScanIndex).arg(pointCount));
 		progressDlg->start();
 		QApplication::processEvents();
 	}
@@ -744,8 +744,8 @@ CC_FILE_ERROR E57Filter::saveToFile(ccHObject* entity, QString filename, SavePar
 				{
 					//progress bar
 					CCLib::NormalizedProgress nprogress(&progressDlg, imageCount);
-					progressDlg.setMethodTitle("Write E57 file");
-					progressDlg.setInfo(qPrintable(QString("Cloud #%1 - Images: %2").arg(i).arg(imageCount)));
+					progressDlg.setMethodTitle(QObject::tr("Write E57 file"));
+					progressDlg.setInfo(QObject::tr("Cloud #%1 - Images: %2").arg(i).arg(imageCount));
 					progressDlg.start();
 					QApplication::processEvents();
 
@@ -1630,8 +1630,8 @@ ccHObject* LoadScan(e57::Node& node, QString& guidStr, ccProgressDialog* progres
 	CCLib::NormalizedProgress nprogress(progressDlg, static_cast<unsigned>(pointCount / chunkSize));
 	if (progressDlg)
 	{
-		progressDlg->setMethodTitle("Read E57 file");
-		progressDlg->setInfo(qPrintable(QString("Scan #%1 - %2 points").arg(s_absoluteScanIndex).arg(pointCount)));
+		progressDlg->setMethodTitle(QObject::tr("Read E57 file"));
+		progressDlg->setInfo(QObject::tr("Scan #%1 - %2 points").arg(s_absoluteScanIndex).arg(pointCount));
 		progressDlg->start();
 		QApplication::processEvents();
 	}
@@ -1958,7 +1958,7 @@ ccHObject* LoadImage(e57::Node& node, QString& associatedData3DGuid)
 			assert(cameraRepresentationNode.isDefined("jpegImage"));
 			e57::BlobNode jpegImage(cameraRepresentationNode.get("jpegImage"));
 			jpegImage.read(imageBits, 0, (size_t)visualRefRepresentation->imageSize);
-//#ifdef _DEBUG
+//#ifdef QT_DEBUG
 //			FILE* fp = fopen("test_e57.jpg","wb");
 //			fwrite(imageBits,visualRefRepresentation->imageSize,1,fp);
 //			fclose(fp);
@@ -2057,7 +2057,7 @@ ccHObject* LoadImage(e57::Node& node, QString& associatedData3DGuid)
 		cameraType == E57_SPHERICAL)
 	{
 		SphericalRepresentation* spherical = static_cast<SphericalRepresentation*>(cameraRepresentation);
-		imageObj->setAspectRatio(static_cast<float>(spherical->pixelWidth/spherical->pixelHeight) * imageObj->getAspectRatio());
+		imageObj->setAspectRatio(static_cast<float>(spherical->pixelWidth / spherical->pixelHeight) * imageObj->getAspectRatio());
 	}
 
 	if (cameraRepresentation)
@@ -2143,8 +2143,8 @@ CC_FILE_ERROR E57Filter::loadFile(QString filename, ccHObject& container, LoadPa
 			if (showGlobalProgress)
 			{
 				//Too many scans, will display a global progress bar
-				progressDlg.setMethodTitle("Read E57 file");
-				progressDlg.setInfo(qPrintable(QString("Scans: %1").arg(scanCount)));
+				progressDlg.setMethodTitle(QObject::tr("Read E57 file"));
+				progressDlg.setInfo(QObject::tr("Scans: %1").arg(scanCount));
 				progressDlg.start();
 				QApplication::processEvents();
 			}
@@ -2218,8 +2218,8 @@ CC_FILE_ERROR E57Filter::loadFile(QString filename, ccHObject& container, LoadPa
 				//progress bar
 				ccProgressDialog progressDlg(true, parameters.parentWidget);
 				CCLib::NormalizedProgress nprogress(&progressDlg,imageCount);
-				progressDlg.setMethodTitle("Read E57 file");
-				progressDlg.setInfo(qPrintable(QString("Images: %1").arg(imageCount)));
+				progressDlg.setMethodTitle(QObject::tr("Read E57 file"));
+				progressDlg.setInfo(QObject::tr("Images: %1").arg(imageCount));
 				progressDlg.start();
 				QApplication::processEvents();
 

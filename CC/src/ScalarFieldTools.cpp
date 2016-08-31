@@ -4,11 +4,12 @@
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU Library General Public License as       #
-//#  published by the Free Software Foundation; version 2 of the License.  #
+//#  published by the Free Software Foundation; version 2 or later of the  #
+//#  License.                                                              #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
 //#          COPYRIGHT: EDF R&D / TELECOM ParisTech (ENST-TSI)             #
@@ -269,11 +270,14 @@ bool ScalarFieldTools::applyScalarFieldGaussianFilter(PointCoordinateType sigma,
 
 	if (progressCb)
 	{
-		progressCb->reset();
-		progressCb->setMethodTitle("Gaussian filter");
-		char infos[256];
-		sprintf(infos,"Level: %i\n",level);
-		progressCb->setInfo(infos);
+		if (progressCb->textCanBeEdited())
+		{
+			progressCb->setMethodTitle("Gaussian filter");
+			char infos[256];
+			sprintf(infos, "Level: %i\n", level);
+			progressCb->setInfo(infos);
+		}
+		progressCb->update(0);
 	}
 
     void* additionalParameters[2] = {	reinterpret_cast<void*>(&sigma),
@@ -683,12 +687,15 @@ bool ScalarFieldTools::computeKmeans(	const GenericCloud* theCloud,
 		{
 			if (iteration == 1)
 			{
-				progressCb->reset();
-				progressCb->setMethodTitle("KMeans");
-				char buffer[256];
-				sprintf(buffer,"K=%i",K);
-				progressCb->setInfo(buffer);
-				progressCb->start();
+				if (progressCb->textCanBeEdited())
+				{
+					progressCb->setMethodTitle("KMeans");
+					char buffer[256];
+					sprintf(buffer, "K=%i", K);
+					progressCb->setInfo(buffer);
+					progressCb->start();
+				}
+				progressCb->update(0);
 				initialCMD = classMovingDist;
 			}
 			else

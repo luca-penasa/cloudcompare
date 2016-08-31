@@ -1,14 +1,14 @@
 //##########################################################################
 //#                                                                        #
-//#                            CLOUDCOMPARE                                #
+//#                              CLOUDCOMPARE                              #
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU General Public License as published by  #
-//#  the Free Software Foundation; version 2 of the License.               #
+//#  the Free Software Foundation; version 2 or later of the License.      #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
 //#          COPYRIGHT: EDF R&D / TELECOM ParisTech (ENST-TSI)             #
@@ -19,20 +19,11 @@
 #define CC_CAMERA_SENSOR_HEADER
 
 //local
-#include "qCC_db.h"
 #include "ccSensor.h"
 #include "ccOctree.h"
 
-//CCLib
-#include <ReferenceCloud.h>
-#include <DgmOctree.h>
-
-//Qt
-#include <QSharedPointer>
-
 //system
 #include <unordered_set>
-#include <assert.h>
 
 class ccPointCloud;
 class ccMesh;
@@ -75,8 +66,10 @@ public: //general
 
 	//! Supported distortion models
 	enum DistortionModel {	NO_DISTORTION_MODEL = 0,			/**< no distortion model **/
-							SIMPLE_RADIAL_DISTORTION = 1,		/**< simple radial distortion model (k1,k2) **/
-							BROWN_DISTORTION = 2 };				/**< Brown's distortion model (k1,k2,k3,etc.) **/
+							SIMPLE_RADIAL_DISTORTION = 1,		/**< simple radial distortion model (k1, k2) **/
+							BROWN_DISTORTION = 2,				/**< Brown's distortion model (k1, k2, k3, etc.) **/
+							EXTENDED_RADIAL_DISTORTION = 3		/**< extended radial distortion model (k1, k2, k3) **/
+	};
 
 	//! Lens distortion parameters (interface)
 	struct LensDistortionParameters
@@ -101,12 +94,28 @@ public: //general
 		RadialDistortionParameters() : k1(0), k2(0) {}
 		
 		//inherited from LensDistortionParameters
-		inline DistortionModel getModel() const { return SIMPLE_RADIAL_DISTORTION; }
+		inline virtual DistortionModel getModel() const override { return SIMPLE_RADIAL_DISTORTION; }
 
 		//! 1st radial distortion coefficient
 		float k1;
 		//! 2nd radial distortion coefficient
 		float k2;
+	};
+
+	//! Extended radial distortion model
+	struct QCC_DB_LIB_API ExtendedRadialDistortionParameters : RadialDistortionParameters
+	{
+		//! Shared pointer type
+		typedef QSharedPointer<RadialDistortionParameters> Shared;
+
+		//! Default initializer
+		ExtendedRadialDistortionParameters() : RadialDistortionParameters(), k3(0) {}
+
+		//inherited from LensDistortionParameters
+		inline virtual DistortionModel getModel() const override { return EXTENDED_RADIAL_DISTORTION; }
+
+		//! 3rd radial distortion coefficient
+		float k3;
 	};
 
 	//! Brown's distortion model + Linear Disparity
@@ -124,7 +133,7 @@ public: //general
 		BrownDistortionParameters();
 
 		//inherited from LensDistortionParameters
-		inline DistortionModel getModel() const { return BROWN_DISTORTION; }
+		inline virtual DistortionModel getModel() const override { return BROWN_DISTORTION; }
 
 		//! Helper: initializes a IntrinsicParameters structure with the default Kinect parameters
 		static void GetKinectDefaults(BrownDistortionParameters& params);
@@ -136,7 +145,7 @@ public: //general
 	};
 
 	//! Frustum information structure
-	/** Used to draw the frustrum associated to a camera sensor.
+	/** Used to draw the frustum associated to a camera sensor.
 	**/
 	struct QCC_DB_LIB_API FrustumInformation
 	{
@@ -145,21 +154,21 @@ public: //general
 		//! Destructor
 		~FrustumInformation();
 
-		//! Reserves memory for the frustrum corners cloud
+		//! Reserves memory for the frustum corners cloud
 		/** Warning: reset the cloud contents!
 		**/
-		bool initFrustrumCorners();
-		//! Creates the frustrum hull mesh
-		/** The frustrum corners must have already been setup!
+		bool initFrustumCorners();
+		//! Creates the frustum hull mesh
+		/** The frustum corners must have already been setup!
 			\return success
 		**/
-		bool initFrustrumHull();
+		bool initFrustumHull();
 
 		bool isComputed;
 		bool drawFrustum;
 		bool drawSidePlanes;
 		ccPointCloud* frustumCorners;
-		ccMesh* frustrumHull;
+		ccMesh* frustumHull;
 		CCVector3 center;					/**< center of the circumscribed sphere **/
 	};
 
@@ -174,13 +183,13 @@ public: //general
 	virtual ~ccCameraSensor();
 
 	//inherited from ccHObject
-	virtual CC_CLASS_ENUM getClassID() const { return CC_TYPES::CAMERA_SENSOR; }
-	virtual bool isSerializable() const { return true; }
-	virtual ccBBox getOwnBB(bool withGLFeatures = false);
-	virtual ccBBox getOwnFitBB(ccGLMatrix& trans);
+	virtual CC_CLASS_ENUM getClassID() const override { return CC_TYPES::CAMERA_SENSOR; }
+	virtual bool isSerializable() const override { return true; }
+	virtual ccBBox getOwnBB(bool withGLFeatures = false) override;
+	virtual ccBBox getOwnFitBB(ccGLMatrix& trans) override;
 
 	//inherited from ccSensor
-	virtual bool applyViewport(ccGenericGLDisplay* win = 0);
+	virtual bool applyViewport(ccGenericGLDisplay* win = 0) override;
 
 public: //getters and setters
 
@@ -214,19 +223,19 @@ public: //getters and setters
 	**/
 	bool getProjectionMatrix(ccGLMatrix& matrix);
 	
-public: //frustrum display
+public: //frustum display
 
 	//! Returns whether the frustum should be displayed or not
-	inline bool frustrumIsDrawn() const { return m_frustrumInfos.drawFrustum; }
+	inline bool frustumIsDrawn() const { return m_frustumInfos.drawFrustum; }
 
 	//! Sets whether the frustum should be displayed or not
-	inline void drawFrustrum(bool state) { m_frustrumInfos.drawFrustum = state; }
+	inline void drawFrustum(bool state) { m_frustumInfos.drawFrustum = state; }
 
 	//! Returns whether the frustum planes should be displayed or not
-	inline bool frustrumPlanesAreDrawn() const { return m_frustrumInfos.drawSidePlanes; }
+	inline bool frustumPlanesAreDrawn() const { return m_frustumInfos.drawSidePlanes; }
 
 	//! Sets whether the frustum planes should be displayed or not
-	inline void drawFrustrumPlanes(bool state) { m_frustrumInfos.drawSidePlanes = state; }
+	inline void drawFrustumPlanes(bool state) { m_frustumInfos.drawSidePlanes = state; }
 
 public: //coordinate systems conversion methods
 
@@ -353,7 +362,6 @@ public: //orthorectification tools
 		orthorectification 'altitude'.
 		\param image input image
 		\param altitude orthorectification altitude
-		\param keypointsImage corresponding keypoints in image
 		\param pixelSize pixel size (auto if -1)
 		\param undistortImages whether images should be undistorted or not
 		\param minCorner (optional) outputs 3D min corner (2 values)
@@ -392,6 +400,7 @@ public: //orthorectification tools
 		Collinearity equation:
 		* x'i = (a0+a1.xi+a2.yi)/(1+c1.xi+c2.yi)
 		* y'i = (b0+b1.xi+b2.yi)/(1+c1.xi+c2.yi)
+		\param image input image
 		\param keypoints3D keypoints in 3D
 		\param keypointsImage corresponding keypoints in image
 		\param a a0, a1 & a2 parameters
@@ -446,16 +455,16 @@ public: //misc
 		//TODO withLensCorrection if we want to take the lens distortion into consideration
 		\return if operation has succeded
 	**/ 
-	bool isGlobalCoordInFrustrum(const CCVector3& globalCoord/*, bool withLensCorrection*/);
+	bool isGlobalCoordInFrustum(const CCVector3& globalCoord/*, bool withLensCorrection*/);
 
-	//! Compute the coefficients of the 6 planes frustrum in the global coordinates system (normal vector are headed the frustrum inside), the edges direction vectors and the frustrum center
+	//! Compute the coefficients of the 6 planes frustum in the global coordinates system (normal vector are headed the frustum inside), the edges direction vectors and the frustum center
 	/** \param planeCoefficients coefficients of the six planes
-		\param edges direction vectors of the frustrum edges (there are 12 edges but some of them are colinear)
-		\param ptsFrustrum the 8 frustrum corners in the global coordinates system
-		\param center center of the the frustrum circumscribed sphere 
+		\param edges direction vectors of the frustum edges (there are 12 edges but some of them are colinear)
+		\param ptsFrustum the 8 frustum corners in the global coordinates system
+		\param center center of the the frustum circumscribed sphere 
 		\return success
 	**/
-	bool computeGlobalPlaneCoefficients(float planeCoefficients[6][4], CCVector3 ptsFrustrum[8], CCVector3 edges[6], CCVector3& center);
+	bool computeGlobalPlaneCoefficients(float planeCoefficients[6][4], CCVector3 ptsFrustum[8], CCVector3 edges[6], CCVector3& center);
 
 public: //helpers
 
@@ -479,15 +488,15 @@ protected:
 	//! Compute the projection matrix (from intrinsic parameters)
 	void computeProjectionMatrix();
 
-	//! Computes the eight corners of the frustrum
+	//! Computes the eight corners of the frustum
 	/** \return success
 	**/
 	bool computeFrustumCorners();
 
 	//Inherited from ccHObject
-	virtual bool toFile_MeOnly(QFile& out) const;
-	virtual bool fromFile_MeOnly(QFile& in, short dataVersion, int flags);
-	virtual void drawMeOnly(CC_DRAW_CONTEXT& context);
+	virtual bool toFile_MeOnly(QFile& out) const override;
+	virtual bool fromFile_MeOnly(QFile& in, short dataVersion, int flags) override;
+	virtual void drawMeOnly(CC_DRAW_CONTEXT& context) override;
 
 	//! Camera intrinsic parameters
 	IntrinsicParameters m_intrinsicParams;
@@ -495,10 +504,10 @@ protected:
 	//! Lens distortion parameters 
 	LensDistortionParameters::Shared m_distortionParams;
 
-	//! Frustrum information structure
+	//! Frustum information structure
 	/** Used to draw it properly.
 	**/
-	FrustumInformation m_frustrumInfos;
+	FrustumInformation m_frustumInfos;
 
 	//! Intrinsic parameters matrix
 	ccGLMatrix m_projectionMatrix;
@@ -506,59 +515,59 @@ protected:
 	bool m_projectionMatrixIsValid;
 };
 
-class ccOctreeFrustrumIntersector
+class ccOctreeFrustumIntersector
 {
 public:
-	//! Definition of the state of a cell compared to a frustrum
-	/** OUTSIDE : the celle is completely outside the frustrum (no intersection, no inclusion)
-		INSIDE : the cell is completely inside the frustrum
-		INTERSECT : other cases --> the frustrum is completely inside the cell OR the frustrum and the cell have an intersection
+	//! Definition of the state of a cell compared to a frustum
+	/** OUTSIDE : the celle is completely outside the frustum (no intersection, no inclusion)
+		INSIDE : the cell is completely inside the frustum
+		INTERSECT : other cases --> the frustum is completely inside the cell OR the frustum and the cell have an intersection
 	**/
 	enum OctreeCellVisibility
 	{
-		CELL_OUTSIDE_FRUSTRUM	= 0,
-		CELL_INSIDE_FRUSTRUM	= 1,
-		CELL_INTERSECT_FRUSTRUM	= 2,
+		CELL_OUTSIDE_FRUSTUM	= 0,
+		CELL_INSIDE_FRUSTUM	= 1,
+		CELL_INTERSECT_FRUSTUM	= 2,
 	};
 
 	//! Default constructor
-	ccOctreeFrustrumIntersector()
+	ccOctreeFrustumIntersector()
 		: m_associatedOctree(0)
 	{
 	}
 
-	//! Prepares structure for frustrum filtering
+	//! Prepares structure for frustum filtering
 	bool build(CCLib::DgmOctree* octree);
 
 	//! Returns the cell visibility
-	OctreeCellVisibility positionFromFrustum(CCLib::DgmOctree::OctreeCellCodeType truncatedCode, unsigned char level) const
+	OctreeCellVisibility positionFromFrustum(CCLib::DgmOctree::CellCode truncatedCode, unsigned char level) const
 	{
 		assert(m_associatedOctree);
 
-		std::unordered_set<CCLib::DgmOctree::OctreeCellCodeType>::const_iterator got = m_cellsInFrustum[level].find(truncatedCode);
+		std::unordered_set<CCLib::DgmOctree::CellCode>::const_iterator got = m_cellsInFrustum[level].find(truncatedCode);
 		if (got != m_cellsInFrustum[level].end())
-			return CELL_INSIDE_FRUSTRUM;
+			return CELL_INSIDE_FRUSTUM;
 		got = m_cellsIntersectFrustum[level].find(truncatedCode);
 		if (got != m_cellsIntersectFrustum[level].end())
-			return CELL_INTERSECT_FRUSTRUM;
-		return CELL_OUTSIDE_FRUSTRUM;
+			return CELL_INTERSECT_FRUSTUM;
+		return CELL_OUTSIDE_FRUSTUM;
 	}
 
-	//! Compute intersection betwen the octree and a frustrum and send back the indices of 3D points inside the frustrum or in cells interescting it. 
-	/** Every cells of each level of the octree will be classified as INSIDE, OUTSIDE or INTERSECTING the frustrum. 
+	//! Compute intersection betwen the octree and a frustum and send back the indices of 3D points inside the frustum or in cells interescting it. 
+	/** Every cells of each level of the octree will be classified as INSIDE, OUTSIDE or INTERSECTING the frustum. 
 		Their truncated code are then stored in m_cellsInFrustum (for cells INSIDE) or m_cellsIntersectFrustum (for 
 		cells INTERSECTING).
 		\param pointsToTest contains the indice and 3D position (global coordinates system) of every 3D points stored in an INTERSECTING cell
-		\param inCameraFrustrum contains the indice of every 3D points stored in an INSIDE cell
-		\param planesCoefficients coefficients (a, b, c and d) of the six frustrum planes (0:right, 1:bottom, 2:left, 3:top, 4:near, 5:far)
-		\param ptsFrustrum 3D coordinates of the eight corners of the frustrum (global coordinates sytem)
-		\param edges 3D coordinates (global coordinates sytem) of the six director vector of the frustrum edges
-		\param center 3D coordinates of the frustrum center (global coordinates sytem) ; this is the center of the circumscribed sphere
+		\param inCameraFrustum contains the indice of every 3D points stored in an INSIDE cell
+		\param planesCoefficients coefficients (a, b, c and d) of the six frustum planes (0:right, 1:bottom, 2:left, 3:top, 4:near, 5:far)
+		\param ptsFrustum 3D coordinates of the eight corners of the frustum (global coordinates sytem)
+		\param edges 3D coordinates (global coordinates sytem) of the six director vector of the frustum edges
+		\param center 3D coordinates of the frustum center (global coordinates sytem) ; this is the center of the circumscribed sphere
 	**/
 	void computeFrustumIntersectionWithOctree(	std::vector< std::pair<unsigned, CCVector3> >& pointsToTest,
-												std::vector<unsigned>& inCameraFrustrum,
+												std::vector<unsigned>& inCameraFrustumrustum,
 												const float planesCoefficients[6][4],
-												const CCVector3 ptsFrustrum[8],
+												const CCVector3 ptsFrustum[8],
 												const CCVector3 edges[6],
 												const CCVector3& center);
 	
@@ -566,16 +575,16 @@ public:
 	/** \param level current level
 		\param parentTruncatedCode truncated code of the parent cell (at level-1)
 		\param parentResult contains in which class the parent cell has been classified (OUTSIDE, INTERSECTING, INSIDE)
-		\param planesCoefficients coefficients (a, b, c and d) of the six frustrum planes (0:right, 1:bottom, 2:left, 3:top, 4:near, 5:far)
-		\param ptsFrustrum 3D coordinates of the eight corners of the frustrum (global coordinates sytem)
-		\param edges 3D coordinates (global coordinates sytem) of the six director vector of the frustrum edges
-		\param center 3D coordinates of the frustrum center (global coordinates sytem) ; this is the center of the circumscribed sphere
+		\param planesCoefficients coefficients (a, b, c and d) of the six frustum planes (0:right, 1:bottom, 2:left, 3:top, 4:near, 5:far)
+		\param ptsFrustum 3D coordinates of the eight corners of the frustum (global coordinates sytem)
+		\param edges 3D coordinates (global coordinates sytem) of the six director vector of the frustum edges
+		\param center 3D coordinates of the frustum center (global coordinates sytem) ; this is the center of the circumscribed sphere
 	**/
 	void computeFrustumIntersectionByLevel(	unsigned char level,
-											CCLib::DgmOctree::OctreeCellCodeType parentTruncatedCode,
+											CCLib::DgmOctree::CellCode parentTruncatedCode,
 											OctreeCellVisibility parentResult,
 											const float planesCoefficients[6][4],
-											const CCVector3 ptsFrustrum[8],
+											const CCVector3 ptsFrustum[8],
 											const CCVector3 edges[6],
 											const CCVector3& center);
 	
@@ -584,28 +593,28 @@ public:
 		See	"OBBTree: A Hierarchical Structure for Rapid Interference Detection" of S. Gottschalk, M. C. Lin and D. Manocha
 		\param bbMin minimum coordinates of the cell
 		\param bbMax maximum coordinates of the cell
-		\param planesCoefficients coefficients (a, b, c and d) of the six frustrum planes (0:right, 1:bottom, 2:left, 3:top, 4:near, 5:far)
-		\param frustrumCorners 3D coordinates of the eight corners of the frustrum (global coordinates sytem)
-		\param frustrumEdges 3D coordinates (global coordinates sytem) of the six director vector of the frustrum edges
-		\param frustrumCenter 3D coordinates of the frustrum center (global coordinates sytem) ; this is the center of the circumscribed sphere
+		\param planesCoefficients coefficients (a, b, c and d) of the six frustum planes (0:right, 1:bottom, 2:left, 3:top, 4:near, 5:far)
+		\param frustumCorners 3D coordinates of the eight corners of the frustum (global coordinates sytem)
+		\param frustumEdges 3D coordinates (global coordinates sytem) of the six director vector of the frustum edges
+		\param frustumCenter 3D coordinates of the frustum center (global coordinates sytem) ; this is the center of the circumscribed sphere
 	**/
 	OctreeCellVisibility separatingAxisTest(const CCVector3& bbMin,
 											const CCVector3& bbMax,
 											const float planesCoefficients[6][4],
-											const CCVector3 frustrumCorners[8],
-											const CCVector3 frustrumEdges[6],
-											const CCVector3& frustrumCenter);
+											const CCVector3 frustumCorners[8],
+											const CCVector3 frustumEdges[6],
+											const CCVector3& frustumCenter);
 
 protected:
 
 	CCLib::DgmOctree* m_associatedOctree;
 
 	// contains the truncated code of the cells built in the octree
-	std::unordered_set<CCLib::DgmOctree::OctreeCellCodeType> m_cellsBuilt[CCLib::DgmOctree::MAX_OCTREE_LEVEL+1];
-	// contains the truncated code of the cells INSIDE the frustrum
-	std::unordered_set<CCLib::DgmOctree::OctreeCellCodeType> m_cellsInFrustum[CCLib::DgmOctree::MAX_OCTREE_LEVEL+1];
-	// contains the truncated code of the cells INTERSECTING the frustrum
-	std::unordered_set<CCLib::DgmOctree::OctreeCellCodeType> m_cellsIntersectFrustum[CCLib::DgmOctree::MAX_OCTREE_LEVEL+1];
+	std::unordered_set<CCLib::DgmOctree::CellCode> m_cellsBuilt[CCLib::DgmOctree::MAX_OCTREE_LEVEL+1];
+	// contains the truncated code of the cells INSIDE the frustum
+	std::unordered_set<CCLib::DgmOctree::CellCode> m_cellsInFrustum[CCLib::DgmOctree::MAX_OCTREE_LEVEL+1];
+	// contains the truncated code of the cells INTERSECTING the frustum
+	std::unordered_set<CCLib::DgmOctree::CellCode> m_cellsIntersectFrustum[CCLib::DgmOctree::MAX_OCTREE_LEVEL+1];
 };
 
 

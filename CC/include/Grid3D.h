@@ -4,11 +4,12 @@
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU Library General Public License as       #
-//#  published by the Free Software Foundation; version 2 of the License.  #
+//#  published by the Free Software Foundation; version 2 or later of the  #
+//#  License.                                                              #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
 //#          COPYRIGHT: EDF R&D / TELECOM ParisTech (ENST-TSI)             #
@@ -19,10 +20,10 @@
 #define GRID_3D_HEADER
 
 //Local
-#include "CCGeom.h"
-#include "CCConst.h"
+#include "GenericCloud.h"
 #include "GenericIndexedMesh.h"
 #include "GenericProgressCallback.h"
+#include "GenericTriangle.h"
 #include "CCMiscTools.h"
 
 //System
@@ -136,11 +137,14 @@ public:
 		NormalizedProgress nProgress(progressCb, numberOfTriangles);
 		if (progressCb)
 		{
-			char buffer[64];
-			sprintf(buffer, "Triangles: %u", numberOfTriangles);
-			progressCb->reset();
-			progressCb->setInfo(buffer);
-			progressCb->setMethodTitle("Intersect Grid/Mesh");
+			if (progressCb->textCanBeEdited())
+			{
+				char buffer[64];
+				sprintf(buffer, "Triangles: %u", numberOfTriangles);
+				progressCb->setInfo(buffer);
+				progressCb->setMethodTitle("Intersect Grid/Mesh");
+			}
+			progressCb->update(0);
 			progressCb->start();
 		}
 
@@ -330,22 +334,84 @@ public:
 		return true;
 	}
 
+	//! Intersects this grid with a mesh
+	bool intersecthWith(GenericCloud* cloud,
+						PointCoordinateType cellLength,
+						const CCVector3& gridMinCorner,
+						GridElement intersectValue = 0,
+						GenericProgressCallback* progressCb = 0)
+	{
+		if (!cloud || !isInitialized())
+		{
+			assert(false);
+			return false;
+		}
+
+		//cell dimension
+		CCVector3 halfCellDimensions(cellLength / 2, cellLength / 2, cellLength / 2);
+
+		//number of points
+		unsigned numberOfPoints = cloud->size();
+
+		//progress notification
+		NormalizedProgress nProgress(progressCb, numberOfPoints);
+		if (progressCb)
+		{
+			if (progressCb->textCanBeEdited())
+			{
+				char buffer[64];
+				sprintf(buffer, "Points: %u", numberOfPoints);
+				progressCb->setInfo(buffer);
+				progressCb->setMethodTitle("Intersect Grid/Cloud");
+			}
+			progressCb->update(0);
+			progressCb->start();
+		}
+
+		//for each point: look for the intersecting cell
+		cloud->placeIteratorAtBegining();
+		for (unsigned n = 0; n<numberOfPoints; ++n)
+		{
+			CCVector3 P = *cloud->getNextPoint() - gridMinCorner;
+			Tuple3i cellPos(std::min(static_cast<int>(P.x / cellLength), static_cast<int>(size().x) - 1),
+							std::min(static_cast<int>(P.y / cellLength), static_cast<int>(size().y) - 1),
+							std::min(static_cast<int>(P.z / cellLength), static_cast<int>(size().z) - 1) );
+
+			if ((cellPos.x >= 0 && cellPos.x < static_cast<int>(size().x)) &&
+				(cellPos.y >= 0 && cellPos.y < static_cast<int>(size().y)) &&
+				(cellPos.z >= 0 && cellPos.z < static_cast<int>(size().z)))
+			{
+				setValue(cellPos, intersectValue);
+			}
+
+			if (progressCb && !nProgress.oneStep())
+			{
+				//cancel by user
+				return false;
+			}
+		}
+
+		return true;
+	}
+
 	//! Sets the value of a given cell
 	/** \param i the cell coordinate along the X dimension
 		\param j the cell coordinate along the Y dimension
 		\param k the cell coordinate along the Z dimension
+		\param value new cell value
 	**/
 	inline void setValue(int i, int j, int k, GridElement value)
 	{
-		m_grid[pos2index(i,j,k)] = value;
+		m_grid[pos2index(i, j, k)] = value;
 	}
 
 	//! Sets the value of a given cell
 	/** \param cellPos the cell position
+		\param value new cell value
 	**/
 	inline void setValue(Tuple3i& cellPos, GridElement value)
 	{
-		m_grid[pos2index(cellPos.x,cellPos.y,cellPos.z)] = value;
+		m_grid[pos2index(cellPos.x, cellPos.y, cellPos.z)] = value;
 	}
 
 	//! Returns the value of a given cell (const version)
@@ -356,7 +422,7 @@ public:
 	**/
 	inline const GridElement& getValue(int i, int j, int k) const
 	{
-		return m_grid[pos2index(i,j,k)];
+		return m_grid[pos2index(i, j, k)];
 	}
 	//! Returns the value of a given cell
 	/** \param i the cell coordinate along the X dimension

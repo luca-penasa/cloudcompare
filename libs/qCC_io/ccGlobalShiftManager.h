@@ -1,14 +1,14 @@
 //##########################################################################
 //#                                                                        #
-//#                            CLOUDCOMPARE                                #
+//#                              CLOUDCOMPARE                              #
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU General Public License as published by  #
-//#  the Free Software Foundation; version 2 of the License.               #
+//#  the Free Software Foundation; version 2 or later of the License.      #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
 //#          COPYRIGHT: EDF R&D / TELECOM ParisTech (ENST-TSI)             #
@@ -55,10 +55,23 @@ public:
 	//! Suggests a scale for a given dimension (e.g. diagonal) in global coordinate space
 	static double BestScale(double d);
 
-	//! Returns max coordinate (absolute) value
-	static double MaxCoordinateAbsValue();
+	//! Returns the max coordinate (absolute) value
+	static double MaxCoordinateAbsValue() { return MAX_COORDINATE_ABS_VALUE; }
+	//! Sets the max coordinate (absolute) value
+	static void SetMaxCoordinateAbsValue(double value) { MAX_COORDINATE_ABS_VALUE = value; }
+
 	//! Returns max bounding-box diagonal
-	static double MaxBoundgBoxDiagonal();
+	static double MaxBoundgBoxDiagonal() { return MAX_DIAGONAL_LENGTH; }
+	//! Sets the max bounding-box diagonal
+	static void SetMaxBoundgBoxDiagonal(double value) { MAX_DIAGONAL_LENGTH = value; }
+
+protected:
+	
+	// Max acceptable coordinate value
+	static double MAX_COORDINATE_ABS_VALUE;
+
+	// Max acceptable diagonal length
+	static double MAX_DIAGONAL_LENGTH;
 };
 
 #endif

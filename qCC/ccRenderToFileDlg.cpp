@@ -1,14 +1,14 @@
 //##########################################################################
 //#                                                                        #
-//#                            CLOUDCOMPARE                                #
+//#                              CLOUDCOMPARE                              #
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU General Public License as published by  #
-//#  the Free Software Foundation; version 2 of the License.               #
+//#  the Free Software Foundation; version 2 or later of the License.      #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
 //#          COPYRIGHT: EDF R&D / TELECOM ParisTech (ENST-TSI)             #
@@ -26,6 +26,7 @@
 #include <QImageWriter>
 #include <QList>
 #include <QSettings>
+#include <QStandardPaths>
 
 //we keep track of the zoom for the session only!
 static double s_renderZoom = 1.0;
@@ -52,23 +53,25 @@ ccRenderToFileDlg::ccRenderToFileDlg(unsigned baseWidth, unsigned baseHeight, QW
 	for (int i=0; i<list.size(); ++i)
 	{
 		filters.append(QString("%1 image (*.%2)\n").arg(QString(list[i].data()).toUpper()).arg(list[i].data()));
-		if (i == 0)
+		if (i == 0 || QString(list[i].data()) == "jpg")
+		{
 			firstFilter = filters;
+		}
 	}
 
 	QSettings settings;
 	settings.beginGroup("RenderToFile");
-	selectedFilter				= settings.value("selectedFilter",firstFilter).toString();
-	QString currentPath			= settings.value("currentPath",QApplication::applicationDirPath()).toString();
-	QString selectedExtension	= settings.value("selectedExtension",firstExtension).toString();
-	QString baseFilename		= settings.value("baseFilename","capture").toString();
-	bool dontScale				= settings.value("dontScaleFeatures",dontScalePoints()).toBool();
-	bool doRenderOverlayItems	= settings.value("renderOverlayItems",renderOverlayItems()).toBool();
+	selectedFilter				= settings.value("selectedFilter", firstFilter).toString();
+	QString currentPath         = settings.value("currentPath", QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation)).toString();
+	QString selectedExtension	= settings.value("selectedExtension", firstExtension).toString();
+	QString baseFilename		= settings.value("baseFilename", "capture").toString();
+	bool dontScale				= settings.value("dontScaleFeatures", dontScalePoints()).toBool();
+	bool doRenderOverlayItems	= settings.value("renderOverlayItems", renderOverlayItems()).toBool();
 	settings.endGroup();
 
 	dontScaleFeaturesCheckBox->setChecked(dontScale);
 	renderOverlayItemsCheckBox->setChecked(doRenderOverlayItems);
-	filenameLineEdit->setText(currentPath+QString("/")+baseFilename+QString(".")+selectedExtension);
+	filenameLineEdit->setText(currentPath + QString("/") + baseFilename + QString(".") + selectedExtension);
 
 	zoomDoubleSpinBox->setValue(s_renderZoom);
 
@@ -137,8 +140,8 @@ void ccRenderToFileDlg::updateInfo()
 {
 	s_renderZoom = getZoom();
 
-	unsigned w2 = (unsigned)(double(w)*s_renderZoom);
-	unsigned h2 = (unsigned)(double(h)*s_renderZoom);
+	unsigned w2 = static_cast<unsigned>(w*s_renderZoom);
+	unsigned h2 = static_cast<unsigned>(h*s_renderZoom);
 
 	finalSizeLabel->setText(QString("(%1 x %2)").arg(w2).arg(h2));
 }

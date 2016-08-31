@@ -1,14 +1,14 @@
 //##########################################################################
 //#                                                                        #
-//#                            CLOUDCOMPARE                                #
+//#                              CLOUDCOMPARE                              #
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU General Public License as published by  #
-//#  the Free Software Foundation; version 2 of the License.               #
+//#  the Free Software Foundation; version 2 or later of the License.      #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
 //#          COPYRIGHT: EDF R&D / TELECOM ParisTech (ENST-TSI)             #
@@ -23,8 +23,6 @@
 //qCC_db
 #include <ccNormalVectors.h>
 
-//CCLib
-#include <CCConst.h> //for CC_LOCAL_MODEL_TYPES
 
 class ccPointCloud;
 
@@ -35,10 +33,11 @@ class ccNormalComputationDlg : public QDialog, public Ui::NormalComputationDlg
 
 public:
 
+	//! Types of the clouds in the current selection (i.e. with or without scan grids)
 	enum SelectionMode { WITH_SCAN_GRIDS = 1, WITHOUT_SCAN_GRIDS = 2, MIXED = 3 };
 
 	//! Default constructor
-	/** \param selectionModes selection modes (see Modes)
+	/** \param selectionMode selection mode
 		\param parent parent widget
 	**/
 	explicit ccNormalComputationDlg(SelectionMode selectionMode, QWidget* parent = 0);

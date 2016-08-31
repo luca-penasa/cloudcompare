@@ -1,14 +1,14 @@
 //##########################################################################
 //#                                                                        #
-//#                            CLOUDCOMPARE                                #
+//#                              CLOUDCOMPARE                              #
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU General Public License as published by  #
-//#  the Free Software Foundation; version 2 of the License.               #
+//#  the Free Software Foundation; version 2 or later of the License.      #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
 //#          COPYRIGHT: EDF R&D / TELECOM ParisTech (ENST-TSI)             #
@@ -23,51 +23,55 @@
 //CCLib
 #include <CCConst.h>
 
+//Qt
+#include <QOpenGLContext>
+#include <QOpenGLFunctions_2_1>
+
+//system
+#include <assert.h>
+
 //*********** OPENGL TEXTURES ***********//
 
-void ccGLUtils::DisplayTexture2DPosition(GLuint tex, int x, int y, int w, int h, unsigned char alpha/*=255*/)
+void ccGLUtils::DisplayTexture2DPosition(QImage image, int x, int y, int w, int h, unsigned char alpha/*=255*/)
 {
-	glEnable(GL_TEXTURE_2D);
-	glBindTexture(GL_TEXTURE_2D, tex);
+	QOpenGLTexture texture(image);
 
-	glColor4ub(255, 255, 255, alpha);
-	glBegin(GL_QUADS);
-	glTexCoord2f(0.0,1.0);
-	glVertex2i(x, y+h);
-	glTexCoord2f(0.0,0.0);
-	glVertex2i(x, y);
-	glTexCoord2f(1.0,0.0);
-	glVertex2i(x+w, y);
-	glTexCoord2f(1.0,1.0);
-	glVertex2i(x+w, y+h);
-	glEnd();
-
-	glBindTexture(GL_TEXTURE_2D,0);
-	glDisable(GL_TEXTURE_2D);
+	DisplayTexture2DPosition(texture.textureId(), x, y, w, h, alpha);
 }
 
-void ccGLUtils::DisplayTexture2D(GLuint tex, int w, int h, unsigned char alpha/*=255*/)
+void ccGLUtils::DisplayTexture2DPosition(GLuint texID, int x, int y, int w, int h, unsigned char alpha/*=255*/)
 {
-	glEnable(GL_TEXTURE_2D);
-	glBindTexture(GL_TEXTURE_2D, tex);
+	QOpenGLContext* context = QOpenGLContext::currentContext();
+	if (!context)
+	{
+		assert(false);
+		return;
+	}
+	QOpenGLFunctions_2_1* glFunc = context->versionFunctions<QOpenGLFunctions_2_1>();
+	if (glFunc)
+	{
+		glFunc->glBindTexture(GL_TEXTURE_2D, texID);
 
-	float halfW = static_cast<float>(w)/2;
-	float halfH = static_cast<float>(h)/2;
+		glFunc->glPushAttrib(GL_ENABLE_BIT);
+		glFunc->glEnable(GL_TEXTURE_2D);
 
-	glColor4ub(255, 255, 255, alpha);
-	glBegin(GL_QUADS);
-	glTexCoord2f(0, 0);
-	glVertex2f(-halfW, -halfH);
-	glTexCoord2f(1, 0);
-	glVertex2f( halfW, -halfH);
-	glTexCoord2f(1, 1);
-	glVertex2f( halfW,  halfH);
-	glTexCoord2f(0, 1);
-	glVertex2f(-halfW,  halfH);
-	glEnd();
+		glFunc->glColor4ub(255, 255, 255, alpha);
+		glFunc->glBegin(GL_QUADS);
+		glFunc->glTexCoord2f(0.0, 1.0);
+		glFunc->glVertex2i(x, y + h);
+		glFunc->glTexCoord2f(0.0, 0.0);
+		glFunc->glVertex2i(x, y);
+		glFunc->glTexCoord2f(1.0, 0.0);
+		glFunc->glVertex2i(x + w, y);
+		glFunc->glTexCoord2f(1.0, 1.0);
+		glFunc->glVertex2i(x + w, y + h);
+		glFunc->glEnd();
 
-	glBindTexture(GL_TEXTURE_2D, 0);
-	glDisable(GL_TEXTURE_2D);
+		glFunc->glBindTexture(GL_TEXTURE_2D, 0);
+		glFunc->glPopAttrib();
+
+		glFunc->glBindTexture(GL_TEXTURE_2D, 0);
+	}
 }
 
 //*********** OPENGL MATRICES ***********//
@@ -125,40 +129,3 @@ ccGLMatrixd ccGLUtils::GenerateViewMat(CC_VIEW_ORIENTATION orientation)
 
 	return ccGLMatrixd::FromViewDirAndUpDir(center-eye,top);
 }
-
-bool ccGLUtils::CatchGLError(const char* context)
-{
-	GLenum err = glGetError();
-
-	//see http://www.opengl.org/sdk/docs/man/xhtml/glGetError.xml
-	switch(err)
-	{
-	case GL_NO_ERROR:
-		return false;
-		break;
-	case GL_INVALID_ENUM:
-		ccLog::Warning("[%s] OpenGL error: invalid enumerator",context);
-		break;
-	case GL_INVALID_VALUE:
-		ccLog::Warning("[%s] OpenGL error: invalid value",context);
-		break;
-	case GL_INVALID_OPERATION:
-		ccLog::Warning("[%s] OpenGL error: invalid operation",context);
-		break;
-	case GL_STACK_OVERFLOW:
-		ccLog::Error("[%s] OpenGL error: stack overflow",context);
-		break;
-	case GL_STACK_UNDERFLOW:
-		ccLog::Error("[%s] OpenGL error: stack underflow",context);
-		break;
-	case GL_OUT_OF_MEMORY:
-		ccLog::Error("[%s] OpenGL error: out of memory",context);
-		break;
-	case GL_INVALID_FRAMEBUFFER_OPERATION:
-		ccLog::Warning("[%s] OpenGL error: invalid framebuffer operation",context);
-		break;
-	}
-
-	return true;
-}
-

@@ -50,7 +50,7 @@ public:
 	virtual ~ccStdPluginInterface() {}
 
 	//inherited from ccPluginInterface
-	virtual CC_PLUGIN_TYPE getType() const { return CC_STD_PLUGIN; }
+	virtual CC_PLUGIN_TYPE getType() const override { return CC_STD_PLUGIN; }
 
 	//! Sets application entry point
 	/** Called just after plugin creation by qCC
@@ -70,6 +70,15 @@ public:
 		\param selectedEntities currently selected entities
 	**/
 	virtual void onNewSelection(const ccHObject::Container& selectedEntities) { /*ignored by default*/ }
+
+	//! Shortcut to ccMainAppInterface::dispToConsole
+	inline virtual void dispToConsole(QString message, ccMainAppInterface::ConsoleMessageLevel level = ccMainAppInterface::STD_CONSOLE_MESSAGE)
+	{
+		if (m_app)
+		{
+			m_app->dispToConsole(message, level);
+		}
+	}
 
 protected:
 

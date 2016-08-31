@@ -1,14 +1,14 @@
 //##########################################################################
 //#                                                                        #
-//#                            CLOUDCOMPARE                                #
+//#                              CLOUDCOMPARE                              #
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU General Public License as published by  #
-//#  the Free Software Foundation; version 2 of the License.               #
+//#  the Free Software Foundation; version 2 or later of the License.      #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
 //#          COPYRIGHT: EDF R&D / TELECOM ParisTech (ENST-TSI)             #
@@ -24,33 +24,22 @@
 #endif
 
 //CCLib
-#include <ReferenceCloud.h>
 #include <ChunkedPointCloud.h>
-#include <GenericProgressCallback.h>
-#include <CCPlatform.h>
 
 //Local
-#include "qCC_db.h"
-#include "ccGenericPointCloud.h"
 #include "ccNormalVectors.h"
 #include "ccColorScale.h"
+#include "ccWaveform.h"
 
 //Qt
 #include <QGLBuffer>
-#include <QMutex>
-#include <QSharedPointer>
 
 class ccPointCloud;
 class ccScalarField;
 class ccPolyline;
 class QGLBuffer;
-class LodStructThread;
 class ccProgressDialog;
-
-//! Maximum number of points (per cloud) displayed in a single LOD iteration
-/** \warning MUST BE GREATER THAN 'MAX_NUMBER_OF_ELEMENTS_PER_CHUNK'
-**/
-static const unsigned MAX_POINT_COUNT_PER_LOD_RENDER_PASS = (MAX_NUMBER_OF_ELEMENTS_PER_CHUNK << 3); //~ 65K * 8 = 512K
+class ccPointCloudLOD;
 
 /***************************************************
 				ccPointCloud
@@ -88,14 +77,9 @@ public:
 	virtual ~ccPointCloud();
 
 	//! Returns class ID
-	virtual CC_CLASS_ENUM getClassID() const { return CC_TYPES::POINT_CLOUD; }
+	virtual CC_CLASS_ENUM getClassID() const override { return CC_TYPES::POINT_CLOUD; }
 
-	//inherited from ChunkedPointCloud
-	virtual void invalidateBoundingBox();
-
-	/***************************************************
-						Clone/Copy
-	***************************************************/
+public: //clone, copy, etc.
 
 	//! Creates a new point cloud object from a GenericIndexedCloud
 	/** "GenericIndexedCloud" is an extension of GenericCloud (from CCLib)
@@ -123,7 +107,8 @@ public:
 	//! Warnings for the partialClone method (bit flags)
 	enum CLONE_WARNINGS {	WRN_OUT_OF_MEM_FOR_COLORS		= 1,
 							WRN_OUT_OF_MEM_FOR_NORMALS		= 2,
-							WRN_OUT_OF_MEM_FOR_SFS			= 4
+							WRN_OUT_OF_MEM_FOR_SFS			= 4,
+							WRN_OUT_OF_MEM_FOR_FWF			= 8
 	};
 
 	//! Creates a new point cloud object from a ReferenceCloud (selection)
@@ -142,10 +127,10 @@ public:
 		\param ignoreChildren [optional] whether to ignore the cloud's children or not (in which case they will be cloned as well)
 		\return a copy of this entity
 	**/
-	virtual ccPointCloud* cloneThis(ccPointCloud* destCloud = 0, bool ignoreChildren = false);
+	ccPointCloud* cloneThis(ccPointCloud* destCloud = 0, bool ignoreChildren = false);
 
 	//inherited from ccGenericPointCloud
-	virtual ccGenericPointCloud* clone(ccGenericPointCloud* destCloud = 0, bool ignoreChildren = false);
+	virtual ccGenericPointCloud* clone(ccGenericPointCloud* destCloud = 0, bool ignoreChildren = false) override;
 
 	//! Fuses another 3D entity with this one
 	/** All the main features of the given entity are added, except from the octree and
@@ -153,14 +138,12 @@ public:
 	**/
 	const ccPointCloud& operator +=(ccPointCloud*);
 
-	/***************************************************
-				Features deletion/clearing
-	***************************************************/
+public: //features deletion/clearing
 
 	//! Clears the entity from all its points and features
 	/** Display parameters are also reseted to their default values.
 	**/
-	virtual void clear();
+	virtual void clear() override;
 
 	//! Erases the cloud points
 	/** Prefer ccPointCloud::clear by default.
@@ -174,9 +157,7 @@ public:
 	//! Erases the cloud normals
 	void unallocateNorms();
 
-	/***************************************************
-				Features allocation/resize
-	***************************************************/
+public: //features allocation/resize
 
 	//! Reserves memory to store the points coordinates
 	/** Before adding points to the cloud (with addPoint())
@@ -235,7 +216,7 @@ public:
 		population. Only the already allocated features will be re-reserved.
 		\return true if ok, false if there's not enough memory
 	**/
-	virtual bool reserve(unsigned numberOfPoints);
+	virtual bool reserve(unsigned numberOfPoints) override;
 
 	//! Resizes all the active features arrays
 	/** This method is meant to be called after having increased the cloud
@@ -243,14 +224,12 @@ public:
 		reserved size). Otherwise, it fills all new elements with blank values.
 		\return true if ok, false if there's not enough memory
 	**/
-	virtual bool resize(unsigned numberOfPoints);
+	virtual bool resize(unsigned numberOfPoints) override;
 
 	//! Removes unused capacity
 	inline void shrinkToFit() { if (size() < capacity()) resize(size()); }
 
-	/***************************************************
-				Scalar fields handling
-	***************************************************/
+public: //scalar-fields management
 
 	//! Returns the currently displayed scalar (or 0 if none)
 	ccScalarField* getCurrentDisplayedScalarField() const;
@@ -259,21 +238,19 @@ public:
 	//! Sets the currently displayed scalar field
 	/** Warning: this scalar field will automatically be set as the OUTPUT one!
 	**/
-	virtual void setCurrentDisplayedScalarField(int index);
+	void setCurrentDisplayedScalarField(int index);
 
 	//inherited from ChunkedPointCloud
-	virtual void deleteScalarField(int index);
-	virtual void deleteAllScalarFields();
-	virtual int addScalarField(const char* uniqueName);
+	virtual void deleteScalarField(int index) override;
+	virtual void deleteAllScalarFields() override;
+	virtual int addScalarField(const char* uniqueName) override;
 
 	//! Returns whether color scale should be displayed or not
 	bool sfColorScaleShown() const;
 	//! Sets whether color scale should be displayed or not
 	void showSFColorsScale(bool state);
 
-	/***************************************************
-				Associated grid structure
-	***************************************************/
+public: //associated (scan) grid structure
 
 	//! Grid structure
 	struct Grid
@@ -317,7 +294,7 @@ public:
 					for (unsigned i=0; i<w; ++i)
 					{
 						const ccColor::Rgb& col = colors[j*w + i];
-						image.setPixel(i, j, QColor(col.r, col.g, col.b).rgb());
+						image.setPixel(i, j, qRgb(col.r, col.g, col.b));
 					}
 				}
 				return image;
@@ -360,6 +337,8 @@ public:
 	//! Remove all associated grids
 	inline void removeGrids() { m_grids.clear(); }
 
+public: //normals computation/orientation
+
 	//! Compute the normals with the associated grid structure(s)
 	/** Can also orient the normals in the same run.
 	**/
@@ -385,45 +364,72 @@ public:
 	bool orientNormalsWithFM(		unsigned char level,
 									ccProgressDialog* pDlg = 0 );
 
-	/***************************************************
-						Other methods
-	***************************************************/
+public: //waveform (e.g. from airborne scanners)
+
+	//! Returns whether the cloud has associated Full WaveForm data
+	inline bool hasFWF() const { return (size() && m_fwfData.size() >= size()); }
+
+	//! Waveform descriptors set
+	typedef QMap<uint8_t, WaveformDescriptor> FWFDescriptorSet;
+
+	//! Gives access to the FWF descritpros
+	FWFDescriptorSet& fwfDescriptors() { return m_fwfDescriptors; }
+	//! Gives access to the FWF descritpros (const version)
+	const FWFDescriptorSet& fwfDescriptors() const { return m_fwfDescriptors; }
+
+	//! Gives access to the associated FWF data
+	std::vector<ccWaveform>& fwfData() { return m_fwfData; }
+	//! Gives access to the associated FWF data (const version)
+	const std::vector<ccWaveform>& fwfData() const { return m_fwfData; }
+
+	//! Reserves the FWF table
+	bool reserveTheFWFTable();
+	//! Resizes the FWF table
+	bool resizeTheFWFTable();
+
+	//! Clears all associated FWF data
+	void clearFWFData();
+
+public: //other methods
 
 	//! Returns the cloud gravity center
 	/** \return gravity center
 	**/
 	CCVector3 computeGravityCenter();
 
+	//inherited from ChunkedPointCloud
+	virtual void invalidateBoundingBox() override;
+
 	//inherited from ccHObject
-	virtual void getDrawingParameters(glDrawParams& params) const;
-	virtual unsigned getUniqueIDForDisplay() const;
+	virtual void getDrawingParameters(glDrawParams& params) const override;
+	virtual unsigned getUniqueIDForDisplay() const override;
 
 	//inherited from ccDrawableObject
-	virtual bool hasColors() const;
-	virtual bool hasNormals() const;
-	virtual bool hasScalarFields() const;
-	virtual bool hasDisplayedScalarField() const;
-	virtual void removeFromDisplay(const ccGenericGLDisplay* win); //for proper VBO release
+	virtual bool hasColors() const override;
+	virtual bool hasNormals() const override;
+	virtual bool hasScalarFields() const override;
+	virtual bool hasDisplayedScalarField() const override;
+	virtual void removeFromDisplay(const ccGenericGLDisplay* win) override; //for proper VBO release
 
 	//inherited from CCLib::GenericCloud
-	virtual unsigned char testVisibility(const CCVector3& P) const;
+	virtual unsigned char testVisibility(const CCVector3& P) const override;
 
 	//inherited from ccGenericPointCloud
-	virtual const ColorCompType* getPointScalarValueColor(unsigned pointIndex) const;
-	virtual const ColorCompType* geScalarValueColor(ScalarType d) const;
-	virtual ScalarType getPointDisplayedDistance(unsigned pointIndex) const;
-	virtual const ColorCompType* getPointColor(unsigned pointIndex) const;
-	virtual const CompressedNormType& getPointNormalIndex(unsigned pointIndex) const;
-	virtual const CCVector3& getPointNormal(unsigned pointIndex) const;
-	CCLib::ReferenceCloud* crop(const ccBBox& box, bool inside = true);
-	virtual void scale(PointCoordinateType fx, PointCoordinateType fy, PointCoordinateType fz, CCVector3 center = CCVector3(0,0,0));
+	virtual const ColorCompType* getPointScalarValueColor(unsigned pointIndex) const override;
+	virtual const ColorCompType* geScalarValueColor(ScalarType d) const override;
+	virtual ScalarType getPointDisplayedDistance(unsigned pointIndex) const override;
+	virtual const ColorCompType* getPointColor(unsigned pointIndex) const override;
+	virtual const CompressedNormType& getPointNormalIndex(unsigned pointIndex) const override;
+	virtual const CCVector3& getPointNormal(unsigned pointIndex) const override;
+	CCLib::ReferenceCloud* crop(const ccBBox& box, bool inside = true) override;
+	virtual void scale(PointCoordinateType fx, PointCoordinateType fy, PointCoordinateType fz, CCVector3 center = CCVector3(0,0,0)) override;
 	/** \warning if removeSelectedPoints is true, any attached octree will be deleted. **/
-	virtual ccGenericPointCloud* createNewCloudFromVisibilitySelection(bool removeSelectedPoints = false);
-	virtual void applyRigidTransformation(const ccGLMatrix& trans);
+	virtual ccGenericPointCloud* createNewCloudFromVisibilitySelection(bool removeSelectedPoints = false, VisibilityTableType* visTable = 0) override;
+	virtual void applyRigidTransformation(const ccGLMatrix& trans) override;
 	//virtual bool isScalarFieldEnabled() const;
-	inline virtual void refreshBB() { invalidateBoundingBox(); }
+	inline virtual void refreshBB() override { invalidateBoundingBox(); }
 
-	//! Sets whether visibility check (during comparison) is enabled or not
+	//! Sets whether visibility check is enabled or not (e.g. during distances computation)
 	/** See ccPointCloud::testVisibility.
 	**/
 	inline void enableVisibilityCheck(bool state) { m_visibilityCheckEnabled = state; }
@@ -487,10 +493,10 @@ public:
 	bool convertNormalToDipDirSFs(ccScalarField* dipSF, ccScalarField* dipDirSF);
 
 	//! Pushes an RGB color on stack
-    /** \param r red component
-        \param g green component
-        \param b blue component
-    **/
+	/** \param r red component
+		\param g green component
+		\param b blue component
+	**/
 	void addRGBColor(ColorCompType r, ColorCompType g, ColorCompType b);
 
 	//! Pushes an RGB color on stack
@@ -500,7 +506,7 @@ public:
 
 	//! Pushes a grey color on stack
 	/** Shortcut: color is converted to RGB=(g,g,g).
-        \param g grey component
+		\param g grey component
 	**/
 	void addGreyColor(ColorCompType g);
 
@@ -510,32 +516,32 @@ public:
 	bool convertRGBToGreyScale();
 
 	//! Multiplies all color components of all points by coefficients
-    /** If the cloud has no color, all points are considered white and
-        the color array is automatically allocated.
-        \param r red component
-        \param g green component
-        \param b blue component
+	/** If the cloud has no color, all points are considered white and
+		the color array is automatically allocated.
+		\param r red component
+		\param g green component
+		\param b blue component
 		\return success
-    **/
+	**/
 	bool colorize(float r, float g, float b);
 
 	//! Assigns color to points proportionnaly to their 'height'
 	/** Height is defined wrt to the specified dimension (heightDim).
 		Color array is automatically allocated if necessary.
-        \param heightDim ramp dimension (0:X, 1:Y, 2:Z)
+		\param heightDim ramp dimension (0:X, 1:Y, 2:Z)
 		\param colorScale color scale to use
 		\return success
-    **/
+	**/
 	bool setRGBColorByHeight(unsigned char heightDim, ccColorScale::Shared colorScale);
 
 	//! Assigns color to points by 'banding'
 	/** Banding is performed along the specified dimension
 		Color array is automatically allocated if necessary.
-        \param dim banding dimension (0:X, 1:Y, 2:Z)
+		\param dim banding dimension (0:X, 1:Y, 2:Z)
 		\param freq banding frequency
 		\return success
-    **/
-	bool setRGBColorByBanding(unsigned char dim, int freq);
+	**/
+	bool setRGBColorByBanding(unsigned char dim, double freq);
 
 	//! Sets RGB colors with current scalar field (values & parameters)
 	/** \return success
@@ -544,42 +550,43 @@ public:
 	
 	//! Set a unique color for the whole cloud (shortcut)
 	/** Color array is automatically allocated if necessary.
-        \param r red component
-        \param g green component
-        \param b blue component
+		\param r red component
+		\param g green component
+		\param b blue component
 		\return success
-    **/
+	**/
 	bool setRGBColor(ColorCompType r, ColorCompType g, ColorCompType b);
 
 	//! Set a unique color for the whole cloud
 	/** Color array is automatically allocated if necessary.
-        \param col RGB color (size: 3)
+		\param col RGB color (size: 3)
 		\return success
 	**/
 	bool setRGBColor(const ccColor::Rgb& col);
 
-    //! Inverts normals (if any)
+	//! Inverts normals (if any)
 	void invertNormals();
 
-    //! Translates cloud
-    /** \param T translation vector
-    **/
+	//! Translates cloud
+	/** \param T translation vector
+	**/
 	void translate(const CCVector3& T);
 
-    //! Filters out points whose scalar values falls into an interval
-    /** Threshold values should be expressed relatively to the current displayed scalar field.
-        \param minVal minimum value (below, points are excluded)
-        \param maxVal maximum value (above, points are excluded)
-        \return resulting cloud (remaining points)
-    **/
-    ccPointCloud* filterPointsByScalarValue(ScalarType minVal, ScalarType maxVal);
+	//! Filters out points whose scalar values falls into an interval
+	/** Threshold values should be expressed relatively to the current displayed scalar field.
+		\param minVal minimum value
+		\param maxVal maximum value
+		\param outside whether to select the points inside or outside of the specified interval
+		\return resulting cloud (remaining points)
+	**/
+	ccPointCloud* filterPointsByScalarValue(ScalarType minVal, ScalarType maxVal, bool outside = false);
 
-    //! Hides points whose scalar values falls into an interval
-    /** Values are taken from the current OUTPUT scalar field.
-        \param minVal minimum value (below, points are hidden)
-        \param maxVal maximum value (above, points are hidden)
-    **/
-    void hidePointsByScalarValue(ScalarType minVal, ScalarType maxVal);
+	//! Hides points whose scalar values falls into an interval
+	/** Values are taken from the current OUTPUT scalar field.
+		\param minVal minimum value (below, points are hidden)
+		\param maxVal maximum value (above, points are hidden)
+	**/
+	void hidePointsByScalarValue(ScalarType minVal, ScalarType maxVal);
 
 	//! Unrolls the cloud and its normals on a cylinder
 	/** This method is redundant with the "developCloudOnCylinder" method of CCLib,
@@ -610,7 +617,7 @@ public:
 						CCLib::GenericProgressCallback* progressCb = NULL);
 
 	//! Adds associated SF color ramp info to current GL context
-	virtual void addColorRampInfo(CC_DRAW_CONTEXT& context);
+	void addColorRampInfo(CC_DRAW_CONTEXT& context);
 
 	//! Adds an existing scalar field to this cloud
 	/** Warning: the cloud takes ownership of it!
@@ -637,8 +644,8 @@ public:
 	//! Appends a cloud to this one
 	/** Same as the += operator with pointCountBefore == size()
 		\param cloud cloud to be added
-		\parm pointCountBefore the number of points previously contained in this cloud
-		\param whether to copy clouds's children or not
+		\param pointCountBefore the number of points previously contained in this cloud
+		\param ignoreChildren whether to copy input cloud's children or not
 		\return the resulting point cloud
 	**/
 	const ccPointCloud& append(ccPointCloud* cloud, unsigned pointCountBefore, bool ignoreChildren = false);
@@ -646,16 +653,16 @@ public:
 protected:
 
 	//inherited from ccHObject
-	virtual void drawMeOnly(CC_DRAW_CONTEXT& context);
-	virtual void applyGLTransformation(const ccGLMatrix& trans);
-	virtual bool toFile_MeOnly(QFile& out) const;
-	virtual bool fromFile_MeOnly(QFile& in, short dataVersion, int flags);
-	virtual void notifyGeometryUpdate();
+	virtual void drawMeOnly(CC_DRAW_CONTEXT& context) override;
+	virtual void applyGLTransformation(const ccGLMatrix& trans) override;
+	virtual bool toFile_MeOnly(QFile& out) const override;
+	virtual bool fromFile_MeOnly(QFile& in, short dataVersion, int flags) override;
+	virtual void notifyGeometryUpdate() override;
 
 	//inherited from ChunkedPointCloud
 	/** \warning Doesn't handle scan grids!
 	**/
-	virtual void swapPoints(unsigned firstIndex, unsigned secondIndex);
+	virtual void swapPoints(unsigned firstIndex, unsigned secondIndex) override;
 
 	//! Colors
 	ColorsTableType* m_rgbColors;
@@ -682,7 +689,7 @@ protected:
 protected: // VBO
 
 	//! Init/updates VBOs
-	bool updateVBOs(const glDrawParams& glParams);
+	bool updateVBOs(const CC_DRAW_CONTEXT& context, const glDrawParams& glParams);
 
 	//! Release VBOs
 	void releaseVBOs();
@@ -711,6 +718,14 @@ protected: // VBO
 		//! States of th VBO(s)
 		enum STATES { NEW, INITIALIZED, FAILED };
 
+		//! Update flags
+		enum UPDATE_FLAGS {
+			UPDATE_POINTS = 1,
+			UPDATE_COLORS = 2,
+			UPDATE_NORMALS = 4,
+			UPDATE_ALL = UPDATE_POINTS | UPDATE_COLORS | UPDATE_NORMALS
+		};
+		
 		vboSet()
 			: hasColors(false)
 			, colorIsSF(false)
@@ -718,6 +733,7 @@ protected: // VBO
 			, hasNormals(false)
 			, totalMemSizeBytes(0)
 			, state(NEW)
+			, updateFlags(0)
 		{}
 
 		std::vector<VBO*> vbos;
@@ -726,6 +742,7 @@ protected: // VBO
 		ccScalarField* sourceSF;
 		bool hasNormals;
 		int totalMemSizeBytes;
+		int updateFlags;
 
 		//! Current state
 		STATES state;
@@ -735,131 +752,34 @@ protected: // VBO
 	vboSet m_vboManager;
 
 	//per-block data transfer to the GPU (VBO or standard mode)
-	void glChunkVertexPointer(unsigned chunkIndex, unsigned decimStep, bool useVBOs);
-	void glChunkColorPointer (unsigned chunkIndex, unsigned decimStep, bool useVBOs);
-	void glChunkSFPointer    (unsigned chunkIndex, unsigned decimStep, bool useVBOs);
-	void glChunkNormalPointer(unsigned chunkIndex, unsigned decimStep, bool useVBOs);
+	void glChunkVertexPointer(const CC_DRAW_CONTEXT& context, unsigned chunkIndex, unsigned decimStep, bool useVBOs);
+	void glChunkColorPointer (const CC_DRAW_CONTEXT& context, unsigned chunkIndex, unsigned decimStep, bool useVBOs);
+	void glChunkSFPointer    (const CC_DRAW_CONTEXT& context, unsigned chunkIndex, unsigned decimStep, bool useVBOs);
+	void glChunkNormalPointer(const CC_DRAW_CONTEXT& context, unsigned chunkIndex, unsigned decimStep, bool useVBOs);
 
 public: //Level of Detail (LOD)
-
-	//! L.O.D. (Level of Detail) structure
-	class LodStruct
-	{
-	public:
-		//! Structure initialization state
-		enum State { NOT_INITIALIZED, UNDER_CONSTRUCTION, INITIALIZED, BROKEN };
-
-		//! Default constructor
-		LodStruct() : m_indexes(0), m_thread(0), m_state(NOT_INITIALIZED) {}
-		//! Destructor
-		~LodStruct() { clear(); }
-
-		//! Initializes the construction process (asynchronous)
-		bool init(ccPointCloud& cloud);
-
-		//! Locks the structure
-		inline void lock() { m_mutex.lock(); }
-		//! Unlocks the structure
-		inline void unlock() { m_mutex.unlock(); }
-
-		//! Returns the current state
-		inline State getState() { lock(); State state = m_state; unlock(); return state; }
-
-		//! Sets the current state
-		inline void setState(State state) { lock(); m_state = state; unlock(); }
-
-		//! Clears the structure
-		inline void clear() { clearExtended(true, NOT_INITIALIZED); }
-		//! Clears the structure (extended version)
-		void clearExtended(bool autoStopThread, State newState);
-
-		//! Reserves memory for the indexes
-		bool reserve(unsigned pointCount, int levelCount);
-
-		//! Returns whether the structure is null (i.e. not under construction or initialized) or not
-		inline bool isNull() { return getState() == NOT_INITIALIZED; }
-
-		//! Returns whether the structure is initialized or not
-		inline bool isInitialized() { return getState() == INITIALIZED; }
-
-		//! Returns whether the structure is initialized or not
-		inline bool isUnderConstruction() { return getState() == UNDER_CONSTRUCTION; }
-
-		//! Returns whether the structure is broken or not
-		inline bool isBroken() { return getState() == BROKEN; }
-
-		//! L.O.D. indexes set
-		typedef GenericChunkedArray<1, unsigned> IndexSet;
-
-		//! Returns the indexes (if any)
-		inline IndexSet* indexes() { return m_indexes; }
-		//! Returns the indexes (if any) - const version
-		inline const IndexSet* indexes() const { return m_indexes; }
-
-		//! Level descriptor
-		struct LevelDesc
-		{
-			//! Default constructor
-			LevelDesc() : startIndex(0), count(0) {}
-			//! Constructor from a start index and a count value
-			LevelDesc(unsigned _startIndex, unsigned _count) : startIndex(_startIndex), count(_count) {}
-			//! Start index (refers to the 'indexes' table)
-			unsigned startIndex;
-			//! Index count for this level
-			unsigned count;
-		};
-
-		//! Adds a level descriptor
-		inline void addLevel(const LevelDesc& desc) { lock(); m_levels.push_back(desc); unlock(); }
-		//! Shrinks the level descriptor set to its minimal size
-		inline void shrink() { lock(); m_levels.resize(m_levels.size()); unlock(); } //DGM: shrink_to_fit is a C++11 method
-
-		//! Returns the maximum level
-		inline unsigned char maxLevel() { lock(); size_t count = m_levels.size(); unlock(); return static_cast<unsigned char>(std::min<size_t>(count,256)); }
-		//! Returns a given level descriptor
-		inline LevelDesc level(unsigned char index) { lock(); LevelDesc desc = m_levels[index]; unlock(); return desc; }
-
-	protected:
-
-		//! L.O.D. indexes
-		/** Point indexes that should be displayed at each level of detail.
-		**/
-		IndexSet* m_indexes;
-
-		//! Actual levels
-		std::vector<LevelDesc> m_levels;
-
-		//! Computing thread
-		LodStructThread* m_thread;
-
-		//! For concurrent access
-		QMutex m_mutex;
-
-		//! State
-		State m_state;
-	};
 
 	//! Intializes the LOD structure
 	/** \return success
 	**/
-	bool initLOD(CCLib::GenericProgressCallback* progressCallback = 0);
+	bool initLOD();
 
 	//! Clears the LOD structure
-	inline void clearLOD() { m_lod.clear(); }
+	void clearLOD();
 
-	//! Returns the LOD structure
-	inline LodStruct& getLOD() { return m_lod; }
-
-protected:
-
-	//per-block data transfer to the GPU (LOD)
-	void glLODChunkVertexPointer(const LodStruct::IndexSet& indexMap, unsigned startIndex, unsigned stopIndex);
-	void glLODChunkColorPointer (const LodStruct::IndexSet& indexMap, unsigned startIndex, unsigned stopIndex);
-	void glLODChunkSFPointer    (const LodStruct::IndexSet& indexMap, unsigned startIndex, unsigned stopIndex);
-	void glLODChunkNormalPointer(const LodStruct::IndexSet& indexMap, unsigned startIndex, unsigned stopIndex);
+protected: //Level of Detail (LOD)
 
 	//! L.O.D. structure
-	LodStruct m_lod;
+	ccPointCloudLOD* m_lod;
+
+protected: //waveform (e.g. from airborne scanners)
+
+	//! Waveform descriptors
+	FWFDescriptorSet m_fwfDescriptors;
+
+	//! Waveform storage
+	std::vector<ccWaveform> m_fwfData;
+
 };
 
 #endif //CC_POINT_CLOUD_HEADER

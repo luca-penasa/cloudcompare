@@ -4,14 +4,14 @@
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU General Public License as published by  #
-//#  the Free Software Foundation; version 2 of the License.               #
+//#  the Free Software Foundation; version 2 or later of the License.      #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
-//#               COPYRIGHT: Daniel Girardeau-Montaut                      #
+//#                  COPYRIGHT: Daniel Girardeau-Montaut                   #
 //#                                                                        #
 //##########################################################################
 
@@ -32,9 +32,7 @@ class qHPR : public QObject, public ccStdPluginInterface
 {
 	Q_OBJECT
 	Q_INTERFACES(ccStdPluginInterface)
-#ifdef CC_QT5
 	Q_PLUGIN_METADATA(IID "cccorp.cloudcompare.plugin.qHPR")
-#endif
 
 public:
 
@@ -42,13 +40,13 @@ public:
 	explicit qHPR(QObject* parent = 0);
 
 	//inherited from ccPluginInterface
-	virtual QString getName() const { return "Hidden Point Removal"; }
-	virtual QString getDescription() const { return "Hidden Point Removal (Katz et al.)"; }
-	virtual QIcon getIcon() const;
+	virtual QString getName() const override { return "Hidden Point Removal"; }
+	virtual QString getDescription() const override { return "Hidden Point Removal (Katz et al.)"; }
+	virtual QIcon getIcon() const override;
 
 	//inherited from ccStdPluginInterface
-	virtual void onNewSelection(const ccHObject::Container& selectedEntities);
-	virtual void getActions(QActionGroup& group);
+	virtual void onNewSelection(const ccHObject::Container& selectedEntities) override;
+	virtual void getActions(QActionGroup& group) override;
 
 protected slots:
 

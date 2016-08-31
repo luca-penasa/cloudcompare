@@ -1,14 +1,14 @@
 //##########################################################################
 //#                                                                        #
-//#                            CLOUDCOMPARE                                #
+//#                              CLOUDCOMPARE                              #
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU General Public License as published by  #
-//#  the Free Software Foundation; version 2 of the License.               #
+//#  the Free Software Foundation; version 2 or later of the License.      #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
 //#          COPYRIGHT: EDF R&D / TELECOM ParisTech (ENST-TSI)             #
@@ -318,9 +318,9 @@ void ccColorScaleEditorDialog::setScaleModeToRelative(bool isRelative)
 	valueDoubleSpinBox->setSuffix(isRelative ? QString(" %") : QString());
 	valueDoubleSpinBox->blockSignals(true);
 	if (isRelative)
-		valueDoubleSpinBox->setRange(0.0,100.0); //between 0 and 100%
+		valueDoubleSpinBox->setRange(0.0, 100.0); //between 0 and 100%
 	else
-		valueDoubleSpinBox->setRange(-1.0e9,1.0e9);
+		valueDoubleSpinBox->setRange(-1.0e9, 1.0e9);
 	valueDoubleSpinBox->blockSignals(false);
 
 	//update selected slider frame

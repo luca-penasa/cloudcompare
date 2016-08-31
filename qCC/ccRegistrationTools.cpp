@@ -1,14 +1,14 @@
 //##########################################################################
 //#                                                                        #
-//#                            CLOUDCOMPARE                                #
+//#                              CLOUDCOMPARE                              #
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU General Public License as published by  #
-//#  the Free Software Foundation; version 2 of the License.               #
+//#  the Free Software Foundation; version 2 or later of the License.      #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
 //#          COPYRIGHT: EDF R&D / TELECOM ParisTech (ENST-TSI)             #
@@ -25,6 +25,7 @@
 #include <DistanceComputationTools.h>
 #include <CloudSamplingTools.h>
 #include <Garbage.h>
+#include <SortAlgo.h>
 
 //qCC_db
 #include <ccHObjectCaster.h>
@@ -58,10 +59,11 @@ bool ccRegistrationTools::ICP(	ccHObject* data,
 								bool useDataSFAsWeights/*=false*/,
 								bool useModelSFAsWeights/*=false*/,
 								int filters/*=CCLib::ICPRegistrationTools::SKIP_NONE*/,
+								int maxThreadCount/*=0*/,
 								QWidget* parent/*=0*/)
 {
 	//progress bar
-	ccProgressDialog pDlg(false,parent);
+	ccProgressDialog pDlg(false, parent);
 
 	Garbage<CCLib::GenericIndexedCloudPersist> cloudGarbage;
 
@@ -82,7 +84,7 @@ bool ccRegistrationTools::ICP(	ccHObject* data,
 	CCLib::GenericIndexedCloudPersist* dataCloud = 0;
 	if (data->isKindOf(CC_TYPES::MESH))
 	{
-		dataCloud = CCLib::MeshSamplingTools::samplePointsOnMesh(ccHObjectCaster::ToGenericMesh(data),s_defaultSampledPointsOnDataMesh,&pDlg);
+		dataCloud = CCLib::MeshSamplingTools::samplePointsOnMesh(ccHObjectCaster::ToGenericMesh(data), s_defaultSampledPointsOnDataMesh, &pDlg);
 		if (!dataCloud)
 		{
 			ccLog::Error("[ICP] Failed to sample points on 'data' mesh!");
@@ -131,14 +133,14 @@ bool ccRegistrationTools::ICP(	ccHObject* data,
 	//do we need to reduce the input point cloud (so as to be close
 	//to the theoretical number of overlapping points - but not too
 	//low so as we are not registered yet ;)
-	if (finalOverlapRatio < 1.0-s_overlapMarginRatio)
+	if (finalOverlapRatio < 1.0 - s_overlapMarginRatio)
 	{
 		//DGM we can now use 'approximate' distances as SAITO algorithm is exact (but with a coarse resolution)
 		//level = 7 if < 1.000.000
 		//level = 8 if < 10.000.000
 		//level = 9 if > 10.000.000
 		int gridLevel = static_cast<int>(floor(log10(static_cast<double>(std::max(dataCloud->size(), modelCloud->size()))))) + 2;
-		gridLevel = std::min(std::max(gridLevel,7),9);
+			gridLevel = std::min(std::max(gridLevel,7),9);
 		int result = -1;
 		if (modelMesh)
 		{
@@ -184,7 +186,7 @@ bool ccRegistrationTools::ICP(	ccHObject* data,
 			{
 				distances[i] = dataCloud->getPointScalarValue(i);
 			}
-			std::sort(distances.begin(),distances.end());
+			SortAlgo(distances.begin(), distances.end());
 			//now look for the max value at 'finalOverlapRatio+margin' percent
 			maxSearchDist = distances[static_cast<unsigned>(std::max(1.0,count*(finalOverlapRatio+s_overlapMarginRatio)))-1];
 		}
@@ -256,24 +258,29 @@ bool ccRegistrationTools::ICP(	ccHObject* data,
 
 	CCLib::ICPRegistrationTools::RESULT_TYPE result;
 	CCLib::PointProjectionTools::Transformation transform;
+	CCLib::ICPRegistrationTools::Parameters params;
+	{
+		params.convType = method;
+		params.minRMSDecrease = minRMSDecrease;
+		params.nbMaxIterations = maxIterationCount;
+		params.adjustScale = adjustScale;
+		params.filterOutFarthestPoints = removeFarthestPoints;
+		params.samplingLimit = randomSamplingLimit;
+		params.finalOverlapRatio = finalOverlapRatio;
+		params.modelWeights = modelWeights;
+		params.dataWeights = dataWeights;
+		params.transformationFilters = filters;
+		params.maxThreadCount = maxThreadCount;
+	}
 
 	result = CCLib::ICPRegistrationTools::Register(	modelCloud,
 													modelMesh,
 													dataCloud,
+													params,
 													transform,
-													method,
-													minRMSDecrease,
-													maxIterationCount,
 													finalRMS,
 													finalPointCount,
-													adjustScale,
-													static_cast<CCLib::GenericProgressCallback*>(&pDlg),
-													removeFarthestPoints,
-													randomSamplingLimit,
-													finalOverlapRatio,
-													modelWeights,
-													dataWeights,
-													filters);
+													static_cast<CCLib::GenericProgressCallback*>(&pDlg));
 
 	if (result >= CCLib::ICPRegistrationTools::ICP_ERROR)
 	{

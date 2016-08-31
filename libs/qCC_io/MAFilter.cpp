@@ -1,14 +1,14 @@
 //##########################################################################
 //#                                                                        #
-//#                            CLOUDCOMPARE                                #
+//#                              CLOUDCOMPARE                              #
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU General Public License as published by  #
-//#  the Free Software Foundation; version 2 of the License.               #
+//#  the Free Software Foundation; version 2 or later of the License.      #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
 //#          COPYRIGHT: EDF R&D / TELECOM ParisTech (ENST-TSI)             #
@@ -113,14 +113,12 @@ CC_FILE_ERROR MAFilter::saveToFile(ccHObject* entity, QString filename, SavePara
 		static_cast<ccPointCloud*>(theCloud)->hasColors();
 
 	//and its scalar field
-	/*CCLib::ScalarField* sf = 0;
-	if (theCloud->isA(CC_TYPES::POINT_CLOUD))
-	sf = static_cast<ccPointCloud*>(theCloud)->getCurrentDisplayedScalarField();
+	//ccScalarField* sf = 0;
+	//if (theCloud->isA(CC_TYPES::POINT_CLOUD))
+	//	sf = static_cast<ccPointCloud*>(theCloud)->getCurrentDisplayedScalarField();
 
-	if (!sf)
-		ccLog::Warning("No displayed scalar field! Values will all be 0!\n");
-
-	//*/
+	//if (!sf)
+	//	ccLog::Warning("No displayed scalar field! Values will all be 0!\n");
 
 	//open ASCII file for writing
 	FILE* fp = fopen(qPrintable(filename) , "wt");
@@ -130,9 +128,10 @@ CC_FILE_ERROR MAFilter::saveToFile(ccHObject* entity, QString filename, SavePara
 
 	//progress dialog
 	ccProgressDialog pdlg(true, parameters.parentWidget); //cancel available
-	CCLib::NormalizedProgress nprogress(&pdlg, ((2 + hasColors ? 1 : 0) * numberOfTriangles + (3 + hasColors ? 1 : 0) * numberOfVertexes));
-	pdlg.setMethodTitle("Save MA file");
-	pdlg.setInfo(qPrintable(QString("Triangles = %1").arg(numberOfTriangles)));
+	const int coloursAdjustment = (hasColors ? 1 : 0);
+	CCLib::NormalizedProgress nprogress(&pdlg, ((2 + coloursAdjustment) * numberOfTriangles + (3 + coloursAdjustment) * numberOfVertexes));
+	pdlg.setMethodTitle(QObject::tr("Save MA file"));
+	pdlg.setInfo(QObject::tr("Triangles = %1").arg(numberOfTriangles));
 	pdlg.start();
 
 	//we extract the (short) filename from the whole path

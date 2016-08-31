@@ -1,14 +1,14 @@
 //##########################################################################
 //#                                                                        #
-//#                            CLOUDCOMPARE                                #
+//#                              CLOUDCOMPARE                              #
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU General Public License as published by  #
-//#  the Free Software Foundation; version 2 of the License.               #
+//#  the Free Software Foundation; version 2 or later of the License.      #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
 //#          COPYRIGHT: EDF R&D / TELECOM ParisTech (ENST-TSI)             #
@@ -43,9 +43,6 @@
 #include <QSettings>
 #include <QPushButton>
 #include <QMessageBox>
-#include <QImageWriter>
-#include <QFileDialog>
-#include <QMap>
 #include <QComboBox>
 #include <QClipboard>
 #include <QApplication>
@@ -55,7 +52,7 @@
 #include <assert.h>
 
 ccVolumeCalcTool::ccVolumeCalcTool(ccGenericPointCloud* cloud1, ccGenericPointCloud* cloud2, QWidget* parent/*=0*/)
-	: QDialog(parent, Qt::WindowMaximizeButtonHint)
+	: QDialog(parent, Qt::WindowMaximizeButtonHint | Qt::WindowCloseButtonHint)
 	, cc2Point5DimEditor()
 	, Ui::VolumeCalcDialog()
 	, m_cloud1(cloud1)
@@ -121,12 +118,12 @@ ccVolumeCalcTool::ccVolumeCalcTool(ccGenericPointCloud* cloud1, ccGenericPointCl
 
 	//add window
 	create2DView(mapFrame);
-	if (m_window)
+	if (m_glWindow)
 	{
-		ccGui::ParamStruct params = m_window->getDisplayParameters();
+		ccGui::ParamStruct params = m_glWindow->getDisplayParameters();
 		params.colorScaleShowHistogram = false;
 		params.displayedNumPrecision = precisionSpinBox->value();
-		m_window->setDisplayParameters(params, true);
+		m_glWindow->setDisplayParameters(params, true);
 	}
 
 	loadSettings();
@@ -143,12 +140,12 @@ ccVolumeCalcTool::~ccVolumeCalcTool()
 void ccVolumeCalcTool::setDisplayedNumberPrecision(int precision)
 {
 	//update window
-	if (m_window)
+	if (m_glWindow)
 	{
-		ccGui::ParamStruct params = m_window->getDisplayParameters();
+		ccGui::ParamStruct params = m_glWindow->getDisplayParameters();
 		params.displayedNumPrecision = precision;
-		m_window->setDisplayParameters(params, true);
-		m_window->redraw(true, false);
+		m_glWindow->setDisplayParameters(params, true);
+		m_glWindow->redraw(true, false);
 	}
 
 	//update report
@@ -302,14 +299,14 @@ void ccVolumeCalcTool::saveSettings()
 {
 	QSettings settings;
 	settings.beginGroup(ccPS::VolumeCalculation());
-	settings.setValue("ProjectionType",heightProjectionComboBox->currentIndex());
-	settings.setValue("ProjectionDim",projDimComboBox->currentIndex());
-	settings.setValue("gFillStrategy",fillGroundEmptyCellsComboBox->currentIndex());
-	settings.setValue("cFillStrategy",fillCeilEmptyCellsComboBox->currentIndex());
-	settings.setValue("GridStep",gridStepDoubleSpinBox->value());
-	settings.setValue("gEmptyCellsHeight",groundEmptyValueDoubleSpinBox->value());
-	settings.setValue("cEmptyCellsHeight",ceilEmptyValueDoubleSpinBox->value());
-	settings.setValue("NumPrecision",precisionSpinBox->value());
+	settings.setValue("ProjectionType", heightProjectionComboBox->currentIndex());
+	settings.setValue("ProjectionDim", projDimComboBox->currentIndex());
+	settings.setValue("gFillStrategy", fillGroundEmptyCellsComboBox->currentIndex());
+	settings.setValue("cFillStrategy", fillCeilEmptyCellsComboBox->currentIndex());
+	settings.setValue("GridStep", gridStepDoubleSpinBox->value());
+	settings.setValue("gEmptyCellsHeight", groundEmptyValueDoubleSpinBox->value());
+	settings.setValue("cEmptyCellsHeight", ceilEmptyValueDoubleSpinBox->value());
+	settings.setValue("NumPrecision", precisionSpinBox->value());
 	settings.endGroup();
 }
 
@@ -337,12 +334,12 @@ void ccVolumeCalcTool::gridIsUpToDate(bool state)
 void ccVolumeCalcTool::updateGridAndDisplay()
 {
 	bool success = updateGrid();
-	if (success && m_window)
+	if (success && m_glWindow)
 	{
 		//convert grid to point cloud
 		if (m_rasterCloud)
 		{
-			m_window->removeFromOwnDB(m_rasterCloud);
+			m_glWindow->removeFromOwnDB(m_rasterCloud);
 			delete m_rasterCloud;
 			m_rasterCloud = 0;
 		}
@@ -356,6 +353,7 @@ void ccVolumeCalcTool::updateGridAndDisplay()
 																	false,
 																	false,
 																	false,
+																	false,
 																	0,
 																	false,
 																	std::numeric_limits<double>::quiet_NaN());
@@ -364,7 +362,7 @@ void ccVolumeCalcTool::updateGridAndDisplay()
 			{
 				m_rasterCloud->showSF(true);
 				m_rasterCloud->setCurrentDisplayedScalarField(0);
-				m_rasterCloud->getScalarField(0)->setName("Height above ground");
+				m_rasterCloud->getScalarField(0)->setName("Relative height");
 				m_rasterCloud->showSFColorsScale(true);
 			}
 		}
@@ -375,14 +373,14 @@ void ccVolumeCalcTool::updateGridAndDisplay()
 
 		if (m_rasterCloud)
 		{
-			m_window->addToOwnDB(m_rasterCloud);
-			ccBBox box = m_rasterCloud->getDisplayBB_recursive(false,m_window);
+			m_glWindow->addToOwnDB(m_rasterCloud);
+			ccBBox box = m_rasterCloud->getDisplayBB_recursive(false,m_glWindow);
 			update2DDisplayZoom(box);
 		}
 		else
 		{
 			ccLog::Error("Not enough memory!");
-			m_window->redraw();
+			m_glWindow->redraw();
 		}
 	}
 
@@ -397,6 +395,9 @@ void ccVolumeCalcTool::outputReport(const ReportInfo& info)
 	QStringList reportText;
 	reportText << QString("Volume: %1").arg(locale.toString(info.volume, 'f', precision));
 	reportText << QString("Surface: %1").arg(locale.toString(info.surface, 'f', precision));
+	reportText << QString("----------------------");
+	reportText << QString("Added volume: (+)%1").arg(locale.toString(info.addedVolume, 'f', precision));
+	reportText << QString("Removed volume: (-)%1").arg(locale.toString(info.removedVolume, 'f', precision));
 	reportText << QString("----------------------");
 	reportText << QString("Matching cells: %1%").arg(info.matchingPrecent,0,'f',1);
 	reportText << QString("Non-matching cells:");
@@ -420,15 +421,6 @@ bool ccVolumeCalcTool::updateGrid()
 		return false;
 	}
 
-	//per-cell Z computation
-	ProjectionType projectionType = getTypeOfProjection();
-
-	//vertical dimension
-	const unsigned char Z = getProjectionDimension();
-	assert(Z >= 0 && Z <= 2);
-	const unsigned char X = Z == 2 ? 0 : Z +1;
-	const unsigned char Y = X == 2 ? 0 : X +1;
-
 	//cloud bounding-box --> grid size
 	ccBBox box = getCustomBBox();
 	if (!box.isValid())
@@ -436,44 +428,37 @@ bool ccVolumeCalcTool::updateGrid()
 		return false;
 	}
 
-	double gridStep = getGridStep();
-	assert(gridStep != 0);
-
-	CCVector3d boxDiag(	static_cast<double>(box.maxCorner().x) - static_cast<double>(box.minCorner().x),
-						static_cast<double>(box.maxCorner().y) - static_cast<double>(box.minCorner().y),
-						static_cast<double>(box.maxCorner().z) - static_cast<double>(box.minCorner().z) );
-
-	if (boxDiag.u[X] <= 0 || boxDiag.u[Y] <= 0)
+	unsigned gridWidth = 0, gridHeight = 0;
+	if (!getGridSize(gridWidth, gridHeight))
 	{
-		ccLog::Error("Invalid cloud bounding box!");
 		return false;
 	}
-
-	unsigned gridWidth  = static_cast<unsigned>(ceil(boxDiag.u[X] / gridStep));
-	unsigned gridHeight = static_cast<unsigned>(ceil(boxDiag.u[Y] / gridStep));
 
 	//grid size
 	unsigned gridTotalSize = gridWidth * gridHeight;
 	if (gridTotalSize == 1)
 	{
-		if (QMessageBox::question(0,"Unexpected grid size","The generated grid will only have 1 cell! Do you want to proceed anyway?",QMessageBox::Yes,QMessageBox::No) == QMessageBox::No)
+		if (QMessageBox::question(this, "Unexpected grid size", "The generated grid will only have 1 cell! Do you want to proceed anyway?", QMessageBox::Yes, QMessageBox::No) == QMessageBox::No)
 			return false;
 	}
 	else if (gridTotalSize > 10000000)
 	{
-		if (QMessageBox::question(0,"Big grid size","The generated grid will have more than 10.000.000 cells! Do you want to proceed anyway?",QMessageBox::Yes,QMessageBox::No) == QMessageBox::No)
+		if (QMessageBox::question(this, "Big grid size", "The generated grid will have more than 10.000.000 cells! Do you want to proceed anyway?", QMessageBox::Yes, QMessageBox::No) == QMessageBox::No)
 			return false;
 	}
 
+	//grid step
+	double gridStep = getGridStep();
+	assert(gridStep != 0);
+
 	//memory allocation
-	if (!m_grid.init(gridWidth,gridHeight))
+	CCVector3d minCorner = CCVector3d::fromArray(box.minCorner().u);
+	if (!m_grid.init(gridWidth, gridHeight, gridStep, minCorner))
 	{
 		//not enough memory
 		ccLog::Error("Not enough memory");
 		return false;
 	}
-	m_grid.gridStep = gridStep;
-	m_grid.minCorner = CCVector3d::fromArray(box.minCorner().u);
 
 	//ground
 	ccGenericPointCloud* groundCloud = 0;
@@ -494,19 +479,23 @@ bool ccVolumeCalcTool::updateGrid()
 		return false;
 	}
 
-	ccProgressDialog pDlg(true,this);
+	//vertical dimension
+	const unsigned char Z = getProjectionDimension();
+	assert(Z >= 0 && Z <= 2);
+	//per-cell Z computation
+	ProjectionType projectionType = getTypeOfProjection();
+
+	ccProgressDialog pDlg(true, this);
 
 	RasterGrid groundRaster;
 	if (groundCloud)
 	{
-		if (!groundRaster.init(gridWidth,gridHeight))
+		if (!groundRaster.init(gridWidth, gridHeight, gridStep, minCorner))
 		{
 			//not enough memory
 			ccLog::Error("Not enough memory");
 			return false;
 		}
-		groundRaster.gridStep = m_grid.gridStep;
-		groundRaster.minCorner = m_grid.minCorner;
 
 		if (groundRaster.fillWith(	groundCloud,
 									Z,
@@ -546,14 +535,12 @@ bool ccVolumeCalcTool::updateGrid()
 	RasterGrid ceilRaster;
 	if (ceilCloud)
 	{
-		if (!ceilRaster.init(gridWidth,gridHeight))
+		if (!ceilRaster.init(gridWidth, gridHeight, gridStep, minCorner))
 		{
 			//not enough memory
 			ccLog::Error("Not enough memory");
 			return false;
 		}
-		ceilRaster.gridStep = m_grid.gridStep;
-		ceilRaster.minCorner = m_grid.minCorner;
 
 		if (ceilRaster.fillWith(ceilCloud,
 								Z,
@@ -573,11 +560,11 @@ bool ccVolumeCalcTool::updateGrid()
 
 	//update grid and compute volume
 	{
-		pDlg.setMethodTitle("Volume computation");
-		pDlg.setInfo(qPrintable(QString("Cells: %1 x %2").arg(m_grid.width).arg(m_grid.height)));
+		pDlg.setMethodTitle(tr("Volume computation"));
+		pDlg.setInfo(tr("Cells: %1 x %2").arg(m_grid.width).arg(m_grid.height));
 		pDlg.start();
 		pDlg.show();
-		QApplication::processEvents();
+		QCoreApplication::processEvents();
 		CCLib::NormalizedProgress nProgress(&pDlg, m_grid.width*m_grid.height);
 		
 		ReportInfo repotInfo;
@@ -591,22 +578,22 @@ bool ccVolumeCalcTool::updateGrid()
 		{
 			for (unsigned j=0; j<m_grid.width; ++j)
 			{
-				RasterCell& cell = m_grid.data[i][j];
+				RasterCell& cell = m_grid.rows[i][j];
 
 				bool validGround = true;
 				cell.minHeight = groundHeight;
 				if (groundCloud)
 				{
-					cell.minHeight = groundRaster.data[i][j].h;
-					validGround = (cell.minHeight == cell.minHeight);
+					cell.minHeight = groundRaster.rows[i][j].h;
+					validGround = std::isfinite(cell.minHeight);
 				}
 
 				bool validCeil = true;
 				cell.maxHeight = ceilHeight;
 				if (ceilCloud)
 				{
-					cell.maxHeight = ceilRaster.data[i][j].h;
-					validCeil = (cell.maxHeight == cell.maxHeight);
+					cell.maxHeight = ceilRaster.rows[i][j].h;
+					validCeil = std::isfinite(cell.maxHeight);
 				}
 
 				if (validGround && validCeil)
@@ -615,6 +602,14 @@ bool ccVolumeCalcTool::updateGrid()
 					cell.nbPoints = 1;
 
 					repotInfo.volume += cell.h;
+					if (cell.h < 0)
+					{
+						repotInfo.removedVolume -= cell.h;
+					}
+					else if (cell.h > 0)
+					{
+						repotInfo.addedVolume += cell.h;
+					}
 					repotInfo.surface += 1.0;
 					++m_grid.nonEmptyCellCount; //= matching count
 					++cellCount;
@@ -635,7 +630,7 @@ bool ccVolumeCalcTool::updateGrid()
 					cell.nbPoints = 0;
 				}
 
-				cell.avgHeight = (groundHeight + ceilHeight)/2;
+				cell.avgHeight = (groundHeight + ceilHeight) / 2;
 				cell.stdDevHeight = 0;
 
 				if (!nProgress.oneStep())
@@ -655,7 +650,7 @@ bool ccVolumeCalcTool::updateGrid()
 			{
 				for (unsigned j=1; j<m_grid.width-1; ++j)
 				{
-					RasterCell& cell = m_grid.data[i][j];
+					RasterCell& cell = m_grid.rows[i][j];
 					if (cell.h == cell.h)
 					{
 						for (unsigned k=i-1; k<=i+1; ++k)
@@ -664,8 +659,8 @@ bool ccVolumeCalcTool::updateGrid()
 							{
 								if (k != i || l != j)
 								{
-									RasterCell& otherCell = m_grid.data[k][l];
-									if (otherCell.h == otherCell.h)
+									RasterCell& otherCell = m_grid.rows[k][l];
+									if (std::isfinite(otherCell.h))
 									{
 										++validNeighborsCount;
 									}
@@ -689,6 +684,8 @@ bool ccVolumeCalcTool::updateGrid()
 		repotInfo.ceilNonMatchingPercent = static_cast<float>(ceilNonMatchingCount * 100) / cellCount;
 		float cellArea = static_cast<float>(m_grid.gridStep * m_grid.gridStep);
 		repotInfo.volume *= cellArea;
+		repotInfo.addedVolume *= cellArea;
+		repotInfo.removedVolume *= cellArea;
 		repotInfo.surface *= cellArea;
 
 		outputReport(repotInfo);

@@ -11,7 +11,7 @@
 //#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
-//#                             COPYRIGHT: XXX                             #
+//#                     COPYRIGHT: CloudCompare project                    #
 //#                                                                        #
 //##########################################################################
 
@@ -29,9 +29,7 @@ class qGMMRegPlugin : public QObject, public ccStdPluginInterface
 {
 	Q_OBJECT
 	Q_INTERFACES(ccStdPluginInterface)
-#ifdef CC_QT5
 	Q_PLUGIN_METADATA(IID "cccorp.cloudcompare.plugin.qGMMReg")
-#endif
 
 public:
 
@@ -62,4 +60,4 @@ protected:
 	QAction* m_action;
 };
 
-#endif
+#endif //Q_GMMREG_PLUGIN_HEADER

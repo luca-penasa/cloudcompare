@@ -4,11 +4,12 @@
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU Library General Public License as       #
-//#  published by the Free Software Foundation; version 2 of the License.  #
+//#  published by the Free Software Foundation; version 2 or later of the  #
+//#  License.                                                              #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
 //#          COPYRIGHT: EDF R&D / TELECOM ParisTech (ENST-TSI)             #
@@ -19,7 +20,6 @@
 #define CLOUD_SAMPLING_TOOLS_HEADER
 
 //Local
-#include "CCCoreLib.h"
 #include "CCToolbox.h"
 #include "DgmOctree.h"
 
@@ -149,6 +149,7 @@ public:
 		It works by picking a reference point, removing all points which are to close to this point, and repeating these two steps until the result is reached
 		\param cloud the point cloud to resample
 		\param minDistance the distance under which a point in the resulting cloud cannot have any neighbour
+		\param modParams parameters of the subsampling behavior modulation with a scalar field (optional)
 		\param octree associated octree if available
 		\param progressCb the client application can get some notification of the process progress through this callback mechanism (see GenericProgressCallback)
 		\return a reference cloud corresponding to the resampling 'selection'

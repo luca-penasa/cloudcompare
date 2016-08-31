@@ -1,14 +1,14 @@
 //##########################################################################
 //#                                                                        #
-//#                            CLOUDCOMPARE                                #
+//#                              CLOUDCOMPARE                              #
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU General Public License as published by  #
-//#  the Free Software Foundation; version 2 of the License.               #
+//#  the Free Software Foundation; version 2 or later of the License.      #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
 //#          COPYRIGHT: EDF R&D / TELECOM ParisTech (ENST-TSI)             #
@@ -470,10 +470,12 @@ void ccPropertiesTreeDelegate::fillWithPointCloud(ccGenericPointCloud* _obj)
 	//scalar field
 	fillSFWithPointCloud(_obj);
 
-	//scan grid structure(s)
+	//scan grid structure(s), waveform, etc.
 	if (_obj->isA(CC_TYPES::POINT_CLOUD))
 	{
 		ccPointCloud* cloud = static_cast<ccPointCloud*>(_obj);
+		
+		//scan grid(s)
 		size_t gridCount = cloud->gridCount();
 		if (gridCount != 0)
 		{
@@ -488,6 +490,14 @@ void ccPropertiesTreeDelegate::fillWithPointCloud(ccGenericPointCloud* _obj)
 				ccPointCloud::Grid::Shared grid = cloud->grid(i);
 				appendRow( ITEM(QString("Scan #%1").arg(i+1)), ITEM(QString("%1 x %2 (%3 points)").arg(grid->w).arg(grid->h).arg(QLocale(QLocale::English).toString(grid->validCount))) );
 			}
+		}
+
+		//waveform
+		if (cloud->hasFWF())
+		{
+			addSeparator("Waveform");
+			appendRow(ITEM(QString("Waves")),       ITEM(QString::number(cloud->fwfData().size()))); //DGM: in fact some of them might be null/invalid!
+			appendRow(ITEM(QString("Descriptors")), ITEM(QString::number(cloud->fwfDescriptors().size())));
 		}
 	}
 }
@@ -744,13 +754,13 @@ void ccPropertiesTreeDelegate::fillWithLabel(cc2DLabel* _obj)
 
 	//Body
 	QStringList body = _obj->getLabelContent(ccGui::Parameters().displayedNumPrecision);
-	appendRow( ITEM("Body"), ITEM(body.join("\n")) );
+	appendRow(ITEM("Body"), ITEM(body.join("\n")));
 
 	//Show label in 2D
-	appendRow( ITEM("Show 2D label"), CHECKABLE_ITEM(_obj->isDisplayedIn2D(),OBJECT_LABEL_DISP_2D) );
+	appendRow(ITEM("Show 2D label"), CHECKABLE_ITEM(_obj->isDisplayedIn2D(), OBJECT_LABEL_DISP_2D));
 
 	//Show label in 3D
-	appendRow( ITEM("Show 3D legend(s)"), CHECKABLE_ITEM(_obj->isDisplayedIn3D(),OBJECT_LABEL_DISP_3D) );
+	appendRow(ITEM("Show legend(s)"), CHECKABLE_ITEM(_obj->isPointLegendDisplayed(), OBJECT_LABEL_POINT_LEGEND));
 }
 
 void ccPropertiesTreeDelegate::fillWithViewportObject(cc2DViewportObject* _obj)
@@ -881,11 +891,11 @@ void ccPropertiesTreeDelegate::fillWithCameraSensor(ccCameraSensor* _obj)
 	//Skewness
 	appendRow( ITEM("Skew"), ITEM(QString::number(params.skew)) );
 
-	addSeparator("Frustrum display");
+	addSeparator("Frustum display");
 
-	//Draw frustrum
-	appendRow( ITEM("Show lines"), CHECKABLE_ITEM(_obj->frustrumIsDrawn(), OBJECT_SENSOR_DRAW_FRUSTRUM) );
-	appendRow( ITEM("Show side planes"), CHECKABLE_ITEM(_obj->frustrumPlanesAreDrawn(), OBJECT_SENSOR_DRAW_FRUSTRUM_PLANES) );
+	//Draw frustum
+	appendRow( ITEM("Show lines"), CHECKABLE_ITEM(_obj->frustumIsDrawn(), OBJECT_SENSOR_DRAW_FRUSTUM) );
+	appendRow( ITEM("Show side planes"), CHECKABLE_ITEM(_obj->frustumPlanesAreDrawn(), OBJECT_SENSOR_DRAW_FRUSTUM_PLANES) );
 
 	//Positions
 	fillWithSensor(_obj);
@@ -986,8 +996,10 @@ QWidget* ccPropertiesTreeDelegate::createEditor(QWidget *parent,
 
 			comboBox->addItem(c_noneString);
 
-			for (unsigned i=0; i<glWindows.size(); ++i)
+			for (unsigned i = 0; i < glWindows.size(); ++i)
+			{
 				comboBox->addItem(glWindows[i]->windowTitle());
+			}
 
 			connect(comboBox, SIGNAL(currentIndexChanged(const QString)), this, SLOT(objectDisplayChanged(const QString&)));
 
@@ -1071,20 +1083,21 @@ QWidget* ccPropertiesTreeDelegate::createEditor(QWidget *parent,
 		break;
 	case OBJECT_OCTREE_TYPE:
 		{
-			QComboBox *comboBox = new QComboBox(parent);
+			QComboBox* comboBox = new QComboBox(parent);
 
-			for (unsigned char i=0; i<OCTREE_DISPLAY_TYPE_NUMBERS; ++i)
-				comboBox->addItem(COCTREE_DISPLAY_TYPE_TITLES[i]);
+			comboBox->addItem("Wire", QVariant(ccOctree::WIRE));
+			comboBox->addItem("Points", QVariant(ccOctree::MEAN_POINTS));
+			comboBox->addItem("Plain cubes", QVariant(ccOctree::MEAN_CUBES));
 
-			connect(comboBox, SIGNAL(activated(int)), this, SLOT(octreeDisplayTypeChanged(int)));
+			connect(comboBox, SIGNAL(activated(int)), this, SLOT(octreeDisplayModeChanged(int)));
 
 			outputWidget = comboBox;
 		}
 		break;
 	case OBJECT_OCTREE_LEVEL:
 		{
-			QSpinBox *spinBox = new QSpinBox(parent);
-			spinBox->setRange(1,CCLib::DgmOctree::MAX_OCTREE_LEVEL);
+			QSpinBox* spinBox = new QSpinBox(parent);
+			spinBox->setRange(1, CCLib::DgmOctree::MAX_OCTREE_LEVEL);
 
 			connect(spinBox, SIGNAL(valueChanged(int)), this, SLOT(octreeDisplayedLevelChanged(int)));
 
@@ -1093,8 +1106,8 @@ QWidget* ccPropertiesTreeDelegate::createEditor(QWidget *parent,
 		break;
 	case OBJECT_PRIMITIVE_PRECISION:
 		{
-			QSpinBox *spinBox = new QSpinBox(parent);
-			spinBox->setRange(4,360);
+			QSpinBox* spinBox = new QSpinBox(parent);
+			spinBox->setRange(4, 360);
 			spinBox->setSingleStep(4);
 
 			connect(spinBox, SIGNAL(valueChanged(int)), this, SLOT(primitivePrecisionChanged(int)));
@@ -1104,9 +1117,9 @@ QWidget* ccPropertiesTreeDelegate::createEditor(QWidget *parent,
 		break;
 	case OBJECT_SPHERE_RADIUS:
 		{
-			QDoubleSpinBox *spinBox = new QDoubleSpinBox(parent);
+			QDoubleSpinBox* spinBox = new QDoubleSpinBox(parent);
 			spinBox->setDecimals(6);
-			spinBox->setRange(0,1.0e6);
+			spinBox->setRange(0, 1.0e6);
 			spinBox->setSingleStep(1.0);
 
 			connect(spinBox, SIGNAL(valueChanged(double)), this, SLOT(sphereRadiusChanged(double)));
@@ -1116,9 +1129,9 @@ QWidget* ccPropertiesTreeDelegate::createEditor(QWidget *parent,
 		break;
 	case OBJECT_CONE_HEIGHT:
 		{
-			QDoubleSpinBox *spinBox = new QDoubleSpinBox(parent);
+			QDoubleSpinBox* spinBox = new QDoubleSpinBox(parent);
 			spinBox->setDecimals(6);
-			spinBox->setRange(0,1.0e6);
+			spinBox->setRange(0, 1.0e6);
 			spinBox->setSingleStep(1.0);
 
 			connect(spinBox, SIGNAL(valueChanged(double)), this, SLOT(coneHeightChanged(double)));
@@ -1128,9 +1141,9 @@ QWidget* ccPropertiesTreeDelegate::createEditor(QWidget *parent,
 		break;
 	case OBJECT_CONE_BOTTOM_RADIUS:
 		{
-			QDoubleSpinBox *spinBox = new QDoubleSpinBox(parent);
+			QDoubleSpinBox* spinBox = new QDoubleSpinBox(parent);
 			spinBox->setDecimals(6);
-			spinBox->setRange(0,1.0e6);
+			spinBox->setRange(0, 1.0e6);
 			spinBox->setSingleStep(1.0);
 
 			connect(spinBox, SIGNAL(valueChanged(double)), this, SLOT(coneBottomRadiusChanged(double)));
@@ -1140,9 +1153,9 @@ QWidget* ccPropertiesTreeDelegate::createEditor(QWidget *parent,
 		break;
 	case OBJECT_CONE_TOP_RADIUS:
 		{
-			QDoubleSpinBox *spinBox = new QDoubleSpinBox(parent);
+			QDoubleSpinBox* spinBox = new QDoubleSpinBox(parent);
 			spinBox->setDecimals(6);
-			spinBox->setRange(0,1.0e6);
+			spinBox->setRange(0, 1.0e6);
 			spinBox->setSingleStep(1.0);
 
 			connect(spinBox, SIGNAL(valueChanged(double)), this, SLOT(coneTopRadiusChanged(double)));
@@ -1153,7 +1166,7 @@ QWidget* ccPropertiesTreeDelegate::createEditor(QWidget *parent,
 	case OBJECT_IMAGE_ALPHA:
 		{
 			QSlider* slider = new QSlider(Qt::Horizontal,parent);
-			slider->setRange(0,255);
+			slider->setRange(0, 255);
 			slider->setSingleStep(1);
 			slider->setPageStep(16);
 			slider->setTickPosition(QSlider::NoTicks);
@@ -1172,7 +1185,7 @@ QWidget* ccPropertiesTreeDelegate::createEditor(QWidget *parent,
 
 			QDoubleSpinBox* spinBox = new QDoubleSpinBox(parent);
 			spinBox->setRange(minIndex, maxIndex);
-			spinBox->setSingleStep((maxIndex-minIndex)/1000.0);
+			spinBox->setSingleStep((maxIndex - minIndex) / 1000.0);
 
 			connect(spinBox, SIGNAL(valueChanged(double)), this, SLOT(sensorIndexChanged(double)));
 
@@ -1390,7 +1403,7 @@ void ccPropertiesTreeDelegate::setEditorData(QWidget *editor, const QModelIndex 
 			ccGLWindow* win = static_cast<ccGLWindow*>(m_currentObject->getDisplay());
 			int pos = (win ? comboBox->findText(win->windowTitle()) : 0);
 
-			comboBox->setCurrentIndex(std::max(pos,0)); //0 = "NONE"
+			comboBox->setCurrentIndex(std::max(pos, 0)); //0 = "NONE"
 			break;
 		}
 	case OBJECT_CURRENT_SCALAR_FIELD:
@@ -1495,7 +1508,7 @@ void ccPropertiesTreeDelegate::setEditorData(QWidget *editor, const QModelIndex 
 		{
 			ccOctree* octree = ccHObjectCaster::ToOctree(m_currentObject);
 			assert(octree);
-			SetComboBoxIndex(editor,static_cast<int>(octree->getDisplayType()));
+			SetComboBoxIndex(editor, static_cast<int>(octree->getDisplayMode()));
 			break;
 		}
 	case OBJECT_OCTREE_LEVEL:
@@ -1713,11 +1726,11 @@ void ccPropertiesTreeDelegate::updateItem(QStandardItem * item)
 		}
 		redraw = true;
 		break;
-	case OBJECT_LABEL_DISP_3D:
+	case OBJECT_LABEL_POINT_LEGEND:
 		{
 			cc2DLabel* label = ccHObjectCaster::To2DLabel(m_currentObject);
 			assert(label);
-			label->setDisplayedIn3D(item->checkState() == Qt::Checked);
+			label->displayPointLegend(item->checkState() == Qt::Checked);
 		}
 		redraw = true;
 		break;
@@ -1741,17 +1754,17 @@ void ccPropertiesTreeDelegate::updateItem(QStandardItem * item)
 		}
 		redraw = true;
 		break;
-	case OBJECT_SENSOR_DRAW_FRUSTRUM:
+	case OBJECT_SENSOR_DRAW_FRUSTUM:
 		{
 			ccCameraSensor* sensor = ccHObjectCaster::ToCameraSensor(m_currentObject);
-			sensor->drawFrustrum(item->checkState() == Qt::Checked);
+			sensor->drawFrustum(item->checkState() == Qt::Checked);
 		}
 		redraw = true;
 		break;
-	case OBJECT_SENSOR_DRAW_FRUSTRUM_PLANES:
+	case OBJECT_SENSOR_DRAW_FRUSTUM_PLANES:
 		{
 			ccCameraSensor* sensor = ccHObjectCaster::ToCameraSensor(m_currentObject);
-			sensor->drawFrustrumPlanes(item->checkState() == Qt::Checked);
+			sensor->drawFrustumPlanes(item->checkState() == Qt::Checked);
 		}
 		redraw = true;
 		break;
@@ -1826,10 +1839,11 @@ void ccPropertiesTreeDelegate::spawnColorRampEditor()
 	ccScalarField* sf = (cloud ? static_cast<ccScalarField*>(cloud->getCurrentDisplayedScalarField()) : 0);
 	if (sf)
 	{
+		ccGLWindow* glWindow = static_cast<ccGLWindow*>(cloud->getDisplay());
 		ccColorScaleEditorDialog* editorDialog = new ccColorScaleEditorDialog(	ccColorScalesManager::GetUniqueInstance(),
 																				MainWindow::TheInstance(),
 																				sf->getColorScale(),
-																				static_cast<ccGLWindow*>(cloud->getDisplay()));
+																				glWindow ? glWindow->asWidget() : 0);
 		editorDialog->setAssociatedScalarField(sf);
 		if (editorDialog->exec())
 		{
@@ -1896,17 +1910,21 @@ void ccPropertiesTreeDelegate::colorRampStepsChanged(int pos)
 	}
 }
 
-void ccPropertiesTreeDelegate::octreeDisplayTypeChanged(int pos)
+void ccPropertiesTreeDelegate::octreeDisplayModeChanged(int pos)
 {
 	if (!m_currentObject)
+		return;
+	QComboBox* comboBox = dynamic_cast<QComboBox*>(QObject::sender());
+	if (!comboBox)
 		return;
 
 	ccOctree* octree = ccHObjectCaster::ToOctree(m_currentObject);
 	assert(octree);
 
-	if (octree->getDisplayType() != OCTREE_DISPLAY_TYPE_ENUMS[pos])
+	int mode = comboBox->itemData(pos, Qt::UserRole).toInt();
+	if (octree->getDisplayMode() != mode)
 	{
-		octree->setDisplayType(OCTREE_DISPLAY_TYPE_ENUMS[pos]);
+		octree->setDisplayMode(static_cast<ccOctree::DisplayMode>(mode));
 		updateDisplay();
 	}
 }

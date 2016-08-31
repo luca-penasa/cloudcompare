@@ -1,14 +1,14 @@
 //##########################################################################
 //#                                                                        #
-//#                            CLOUDCOMPARE                                #
+//#                              CLOUDCOMPARE                              #
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU General Public License as published by  #
-//#  the Free Software Foundation; version 2 of the License.               #
+//#  the Free Software Foundation; version 2 or later of the License.      #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
 //#          COPYRIGHT: EDF R&D / TELECOM ParisTech (ENST-TSI)             #
@@ -19,13 +19,8 @@
 #define CC_HIERARCHY_OBJECT_HEADER
 
 //Local
-#include "qCC_db.h"
 #include "ccObject.h"
-#include "ccDrawableObject.h"
 #include "ccBBox.h"
-
-//System
-#include <vector>
 
 class QIcon;
 
@@ -65,7 +60,7 @@ public: //base members access
 	//! Returns class ID
 	/** \return class unique ID
 	**/
-	inline virtual CC_CLASS_ENUM getClassID() const { return CC_TYPES::HIERARCHY_OBJECT; }
+	inline virtual CC_CLASS_ENUM getClassID() const override { return CC_TYPES::HIERARCHY_OBJECT; }
 
 	//! Returns parent object
 	/** \return parent object (NULL if no parent)
@@ -143,8 +138,14 @@ public: //children management
 	**/
 	ccHObject* find(unsigned uniqueID);
 
-	//! standard ccHObject container (for children, etc.)
+	//! Standard instances container (for children, etc.)
 	typedef std::vector<ccHObject*> Container;
+
+	//! Shared pointer
+	typedef QSharedPointer<ccHObject> Shared;
+
+	//! Shared instances container (for children, etc.)
+	typedef std::vector<Shared> SharedContainer;
 
 	//! Collects the children corresponding to a certain pattern
 	/** \param filteredChildren result container
@@ -202,7 +203,7 @@ public: //children management
 	//! Returns true if the current object is an ancestor of the specified one
 	bool isAncestorOf(const ccHObject *anObject) const;
 
-public: //bouding-box
+public: //bounding-box
 
 	//! Returns the entity's own bounding-box
 	/** Children bboxes are ignored.
@@ -253,12 +254,12 @@ public: //bouding-box
 	}
 
 	//! Draws the entity (and its children) bounding-box
-	virtual void drawBB(const ccColor::Rgb& col);
+	virtual void drawBB(CC_DRAW_CONTEXT& context, const ccColor::Rgb& col);
 
 public: //display
 
 	//Inherited from ccDrawableObject
-	virtual void draw(CC_DRAW_CONTEXT& context);
+	virtual void draw(CC_DRAW_CONTEXT& context) override;
 
 	//! Returns the absolute transformation (i.e. the actual displayed GL transforamtion) of an entity
 	/** \param[out] trans absolute transformation
@@ -292,22 +293,34 @@ public: //display
 			(*it)->recursiveName(p); \
 	} \
 
-	/*****************************/
-
 	//recursive equivalents of some of ccDrawableObject methods
-	ccHObject_recursive_call1(setSelected,bool,setSelected_recursive);
-	ccHObject_recursive_call1(setDisplay,ccGenericGLDisplay*,setDisplay_recursive);
-	ccHObject_recursive_call1(removeFromDisplay,ccGenericGLDisplay*,removeFromDisplay_recursive);
-	ccHObject_recursive_call0(prepareDisplayForRefresh,prepareDisplayForRefresh_recursive);
-	ccHObject_recursive_call0(refreshDisplay,refreshDisplay_recursive);
-	ccHObject_recursive_call0(resetGLTransformationHistory,resetGLTransformationHistory_recursive);
-	ccHObject_recursive_call0(toggleActivation,toggleActivation_recursive);
-	ccHObject_recursive_call0(toggleVisibility,toggleVisibility_recursive);
-	ccHObject_recursive_call0(toggleColors,toggleColors_recursive);
-	ccHObject_recursive_call0(toggleNormals,toggleNormals_recursive);
-	ccHObject_recursive_call0(toggleSF,toggleSF_recursive);
-	ccHObject_recursive_call0(toggleShowName,toggleShowName_recursive);
-	ccHObject_recursive_call0(toggleMaterials,toggleMaterials_recursive);
+	ccHObject_recursive_call1(setSelected, bool, setSelected_recursive)
+	ccHObject_recursive_call1(setDisplay, ccGenericGLDisplay*, setDisplay_recursive)
+	ccHObject_recursive_call1(removeFromDisplay, ccGenericGLDisplay*, removeFromDisplay_recursive)
+	ccHObject_recursive_call0(prepareDisplayForRefresh, prepareDisplayForRefresh_recursive)
+	ccHObject_recursive_call1(refreshDisplay, bool, refreshDisplay_recursive)
+	ccHObject_recursive_call0(resetGLTransformationHistory, resetGLTransformationHistory_recursive)
+	ccHObject_recursive_call0(toggleActivation, toggleActivation_recursive)
+	ccHObject_recursive_call0(toggleVisibility, toggleVisibility_recursive)
+	ccHObject_recursive_call0(toggleColors, toggleColors_recursive)
+	ccHObject_recursive_call0(toggleNormals, toggleNormals_recursive)
+	ccHObject_recursive_call0(toggleSF, toggleSF_recursive)
+	ccHObject_recursive_call0(toggleShowName, toggleShowName_recursive)
+	ccHObject_recursive_call0(toggleMaterials, toggleMaterials_recursive)
+
+	//! Transfers the entity from one display to the other
+	inline virtual void transferDisplay(ccGenericGLDisplay* oldDisplay, ccGenericGLDisplay* newDisplay)
+	{
+		if (getDisplay() == oldDisplay)
+		{
+			setDisplay(newDisplay);
+		}
+	
+		for (Container::iterator it = m_children.begin(); it != m_children.end(); ++it)
+		{
+			(*it)->transferDisplay(oldDisplay, newDisplay);
+		}
+	} 
 
 	//! Returns the max 'unique ID' of this entity and its siblings
 	unsigned findMaxUniqueID_recursive() const;
@@ -323,19 +336,18 @@ public: //display
 	virtual void notifyGeometryUpdate();
 
 	//inherited from ccSerializableObject
-	virtual bool isSerializable() const;
-	virtual bool toFile(QFile& out) const;
-	virtual inline bool fromFile(QFile& in, short dataVersion, int flags) { return fromFile(in,dataVersion,flags,false); }
+	virtual bool isSerializable() const override;
+	virtual bool toFile(QFile& out) const override;
+	virtual bool fromFile(QFile& in, short dataVersion, int flags) override;
 
 	//! Custom version of ccSerializableObject::fromFile
-	/** This version is used to load only the object own part of a stream (an not its children's)
+	/** This is used to load only the object's part of a stream (and not its children)
 		\param in input file (already opened)
 		\param dataVersion file version
 		\param flags deserialization flags (see ccSerializableObject::DeserializationFlags)
-		\param omitChildren to omit loading the children's part of the stream
 		\return success
 	**/
-	virtual bool fromFile(QFile& in, short dataVersion, int flags, bool omitChildren);
+	bool fromFileNoChildren(QFile& in, short dataVersion, int flags);
 
 	//! Returns whether object is shareable or not
 	/** If object is father dependent and 'shared', it won't
@@ -412,10 +424,10 @@ protected:
 	**/
 	virtual void onUpdateOf(ccHObject* obj) { /*does nothing by default*/ }
 
-	//! Object's parent
+	//! Parent
 	ccHObject* m_parent;
 
-	//! Object's children
+	//! Children
 	Container m_children;
 
 	//! Selection behavior
@@ -463,7 +475,7 @@ inline void ConvertToGroup(const ccHObject::Container& origin, ccHObject& dest, 
 
 		if (!isSiblingOfAnotherOne)
 		{
-			dest.addChild(origin[i],dependencyFlags);
+			dest.addChild(origin[i], dependencyFlags);
 		}
 	}
 }

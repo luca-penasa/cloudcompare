@@ -1,14 +1,14 @@
 //##########################################################################
 //#                                                                        #
-//#                            CLOUDCOMPARE                                #
+//#                              CLOUDCOMPARE                              #
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU General Public License as published by  #
-//#  the Free Software Foundation; version 2 of the License.               #
+//#  the Free Software Foundation; version 2 or later of the License.      #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
 //#          COPYRIGHT: EDF R&D / TELECOM ParisTech (ENST-TSI)             #
@@ -83,7 +83,7 @@ protected:
 			, C(0,0,0)
 			, cellCode(0)
 			, signConfidence(1)
-#ifdef _DEBUG
+#ifdef QT_DEBUG
 			, scalar(0)
 #endif
 		{}
@@ -96,10 +96,10 @@ protected:
 		//! The local cell center
 		CCVector3 C;
 		//! the code of the equivalent cell in the octree
-		CCLib::DgmOctree::OctreeCellCodeType cellCode;
+		CCLib::DgmOctree::CellCode cellCode;
 		//! Confidence value
 		float signConfidence;
-#ifdef _DEBUG
+#ifdef QT_DEBUG
 		//! Undefined scalar for debug purposes
 		float scalar;
 #endif

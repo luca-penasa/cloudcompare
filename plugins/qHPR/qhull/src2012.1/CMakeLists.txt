@@ -1,6 +1,8 @@
-cmake_minimum_required(VERSION 2.8)
+cmake_minimum_required(VERSION 3.0)
 
 project( qhull )
+
+set( CMAKE_AUTOMOC OFF )
 
 set( SAMPLE_PROJECT_VERSION_MAJOR 2012 )
 set( SAMPLE_PROJECT_VERSION_MINOR 1 )
@@ -15,5 +17,5 @@ set( source_list rboxlib.c user.c global.c stat.c io.c geom2.c poly2.c merge.c l
 
 add_library( ${PROJECT_NAME} STATIC ${header_list} ${source_list} )
 
-# Add prepocessor definitions
+# Add preprocessor definitions
 set_property( TARGET ${PROJECT_NAME} APPEND PROPERTY COMPILE_DEFINITIONS _CRT_SECURE_NO_WARNINGS )

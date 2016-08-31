@@ -1,14 +1,14 @@
 //##########################################################################
 //#                                                                        #
-//#                            CLOUDCOMPARE                                #
+//#                              CLOUDCOMPARE                              #
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU General Public License as published by  #
-//#  the Free Software Foundation; version 2 of the License.               #
+//#  the Free Software Foundation; version 2 or later of the License.      #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
 //#          COPYRIGHT: EDF R&D / TELECOM ParisTech (ENST-TSI)             #
@@ -17,8 +17,8 @@
 
 #include "ccIndexedTransformationBuffer.h"
 
-//Local
-#include "ccLog.h"
+//CCLib
+#include <SortAlgo.h>
 
 ccIndexedTransformationBuffer::ccIndexedTransformationBuffer(QString name)
 	: ccHObject(name)
@@ -60,7 +60,7 @@ static bool IndexCompOperator(const ccIndexedTransformation& a, double index)
 
 void ccIndexedTransformationBuffer::sort()
 {
-	std::sort(begin(), end(), IndexedSortOperator);
+	SortAlgo(begin(), end(), IndexedSortOperator);
 }
 
 bool ccIndexedTransformationBuffer::findNearest(double index,
@@ -282,21 +282,28 @@ bool ccIndexedTransformationBuffer::fromFile_MeOnly(QFile& in, short dataVersion
 void ccIndexedTransformationBuffer::drawMeOnly(CC_DRAW_CONTEXT& context)
 {
 	//no picking enabled on trans. buffers
-	if (MACRO_DrawNames(context))
+	if (MACRO_DrawEntityNames(context))
 		return;
 	//only in 3D
 	if (!MACRO_Draw3D(context))
+		return;
+	
+	//get the set of OpenGL functions (version 2.1)
+	QOpenGLFunctions_2_1 *glFunc = context.glFunctions<QOpenGLFunctions_2_1>();
+	assert( glFunc != nullptr );
+	
+	if ( glFunc == nullptr )
 		return;
 
 	size_t count = size();
 
 	//show path
 	{
-		ccGL::Color3v(ccColor::green.rgba);
-		glBegin(count > 1 && m_showAsPolyline ? GL_LINE_STRIP : GL_POINTS); //show path as a polyline or points?
+		ccGL::Color3v(glFunc, ccColor::green.rgba);
+		glFunc->glBegin(count > 1 && m_showAsPolyline ? GL_LINE_STRIP : GL_POINTS); //show path as a polyline or points?
 		for (ccIndexedTransformationBuffer::const_iterator it=begin(); it!=end(); ++it)
-			glVertex3fv(it->getTranslation());
-		glEnd();
+			glFunc->glVertex3fv(it->getTranslation());
+		glFunc->glEnd();
 	}
 
 	//show trihedrons?
@@ -304,23 +311,23 @@ void ccIndexedTransformationBuffer::drawMeOnly(CC_DRAW_CONTEXT& context)
 	{
 		for (ccIndexedTransformationBuffer::const_iterator it=begin(); it!=end(); ++it)
 		{
-			glMatrixMode(GL_MODELVIEW);
-			glPushMatrix();
-			glMultMatrixf(it->data());
+			glFunc->glMatrixMode(GL_MODELVIEW);
+			glFunc->glPushMatrix();
+			glFunc->glMultMatrixf(it->data());
 
-			glBegin(GL_LINES);
-			glColor3f(1.0f,0.0f,0.0f);
-			glVertex3f(0.0f,0.0f,0.0f);
-			glVertex3f(m_trihedronsScale,0.0f,0.0f);
-			glColor3f(0.0f,1.0f,0.0f);
-			glVertex3f(0.0f,0.0f,0.0f);
-			glVertex3f(0.0f,m_trihedronsScale,0.0f);
-			glColor3f(0.0f,0.7f,1.0f);
-			glVertex3f(0.0f,0.0f,0.0f);
-			glVertex3f(0.0f,0.0f,m_trihedronsScale);
-			glEnd();
+			glFunc->glBegin(GL_LINES);
+			glFunc->glColor3f(1.0f,0.0f,0.0f);
+			glFunc->glVertex3f(0.0f,0.0f,0.0f);
+			glFunc->glVertex3f(m_trihedronsScale,0.0f,0.0f);
+			glFunc->glColor3f(0.0f,1.0f,0.0f);
+			glFunc->glVertex3f(0.0f,0.0f,0.0f);
+			glFunc->glVertex3f(0.0f,m_trihedronsScale,0.0f);
+			glFunc->glColor3f(0.0f,0.7f,1.0f);
+			glFunc->glVertex3f(0.0f,0.0f,0.0f);
+			glFunc->glVertex3f(0.0f,0.0f,m_trihedronsScale);
+			glFunc->glEnd();
 
-			glPopMatrix();
+			glFunc->glPopMatrix();
 		}
 	}
 }

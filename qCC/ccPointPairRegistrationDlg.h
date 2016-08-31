@@ -1,14 +1,14 @@
 //##########################################################################
 //#                                                                        #
-//#                            CLOUDCOMPARE                                #
+//#                              CLOUDCOMPARE                              #
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU General Public License as published by  #
-//#  the Free Software Foundation; version 2 of the License.               #
+//#  the Free Software Foundation; version 2 or later of the License.      #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
 //#          COPYRIGHT: EDF R&D / TELECOM ParisTech (ENST-TSI)             #
@@ -24,13 +24,9 @@
 //qCC_db
 #include <ccPointCloud.h>
 
-
 //Qt generated dialog
 #include <ui_pointPairRegistrationDlg.h>
 
-//CCLib
-#include <CCGeom.h>
-#include <PointProjectionTools.h>
 
 class ccGenericPointCloud;
 class ccGenericGLDisplay;
@@ -93,7 +89,7 @@ protected slots:
 	//! Slot called when a "delete" button is pushed
 	void onDelButtonPushed();
 
-	void processPickedItem(ccHObject*, unsigned, int, int);
+	void processPickedItem(ccHObject*, unsigned, int, int, const CCVector3&);
 
 	//! Updates the registration info and buttons states
 	void updateAlignInfo();
@@ -119,7 +115,7 @@ protected:
 
 	//! Converts a picked point to a sphere center (if necessary)
 	/** \param P input point (may be converted to a sphere center)
-		\param associated entity
+		\param entity associated entity
 		\param sphereRadius the detected spherer radius (or -1 if no sphere)
 		\return whether the point can be used or not
 	**/

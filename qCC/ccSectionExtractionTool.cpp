@@ -1,14 +1,14 @@
 //##########################################################################
 //#                                                                        #
-//#                            CLOUDCOMPARE                                #
+//#                              CLOUDCOMPARE                              #
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU General Public License as published by  #
-//#  the Free Software Foundation; version 2 of the License.               #
+//#  the Free Software Foundation; version 2 or later of the License.      #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
 //#          COPYRIGHT: EDF R&D / TELECOM ParisTech (ENST-TSI)             #
@@ -209,10 +209,10 @@ bool ccSectionExtractionTool::linkWith(ccGLWindow* win)
 	
 	if (m_associatedWin)
 	{
-		connect(m_associatedWin, SIGNAL(leftButtonClicked(int,int)), this, SLOT(addPointToPolyline(int,int)));
-		connect(m_associatedWin, SIGNAL(rightButtonClicked(int,int)), this, SLOT(closePolyLine(int,int)));
-		connect(m_associatedWin, SIGNAL(mouseMoved(int,int,Qt::MouseButtons)), this, SLOT(updatePolyLine(int,int,Qt::MouseButtons)));
-		connect(m_associatedWin, SIGNAL(buttonReleased()), this, SLOT(closeRectangle()));
+		connect(m_associatedWin, SIGNAL(leftButtonClicked(int, int)), this, SLOT(addPointToPolyline(int, int)));
+		connect(m_associatedWin, SIGNAL(rightButtonClicked(int, int)), this, SLOT(closePolyLine(int, int)));
+		connect(m_associatedWin, SIGNAL(mouseMoved(int, int, Qt::MouseButtons)), this, SLOT(updatePolyLine(int, int, Qt::MouseButtons)));
+		//connect(m_associatedWin, SIGNAL(buttonReleased()), this, SLOT(closeRectangle()));
 		connect(m_associatedWin, SIGNAL(entitySelectionChanged(ccHObject*)), this, SLOT(entitySelected(ccHObject*)));
 
 		//import sections in current display
@@ -692,8 +692,11 @@ bool ccSectionExtractionTool::addCloud(ccGenericPointCloud* inputCloud, bool alr
 
 void ccSectionExtractionTool::updatePolyLine(int x, int y, Qt::MouseButtons buttons)
 {
-	if (!m_associatedWin || !m_associatedWin->hasFBO()) //we need fast rendering (with FBO) for live update of the polyline!
+	if (!m_associatedWin)
+	{
+		assert(false);
 		return;
+	}
 
 	//process not started yet?
 	if ((m_state & RUNNING) == 0)
@@ -1302,7 +1305,7 @@ bool ccSectionExtractionTool::extractSectionContour(const ccPolyline* originalSe
 		std::vector<ccPolyline*> parts;
 		if (splitContour)
 		{
-#ifdef _DEBUG
+#ifdef QT_DEBUG
 			//compute some stats on the contour
 			{
 				double minLength = 0;
@@ -1571,8 +1574,8 @@ void ccSectionExtractionTool::unfoldPoints()
 
 	ccProgressDialog pdlg(true);
 	CCLib::NormalizedProgress nprogress(&pdlg, totalPointCount);
-	pdlg.setMethodTitle("Unfold cloud(s)");
-	pdlg.setInfo(qPrintable(QString("Number of segments: %1\nNumber of points: %2").arg(polyMaxCount).arg(totalPointCount)));
+	pdlg.setMethodTitle(tr("Unfold cloud(s)"));
+	pdlg.setInfo(tr("Number of segments: %1\nNumber of points: %2").arg(polyMaxCount).arg(totalPointCount));
 	pdlg.start();
 	QCoreApplication::processEvents();
 
@@ -1724,7 +1727,7 @@ void ccSectionExtractionTool::unfoldPoints()
 
 	} //for each cloud
 
-	ccLog::Print(QString("[Unfold] %i cloud(s) exported").arg(exportedClouds));
+	ccLog::Print(QString("[Unfold] %1 cloud(s) exported").arg(exportedClouds));
 }
 
 void ccSectionExtractionTool::extractPoints()
@@ -1797,12 +1800,11 @@ void ccSectionExtractionTool::extractPoints()
 
 	//progress dialog
 	ccProgressDialog pdlg(true);
-	CCLib::NormalizedProgress* nprogress = 0;
+	CCLib::NormalizedProgress nprogress(&pdlg, static_cast<unsigned>(sectionCount));
 	if (!visualDebugMode)
 	{
-		nprogress = new CCLib::NormalizedProgress(&pdlg,static_cast<unsigned>(sectionCount));
-		pdlg.setMethodTitle("Extract sections");
-		pdlg.setInfo(qPrintable(QString("Number of sections: %1\nNumber of points: %2").arg(sectionCount).arg(pointCount)));
+		pdlg.setMethodTitle(tr("Extract sections"));
+		pdlg.setInfo(tr("Number of sections: %1\nNumber of points: %2").arg(sectionCount).arg(pointCount));
 		pdlg.start();
 		QCoreApplication::processEvents();
 	}
@@ -2038,7 +2040,7 @@ void ccSectionExtractionTool::extractPoints()
 				}
 			} //if (poly)
 
-			if (nprogress && !nprogress->oneStep())
+			if (!nprogress.oneStep())
 			{
 				ccLog::Warning("[ccSectionExtractionTool] Canceled by user");
 				error = true;
@@ -2051,12 +2053,6 @@ void ccSectionExtractionTool::extractPoints()
 	catch (const std::bad_alloc&)
 	{
 		error = true;
-	}
-
-	if (nprogress)
-	{
-		delete nprogress;
-		nprogress = 0;
 	}
 
 	if (error)

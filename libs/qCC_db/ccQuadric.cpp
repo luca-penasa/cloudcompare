@@ -1,14 +1,14 @@
 //##########################################################################
 //#                                                                        #
-//#                            CLOUDCOMPARE                                #
+//#                              CLOUDCOMPARE                              #
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU General Public License as published by  #
-//#  the Free Software Foundation; version 2 of the License.               #
+//#  the Free Software Foundation; version 2 or later of the License.      #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
 //#          COPYRIGHT: EDF R&D / TELECOM ParisTech (ENST-TSI)             #
@@ -319,7 +319,7 @@ bool ccQuadric::fromFile_MeOnly(QFile& in, short dataVersion, int flags)
 	return true;
 }
 
-ccBBox ccQuadric::getFitBB(ccGLMatrix& trans)
+ccBBox ccQuadric::getOwnFitBB(ccGLMatrix& trans)
 {
 	trans = m_transformation;
 	return ccBBox( CCVector3(m_minCorner.x,m_minCorner.y,m_minZ), CCVector3(m_maxCorner.x,m_maxCorner.y,m_maxZ) );

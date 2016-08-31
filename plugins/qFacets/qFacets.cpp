@@ -4,14 +4,14 @@
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU General Public License as published by  #
-//#  the Free Software Foundation; version 2 of the License.               #
+//#  the Free Software Foundation; version 2 or later of the License.      #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
-//#                           COPYRIGHT: BRGM                              #
+//#                      COPYRIGHT: Thomas Dewez, BRGM                     #
 //#                                                                        #
 //##########################################################################
 
@@ -19,7 +19,6 @@
 
 //Local
 #include "facetsClassifier.h"
-#include "cellsFusionDlg.h"
 #include "classificationParamsDlg.h"
 #include "facetsExportDlg.h"
 #include "stereogramDlg.h"
@@ -33,35 +32,17 @@
 #include <QElapsedTimer>
 #include <QSettings>
 #include <QFileInfo>
-#include <QFile>
 #include <QMessageBox>
-#include <QTextStream>
 
 //qCC_db
-#include <ccFacet.h>
 #include <ccHObjectCaster.h>
-#include <ccKdTree.h>
-#include <ccPointCloud.h>
 #include <ccProgressDialog.h>
-#include <ccMesh.h>
-#include <ccNormalVectors.h>
-#include <ccPolyline.h>
 #include <ccScalarField.h>
 #include <ccOctree.h> //for ComputeAverageNorm
 
 //qCC_io
 #include <ShpFilter.h>
 
-//CCLib
-#include <Neighbourhood.h>
-#include <CCMiscTools.h>
-#include <DistanceComputationTools.h>
-
-//System
-#include <string.h>
-#include <algorithm>
-#include <vector>
-#include <unordered_set>
 
 //semi-persistent dialog values
 static unsigned s_octreeLevel = 8;
@@ -334,7 +315,7 @@ void qFacets::extractFacets(CellsFusionDlg::Algorithm algo)
 			errorMeasure,
 			s_fmUseRetroProjectionError,
 			&pDlg,
-			pc->getOctree());
+			pc->getOctree().data());
 
 		success = (result >= 0);
 	}
@@ -441,8 +422,8 @@ ccHObject* qFacets::createFacets(	ccPointCloud* cloud,
 
 	//progress notification
 	ccProgressDialog pDlg(true,m_app->getMainWindow());
-	pDlg.setMethodTitle("Facets creation");
-	pDlg.setInfo(qPrintable(QString("Components: %1").arg(componentCount)));
+	pDlg.setMethodTitle(QObject::tr("Facets creation"));
+	pDlg.setInfo(QObject::tr("Components: %1").arg(componentCount));
 	pDlg.setMaximum(static_cast<int>(componentCount));
 	pDlg.show();
 	QApplication::processEvents();
@@ -1141,7 +1122,3 @@ QIcon qFacets::getIcon() const
 {
 	return QIcon(QString::fromUtf8(":/CC/plugin/qFacets/qFacets.png"));
 }
-
-#ifndef CC_QT5
-Q_EXPORT_PLUGIN2(qFacets,qFacets);
-#endif

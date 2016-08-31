@@ -4,11 +4,12 @@
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU Library General Public License as       #
-//#  published by the Free Software Foundation; version 2 of the License.  #
+//#  published by the Free Software Foundation; version 2 or later of the  #
+//#  License.                                                              #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
 //#          COPYRIGHT: EDF R&D / TELECOM ParisTech (ENST-TSI)             #
@@ -21,6 +22,7 @@
 #include "GenericProgressCallback.h"
 #include "GenericIndexedCloudPersist.h"
 #include "Neighbourhood.h"
+#include "SortAlgo.h"
 
 //system
 #include <algorithm>
@@ -72,10 +74,13 @@ static void InitProgress(GenericProgressCallback* progressCb, unsigned totalCoun
 
 	if (s_progressCb)
 	{
-		s_progressCb->setMethodTitle("Kd-tree computation");
-		char info[256];
-		sprintf(info,"Points: %u",totalCount);
-		s_progressCb->setInfo(info);
+		if (progressCb->textCanBeEdited())
+		{
+			s_progressCb->setMethodTitle("Kd-tree computation");
+			char info[256];
+			sprintf(info, "Points: %u", totalCount);
+			s_progressCb->setInfo(info);
+		}
 		s_progressCb->start();
 #ifdef USE_QT
 		QCoreApplication::processEvents();
@@ -159,7 +164,7 @@ TrueKdTree::BaseNode* TrueKdTree::split(ReferenceCloud* subset)
 		const CCVector3* P = subset->getPoint(i);
 		s_sortedCoordsForSplit[i] = P->u[splitDim];
 	}
-	std::sort(s_sortedCoordsForSplit.begin(),s_sortedCoordsForSplit.begin()+count);
+	SortAlgo(s_sortedCoordsForSplit.begin(), s_sortedCoordsForSplit.begin() + count);
 
 	unsigned splitCount = count/2;
 	assert(splitCount >= 3); //count >= 6 (see above)

@@ -1,14 +1,14 @@
 //##########################################################################
 //#                                                                        #
-//#                            CLOUDCOMPARE                                #
+//#                              CLOUDCOMPARE                              #
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU General Public License as published by  #
-//#  the Free Software Foundation; version 2 of the License.               #
+//#  the Free Software Foundation; version 2 or later of the License.      #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
 //#          COPYRIGHT: EDF R&D / TELECOM ParisTech (ENST-TSI)             #
@@ -22,18 +22,13 @@
 #include "ccIncludeGL.h"
 
 //Local
-#include "qCC_db.h"
 #include "ccSerializableObject.h"
 #include "ccGLMatrix.h"
 #include "ccMaterial.h"
 
 //Qt
-#include <QImage>
-#include <QString>
 #include <QFont>
 
-//CCLib
-#include <CCGeom.h>
 
 class QWidget;
 
@@ -100,6 +95,27 @@ public:
 	**/
 	float orthoAspectRatio;
 
+	//! Helper: converts an integer (increment) in [0 iMax] to a double (zNear) value in [0.001 1]
+	static double IncrementToZNearCoef(int i, int iMax)
+	{
+		assert(i >= 0 && i <= iMax);
+		return pow(10, -static_cast<double>((iMax - i) * 3) / iMax); //between 10^-3 and 1
+	}
+
+	//! Helper: converts a double (zNear) value in ]0 1] to integer increments in [0 iMax]
+	static int ZNearCoefToIncrement(double coef, int iMax)
+	{
+		assert(coef >= 0 && coef <= 1.0);
+		double id = -(iMax / 3.0) * log10(coef);
+		int i = static_cast<int>(id);
+		//cope with numerical inaccuracies
+		if (fabs(id-i) > fabs(id-(i+1)))
+		{
+			++i;
+		}
+		assert(i >= 0 && i <= iMax);
+		return iMax - i;
+	}
 };
 
 //! OpenGL camera parameters
@@ -110,7 +126,7 @@ struct ccGLCameraParameters
 		, fov_deg(0)
 		, pixelSize(0)
 	{
-	   memset(viewport, 0, 4 * sizeof( int ));
+	   memset(viewport, 0, 4 * sizeof(int));
 	}
 
 	//! Projects a 3D point in 2D (+ normalized 'z' coordinate)
@@ -141,7 +157,8 @@ struct ccGLCameraParameters
 class ccGenericGLDisplay
 {
 public:
-
+	virtual ~ccGenericGLDisplay() {}
+		
 	//! Returns the screen size
 	virtual QSize getScreenSize() const = 0;
 
@@ -164,15 +181,6 @@ public:
 	/** On next redraw, viewport information will be recomputed.
 	**/
 	virtual void invalidateViewport() = 0;
-
-	//! Returns the texture ID corresponding to an image
-	virtual unsigned getTextureID(const QImage& image) = 0;
-	
-	//! Returns the texture ID corresponding to a material
-	virtual unsigned getTextureID( ccMaterial::CShared mtl) = 0;
-
-	//! Release texture from context
-	virtual void releaseTexture(unsigned texID) = 0;
 
 	//! Returns defaul text display font
 	/** Warning: already takes rendering zoom into account!
@@ -224,11 +232,6 @@ public:
 								const unsigned char* rgbColor = 0,
 								const QFont& font=QFont()) = 0;
 
-	//! Returns whether a given version of OpenGL is supported
-	/** \param openGLVersionFlag see QGLFormat::OpenGLVersionFlag
-	**/
-	virtual bool supportOpenGLVersion(unsigned openGLVersionFlag) = 0;
-
 	//! Returns the current OpenGL camera parameters
 	virtual void getGLCameraParameters(ccGLCameraParameters& params) = 0;
 
@@ -250,7 +253,6 @@ public:
 
 	//! Returns this window as a proper Qt widget
 	virtual QWidget* asWidget() { return 0; }
-
 };
 
 #endif //CC_GENERIC_GL_DISPLAY

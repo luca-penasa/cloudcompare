@@ -1,17 +1,17 @@
 //##########################################################################
 //#                                                                        #
-//#                               CCLIB                                    #
+//#                              CLOUDCOMPARE                              #
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
-//#  it under the terms of the GNU Library General Public License as       #
-//#  published by the Free Software Foundation; version 2 of the License.  #
+//#  it under the terms of the GNU General Public License as published by  #
+//#  the Free Software Foundation; version 2 or later of the License.      #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
-//#          COPYRIGHT: EDF R&D / TELECOM ParisTech (ENST-TSI)             #
+//#                    COPYRIGHT: CloudCompare project                     #
 //#                                                                        #
 //##########################################################################
 
@@ -58,11 +58,15 @@ template <typename T > struct Ray
 	Tuple3i sign;
 };
 
-//! Simple axis aligned bounding-box structure
+//! Simple axis aligned box structure
 template <typename T > struct AABB
 {
 	AABB(const Vector3Tpl<T>& minCorner, const Vector3Tpl<T>& maxCorner)
 	{
+		assert(minCorner.x <= maxCorner.x);
+		assert(minCorner.y <= maxCorner.y);
+		assert(minCorner.z <= maxCorner.z);
+
 		corners[0] = minCorner;
 		corners[1] = maxCorner;
 	}

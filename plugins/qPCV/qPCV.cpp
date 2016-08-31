@@ -4,14 +4,14 @@
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU General Public License as published by  #
-//#  the Free Software Foundation; version 2 of the License.               #
+//#  the Free Software Foundation; version 2 or later of the License.      #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
-//#               COPYRIGHT: Daniel Girardeau-Montaut                      #
+//#                  COPYRIGHT: Daniel Girardeau-Montaut                   #
 //#                                                                        #
 //##########################################################################
 
@@ -31,7 +31,6 @@
 #include <ccScalarField.h>
 #include <ccColorScalesManager.h>
 
-//Qt (last so as to be sure that glew.h is included before gl.h
 #include <QtGui>
 #include <QMainWindow>
 
@@ -235,7 +234,3 @@ QIcon qPCV::getIcon() const
 {
 	return QIcon(QString::fromUtf8(":/CC/plugin/qPCV/cc_ShadeVisIcon.png"));
 }
-
-#ifndef CC_QT5
-Q_EXPORT_PLUGIN2(qPCV,qPCV);
-#endif

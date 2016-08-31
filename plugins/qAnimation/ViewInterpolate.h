@@ -4,14 +4,14 @@
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU General Public License as published by  #
-//#  the Free Software Foundation; version 2 of the License.               #
+//#  the Free Software Foundation; version 2 or later of the License.      #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
-//#         COPYRIGHT: Ryan Wicks, 2G Robotics Inc., 2015				   #
+//#             COPYRIGHT: Ryan Wicks, 2G Robotics Inc., 2015              #
 //#                                                                        #
 //##########################################################################
 
@@ -24,10 +24,9 @@
 
 class ccViewportParameters;
 
-/**
- * @brief The ViewInterpolate class
- * This class takes pointers to two viewport objects, and returns intermediate viewports between over a set number of steps.
- */
+//! The ViewInterpolate class
+/** This class takes pointers to two viewport objects, and returns intermediate viewports between over a set number of steps.
+**/
 class ViewInterpolate
 {
 public:

@@ -1,14 +1,14 @@
 //##########################################################################
 //#                                                                        #
-//#                            CLOUDCOMPARE                                #
+//#                              CLOUDCOMPARE                              #
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU General Public License as published by  #
-//#  the Free Software Foundation; version 2 of the License.               #
+//#  the Free Software Foundation; version 2 or later of the License.      #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
 //#          COPYRIGHT: EDF R&D / TELECOM ParisTech (ENST-TSI)             #
@@ -50,7 +50,6 @@ ccDisplayOptionsDlg::ccDisplayOptionsDlg(QWidget* parent)
 	connect(decimateCloudBox,                SIGNAL(clicked()),         this, SLOT(changeCloudDecimation()));
 	connect(useVBOCheckBox,                  SIGNAL(clicked()),         this, SLOT(changeVBOUsage()));
 	connect(showCrossCheckBox,               SIGNAL(clicked()),         this, SLOT(changeCrossDisplayed()));
-	connect(openGLPickingCheckBox,           SIGNAL(clicked()),         this, SLOT(changeOpenGLPicking()));
 
 	connect(colorScaleShowHistogramCheckBox, SIGNAL(clicked()),         this, SLOT(changeColorScaleShowHistogram()));
 	connect(useColorScaleShaderCheckBox,     SIGNAL(clicked()),         this, SLOT(changeColorScaleUseShader()));
@@ -137,7 +136,6 @@ void ccDisplayOptionsDlg::refresh()
 	maxCloudSizeDoubleSpinBox->setValue(static_cast<double>(parameters.minLoDCloudSize)/1000000.0);
 	useVBOCheckBox->setChecked(parameters.useVBOs);
 	showCrossCheckBox->setChecked(parameters.displayCross);
-	openGLPickingCheckBox->setChecked(parameters.useOpenGLPointPicking);
 
 	colorScaleShowHistogramCheckBox->setChecked(parameters.colorScaleShowHistogram);
 	useColorScaleShaderCheckBox->setChecked(parameters.colorScaleUseShader);
@@ -391,11 +389,6 @@ void ccDisplayOptionsDlg::changeVBOUsage()
 void ccDisplayOptionsDlg::changeCrossDisplayed()
 {
 	parameters.displayCross = showCrossCheckBox->isChecked();
-}
-
-void ccDisplayOptionsDlg::changeOpenGLPicking()
-{
-	parameters.useOpenGLPointPicking = openGLPickingCheckBox->isChecked();
 }
 
 void ccDisplayOptionsDlg::changeColorScaleShowHistogram()

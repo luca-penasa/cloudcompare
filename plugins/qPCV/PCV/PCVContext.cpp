@@ -4,11 +4,11 @@
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU Library General Public License as       #
-//#  published by the Free Software Foundation; version 2 of the License.  #
+//#  published by the Free Software Foundation; version 2 or later of the License.  #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
 //#          COPYRIGHT: EDF R&D / TELECOM ParisTech (ENST-TSI)             #
@@ -19,6 +19,7 @@
 
 //CCLib
 #include <CCMiscTools.h>
+#include <GenericTriangle.h>
 
 //Qt
 #include <QGLPixelBuffer>
@@ -108,15 +109,15 @@ bool PCVContext::init(unsigned W,
 		if (!m_snapC)
 		{
 			delete m_pixBuffer;
-			m_pixBuffer=0;
+			m_pixBuffer = 0;
 			delete[] m_snapZ;
-			m_snapZ=0;
+			m_snapZ = 0;
 			return false;
 		}
 	}
 
-	m_width=W;
-	m_height=H;
+	m_width = W;
+	m_height = H;
 
 	associateToEntity(cloud, mesh);
 
@@ -274,7 +275,7 @@ int PCVContext::GLAccumPixel(std::vector<int>& visibilityCount)
 	m_pixBuffer->makeCurrent();
 
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-	glDepthRange(2.0f*ZTWIST,1.0f);
+	glDepthRange(2.0f*ZTWIST, 1.0f);
 
 	if (m_meshIsClosed)
 		glColorMask(GL_FALSE,GL_FALSE,GL_FALSE,GL_FALSE);

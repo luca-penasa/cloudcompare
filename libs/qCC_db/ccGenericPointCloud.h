@@ -1,14 +1,14 @@
 //##########################################################################
 //#                                                                        #
-//#                            CLOUDCOMPARE                                #
+//#                              CLOUDCOMPARE                              #
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU General Public License as published by  #
-//#  the Free Software Foundation; version 2 of the License.               #
+//#  the Free Software Foundation; version 2 or later of the License.      #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
 //#          COPYRIGHT: EDF R&D / TELECOM ParisTech (ENST-TSI)             #
@@ -19,18 +19,16 @@
 #define CC_GENERIC_POINT_CLOUD_HEADER
 
 //CCLib
-#include <GenericIndexedCloudPersist.h>
 #include <GenericProgressCallback.h>
 #include <ReferenceCloud.h>
 
 //Local
-#include "qCC_db.h"
 #include "ccGenericGLDisplay.h"
 #include "ccShiftedObject.h"
-#include "ccGLMatrix.h"
 #include "ccAdvancedTypes.h"
+#include "ccOctree.h"
 
-class ccOctree;
+class ccOctreeProxy;
 
 /***************************************************
 				ccGenericPointCloud
@@ -96,17 +94,21 @@ public:
 
 	//! Computes the cloud octree
 	/** The octree bounding-box is automatically defined as the smallest
-		3D cube that encloses totally the cloud.
+		3D cube that totally encloses the cloud.
 		WARNING: any previously attached octree will be deleted,
-				 even if new octree computation failed.
+				 even if the new octree computation failed.
 		\param progressCb the caller can get some notification of the process progress through this callback mechanism (see CCLib documentation)
 		\param autoAddChild whether to automatically add the computed octree as child of this cloud or not
 		\return the computed octree
 	**/
-	virtual ccOctree* computeOctree(CCLib::GenericProgressCallback* progressCb = 0, bool autoAddChild = true);
+	virtual ccOctree::Shared computeOctree(CCLib::GenericProgressCallback* progressCb = 0, bool autoAddChild = true);
 
-	//! Returns associated octree
-	virtual ccOctree* getOctree();
+	//! Returns the associated octree (if any)
+	virtual ccOctree::Shared getOctree() const;
+	//! Sets the associated octree
+	virtual void setOctree(ccOctree::Shared octree, bool autoAddChild = true);
+	//! Returns the associated octree proxy (if any)
+	virtual ccOctreeProxy* getOctreeProxy() const;
 
 	//! Erases the octree
 	virtual void deleteOctree();
@@ -165,7 +167,10 @@ public:
 	virtual inline VisibilityTableType* getTheVisibilityArray() { return m_pointsVisibility; }
 
 	//! Returns a ReferenceCloud equivalent to the visiblity array
-	virtual CCLib::ReferenceCloud* getTheVisiblePoints() const;
+	/** \param visTable visibility table (optional, otherwise the cloud's default one will be used)
+		\return the visible points as a ReferenceCloud
+	**/
+	virtual CCLib::ReferenceCloud* getTheVisiblePoints(VisibilityTableType* visTable = 0) const;
 
 	//! Returns whether the visiblity array is allocated or not
 	virtual bool isVisibilityTableInstantiated() const;
@@ -175,6 +180,9 @@ public:
 	**/
 	virtual bool resetVisibilityArray();
 
+	//! Inverts the visiblity array
+	virtual void invertVisibilityArray();
+
 	//! Erases the points visibility information
 	virtual void unallocateVisibilityArray();
 
@@ -183,19 +191,20 @@ public:
 	***************************************************/
 
 	//Inherited from GenericCloud
-	virtual unsigned char testVisibility(const CCVector3& P) const;
+	virtual unsigned char testVisibility(const CCVector3& P) const override;
 
 	//Inherited from ccHObject
-	virtual ccBBox getOwnBB(bool withGLFeatures = false);
+	virtual ccBBox getOwnBB(bool withGLFeatures = false) override;
 
 	//! Forces bounding-box update
 	virtual void refreshBB() = 0;
 
 	//! Creates a new point cloud with only the 'visible' points (as defined by the visibility array)
 	/** \param removeSelectedPoints if true, exported point are also removed from the current point cloud
+		\param visTable visibility table (optional, otherwise the cloud's default one will be used)
 		\return new point cloud with selected points
 	**/
-	virtual ccGenericPointCloud* createNewCloudFromVisibilitySelection(bool removeSelectedPoints = false) = 0;
+	virtual ccGenericPointCloud* createNewCloudFromVisibilitySelection(bool removeSelectedPoints = false, VisibilityTableType* visTable = 0) = 0;
 
 	//! Applies a rigid transformation (rotation + translation)
 	virtual void applyRigidTransformation(const ccGLMatrix& trans) = 0;
@@ -218,7 +227,7 @@ public:
 	virtual void scale(PointCoordinateType fx, PointCoordinateType fy, PointCoordinateType fz, CCVector3 center = CCVector3(0,0,0)) = 0;
 
 	//inherited from ccSerializableObject
-	virtual bool isSerializable() const { return true; }
+	virtual bool isSerializable() const override { return true; }
 
 	//! Sets point size
 	/** Overrides default value one if superior than 0
@@ -251,8 +260,8 @@ public:
 protected:
 
 	//inherited from ccHObject
-	virtual bool toFile_MeOnly(QFile& out) const;
-	virtual bool fromFile_MeOnly(QFile& in, short dataVersion, int flags);
+	virtual bool toFile_MeOnly(QFile& out) const override;
+	virtual bool fromFile_MeOnly(QFile& in, short dataVersion, int flags) override;
 
 	//! Per-point visibility table
 	/** If this table is allocated, only values set to POINT_VISIBLE

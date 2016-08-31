@@ -15,7 +15,7 @@
 //#                                                                        #
 //##########################################################################
 
-//First: replace all occurences of 'qDummyPlugin' by your own plugin class name in this file!
+//First: replace all occurrences of 'qDummyPlugin' by your own plugin class name in this file!
 #include "qDummyPlugin.h"
 
 //Qt
@@ -59,8 +59,8 @@ void qDummyPlugin::getActions(QActionGroup& group)
 }
 
 //This is an example of an action's slot called when the corresponding action
-//is triggered (i.e. the corresponding icon or menu entry is clicked in CC
-//main's interface). You can access to most of CC components (database,
+//is triggered (i.e. the corresponding icon or menu entry is clicked in CC's
+//main interface). You can access to most of CC components (database,
 //3D views, console, etc.) via the 'm_app' attribute (ccMainAppInterface
 //object).
 void qDummyPlugin::doAction()
@@ -95,8 +95,3 @@ QIcon qDummyPlugin::getIcon() const
 	//(eventually, remove the original qDummyPlugin.qrc file!)
 	return QIcon(":/CC/plugin/qDummyPlugin/icon.png");
 }
-
-#ifndef CC_QT5
-//Don't forget to replace 'qDummyPlugin' by your own plugin class name here also!
-Q_EXPORT_PLUGIN2(qDummyPlugin,qDummyPlugin);
-#endif

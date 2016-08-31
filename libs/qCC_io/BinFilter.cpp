@@ -1,14 +1,14 @@
 //##########################################################################
 //#                                                                        #
-//#                            CLOUDCOMPARE                                #
+//#                              CLOUDCOMPARE                              #
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU General Public License as published by  #
-//#  the Free Software Foundation; version 2 of the License.               #
+//#  the Free Software Foundation; version 2 or later of the License.      #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
 //#          COPYRIGHT: EDF R&D / TELECOM ParisTech (ENST-TSI)             #
@@ -46,7 +46,7 @@
 #include <assert.h>
 #include <string.h>
 #if defined(CC_WINDOWS)
-#include <Windows.h>
+#include <windows.h>
 #else
 #include <time.h>
 #include <unistd.h>
@@ -159,9 +159,9 @@ CC_FILE_ERROR BinFilter::saveToFile(ccHObject* root, QString filename, SaveParam
 		return CC_FERR_WRITING;
 
 	ccProgressDialog pDlg(false, parameters.parentWidget);
-	pDlg.setMethodTitle("BIN file");
-	pDlg.setInfo("Please wait... saving in progress");
-	pDlg.setRange(0,0);
+	pDlg.setMethodTitle(QObject::tr("BIN file"));
+	pDlg.setInfo(QObject::tr("Please wait... saving in progress"));
+	pDlg.setRange(0, 0);
 	pDlg.setModal(true);
 	pDlg.show();
 
@@ -365,9 +365,9 @@ CC_FILE_ERROR BinFilter::loadFile(QString filename, ccHObject& container, LoadPa
 		if (parameters.alwaysDisplayLoadDialog)
 		{
 			ccProgressDialog pDlg(false, parameters.parentWidget);
-			pDlg.setMethodTitle("BIN file");
-			pDlg.setInfo(qPrintable(QString("Loading: %1").arg(QFileInfo(filename).fileName())));
-			pDlg.setRange(0,0);
+			pDlg.setMethodTitle(QObject::tr("BIN file"));
+			pDlg.setInfo(QObject::tr("Loading: %1").arg(QFileInfo(filename).fileName()));
+			pDlg.setRange(0, 0);
 			pDlg.show();
 
 			//concurrent call in a separate thread
@@ -507,8 +507,8 @@ CC_FILE_ERROR BinFilter::LoadFileV2(QFile& in, ccHObject& container, int flags)
 	{
 		// store seeking position
 		size_t original_pos = in.pos();
-		// we need to lod it as plain ccCustomHobject
-		root->fromFile(in, static_cast<short>(binVersion), flags, true); // this will load it
+		// we need to load it as plain ccCustomHobject
+		root->fromFileNoChildren(in, static_cast<short>(binVersion), flags); // this will load it
 		in.seek(original_pos); // reseek back the file
 
 		QString classId = root->getMetaData("class_name").toString();
@@ -1024,13 +1024,13 @@ CC_FILE_ERROR BinFilter::LoadFileV1(QFile& in, ccHObject& container, unsigned nb
 	}
 
 	ccProgressDialog pdlg(true, parameters.parentWidget);
-	pdlg.setMethodTitle("Open Bin file (old style)");
+	pdlg.setMethodTitle(QObject::tr("Open Bin file (old style)"));
 
 	for (unsigned k=0; k<nbScansTotal; k++)
 	{
 		HeaderFlags header;
 		unsigned nbOfPoints = 0;
-		if (ReadEntityHeader(in,nbOfPoints,header) < 0)
+		if (ReadEntityHeader(in, nbOfPoints, header) < 0)
 		{
 			return CC_FERR_READING;
 		}
@@ -1048,7 +1048,7 @@ CC_FILE_ERROR BinFilter::LoadFileV1(QFile& in, ccHObject& container, unsigned nb
 		if (parameters.alwaysDisplayLoadDialog)
 		{
 			pdlg.reset();
-			pdlg.setInfo(qPrintable(QString("cloud %1/%2 (%3 points)").arg(k+1).arg(nbScansTotal).arg(nbOfPoints)));
+			pdlg.setInfo(QObject::tr("cloud %1/%2 (%3 points)").arg(k + 1).arg(nbScansTotal).arg(nbOfPoints));
 			pdlg.start();
 			QApplication::processEvents();
 		}

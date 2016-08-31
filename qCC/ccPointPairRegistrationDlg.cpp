@@ -1,14 +1,14 @@
 //##########################################################################
 //#                                                                        #
-//#                            CLOUDCOMPARE                                #
+//#                              CLOUDCOMPARE                              #
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU General Public License as published by  #
-//#  the Free Software Foundation; version 2 of the License.               #
+//#  the Free Software Foundation; version 2 or later of the License.      #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
 //#          COPYRIGHT: EDF R&D / TELECOM ParisTech (ENST-TSI)             #
@@ -193,14 +193,14 @@ bool ccPointPairRegistrationDlg::linkWith(ccGLWindow* win)
 	{
 		m_associatedWin->setPickingMode(ccGLWindow::POINT_OR_TRIANGLE_PICKING);
 		m_associatedWin->lockPickingMode(true);
-		connect(m_associatedWin, SIGNAL(itemPicked(ccHObject*, unsigned, int, int)), this, SLOT(processPickedItem(ccHObject*, unsigned, int, int)));
+		connect(m_associatedWin, SIGNAL(itemPicked(ccHObject*, unsigned, int, int, const CCVector3&)), this, SLOT(processPickedItem(ccHObject*, unsigned, int, int, const CCVector3&)));
 
 		m_associatedWin->addToOwnDB(&m_alignedPoints);
 		m_associatedWin->addToOwnDB(&m_refPoints);
 
-		m_associatedWin->displayNewMessage(QString(),ccGLWindow::LOWER_LEFT_MESSAGE);
-		m_associatedWin->displayNewMessage("(you can add points 'manually' if necessary)",ccGLWindow::LOWER_LEFT_MESSAGE,true,3600);
-		m_associatedWin->displayNewMessage(QString("Pick equivalent points on both clouds (at least %1 pairs - mind the order)").arg(MIN_PAIRS_COUNT),ccGLWindow::LOWER_LEFT_MESSAGE,true,3600);
+		m_associatedWin->displayNewMessage(QString(), ccGLWindow::LOWER_LEFT_MESSAGE);
+		m_associatedWin->displayNewMessage("(you can add points 'manually' if necessary)", ccGLWindow::LOWER_LEFT_MESSAGE, true, 3600);
+		m_associatedWin->displayNewMessage(QString("Pick equivalent points on both clouds (at least %1 pairs - mind the order)").arg(MIN_PAIRS_COUNT), ccGLWindow::LOWER_LEFT_MESSAGE, true, 3600);
 	}
 
 	return true;
@@ -337,7 +337,7 @@ static double  s_last_az = 0;
 static bool    s_last_a_isGlobal = true;
 void ccPointPairRegistrationDlg::addManualAlignedPoint()
 {
-	ccAskThreeDoubleValuesDlg ptsDlg("x","y","z",-1.0e9,1.0e9,s_last_ax,s_last_ay,s_last_az,8,"Add aligned point",this);
+	ccAskThreeDoubleValuesDlg ptsDlg("x", "y", "z", -1.0e12, 1.0e12, s_last_ax, s_last_ay, s_last_az, 8, "Add aligned point", this);
 
 	//if the aligned entity is shifted, the user has the choice to input virtual point either
 	//in the original coordinate system or the shifted one
@@ -370,7 +370,7 @@ static double s_last_rz = 0;
 static bool s_last_r_isGlobal = true;
 void ccPointPairRegistrationDlg::addManualRefPoint()
 {
-	ccAskThreeDoubleValuesDlg ptsDlg("x","y","z",-1.0e9,1.0e9,s_last_rx,s_last_ry,s_last_rz,8,"Add reference point",this);
+	ccAskThreeDoubleValuesDlg ptsDlg("x", "y", "z", -1.0e12, 1.0e12, s_last_rx, s_last_ry, s_last_rz, 8, "Add reference point", this);
 
 	//if the reference entity is shifted, the user has the choice to input virtual
 	//points either in the original coordinate system or the shifted one
@@ -487,7 +487,7 @@ bool ccPointPairRegistrationDlg::convertToSphereCenter(CCVector3d& P, ccHObject*
 	return success;
 }
 
-void ccPointPairRegistrationDlg::processPickedItem(ccHObject* entity, unsigned itemIndex, int x, int y)
+void ccPointPairRegistrationDlg::processPickedItem(ccHObject* entity, unsigned itemIndex, int x, int y, const CCVector3& P)
 {
 	if (!m_associatedWin)
 		return;
@@ -496,55 +496,25 @@ void ccPointPairRegistrationDlg::processPickedItem(ccHObject* entity, unsigned i
 	if (m_paused)
 		return;
 
-	if (entity)
+	if (!entity)
+		return;
+
+	CCVector3d pin = CCVector3d::fromArray(P.u);
+
+	if (entity == m_aligned.entity)
 	{
-		CCVector3 P;
-
-		if (entity->isKindOf(CC_TYPES::POINT_CLOUD))
-		{
-			ccGenericPointCloud* cloud = ccHObjectCaster::ToGenericPointCloud(entity);
-			if (!cloud)
-			{
-				assert(false);
-				return;
-			}
-			P = *cloud->getPoint(itemIndex);
-		}
-		else if (entity->isKindOf(CC_TYPES::MESH))
-		{
-			ccGenericMesh* mesh = ccHObjectCaster::ToGenericMesh(entity);
-			if (!mesh)
-			{
-				assert(false);
-				return;
-			}
-			CCLib::GenericTriangle* tri = mesh->_getTriangle(itemIndex);
-			P = m_associatedWin->backprojectPointOnTriangle(CCVector2i(x,y), *tri->_getA(), *tri->_getB(), *tri->_getC());
-		}
-		else
-		{
-			//unhandled entity
-			assert(false);
-			return;
-		}
-
-		CCVector3d pin = CCVector3d::fromArray(P.u);
-
-		if (entity == m_aligned.entity)
-		{
-			addAlignedPoint(pin, m_aligned.entity, true); //picked points are always shifted by default
-		}
-		else if (entity == m_reference.entity)
-		{
-			addReferencePoint(pin, m_reference.entity, true); //picked points are always shifted by default
-		}
-		else
-		{
-			assert(false);
-			return;
-		}
-		m_associatedWin->redraw();
+		addAlignedPoint(pin, m_aligned.entity, true); //picked points are always shifted by default
 	}
+	else if (entity == m_reference.entity)
+	{
+		addReferencePoint(pin, m_reference.entity, true); //picked points are always shifted by default
+	}
+	else
+	{
+		assert(false);
+		return;
+	}
+	m_associatedWin->redraw();
 }
 
 void ccPointPairRegistrationDlg::onPointCountChanged()
@@ -573,7 +543,7 @@ static cc2DLabel* CreateLabel(ccPointCloud* cloud, unsigned pointIndex, QString 
 	label->setName(pointName);
 	label->setVisible(true);
 	label->setDisplayedIn2D(false);
-	label->setDisplayedIn3D(true);
+	label->displayPointLegend(true);
 	label->setDisplay(display);
 
 	return label;
@@ -853,7 +823,7 @@ bool ccPointPairRegistrationDlg::addReferencePoint(CCVector3d& Pin, ccHObject* e
 					scale = alignedCloud->getGlobalScale();
 					shiftEnabled = true;
 				}
-				if (ccGlobalShiftManager::Handle(Pin,0,ccGlobalShiftManager::DIALOG_IF_NECESSARY,shiftEnabled,Pshift,&scale))
+				if (ccGlobalShiftManager::Handle(Pin, 0, ccGlobalShiftManager::DIALOG_IF_NECESSARY, shiftEnabled, Pshift, &scale))
 				{
 					m_refPoints.setGlobalShift(Pshift);
 					m_refPoints.setGlobalScale(scale);
@@ -1103,7 +1073,7 @@ bool ccPointPairRegistrationDlg::callHornRegistration(CCLib::PointProjectionTool
 
 		if (filters != 0)
 		{
-			CCLib::RegistrationTools::FilterTransformation(trans,filters,trans);
+			CCLib::RegistrationTools::FilterTransformation(trans, filters, trans);
 		}
 	}
 
@@ -1151,8 +1121,8 @@ void ccPointPairRegistrationDlg::clearRMSColumns()
 
 void ccPointPairRegistrationDlg::resetTitle()
 {
-	m_associatedWin->displayNewMessage(QString(),ccGLWindow::UPPER_CENTER_MESSAGE,false);
-	m_associatedWin->displayNewMessage("[Point-pair registration]",ccGLWindow::UPPER_CENTER_MESSAGE,true,3600);
+	m_associatedWin->displayNewMessage(QString(), ccGLWindow::UPPER_CENTER_MESSAGE, false);
+	m_associatedWin->displayNewMessage("[Point-pair registration]", ccGLWindow::UPPER_CENTER_MESSAGE, true, 3600);
 }
 
 void ccPointPairRegistrationDlg::updateAlignInfo()
@@ -1165,10 +1135,10 @@ void ccPointPairRegistrationDlg::updateAlignInfo()
 
 	if (	m_alignedPoints.size() == m_refPoints.size()
 		&&	m_refPoints.size() >= MIN_PAIRS_COUNT
-		&&	callHornRegistration(trans,rms,true) )
+		&&	callHornRegistration(trans, rms, true))
 	{
 		QString rmsString = QString("Achievable RMS: %1").arg(rms);
-		m_associatedWin->displayNewMessage(rmsString,ccGLWindow::UPPER_CENTER_MESSAGE,true,60*60);
+		m_associatedWin->displayNewMessage(rmsString, ccGLWindow::UPPER_CENTER_MESSAGE, true, 60 * 60);
 		resetToolButton->setEnabled(true);
 		validToolButton->setEnabled(true);
 	}
@@ -1190,13 +1160,13 @@ void ccPointPairRegistrationDlg::align()
 	resetTitle();
 	m_associatedWin->refresh(true);
 
-	if (callHornRegistration(trans,rms,true))
+	if (callHornRegistration(trans, rms, true))
 	{
 		if (rms >= 0)
 		{
 			QString rmsString = QString("Current RMS: %1").arg(rms);
-			ccLog::Print(QString("[PointPairRegistration] ")+rmsString);
-			m_associatedWin->displayNewMessage(rmsString,ccGLWindow::UPPER_CENTER_MESSAGE,true,60*60);
+			ccLog::Print(QString("[PointPairRegistration] ") + rmsString);
+			m_associatedWin->displayNewMessage(rmsString, ccGLWindow::UPPER_CENTER_MESSAGE, true, 60 * 60);
 		}
 		else
 		{
@@ -1219,7 +1189,7 @@ void ccPointPairRegistrationDlg::align()
 			ccLog::Print(QString("[PointPairRegistration] Scale: fixed (1.0)"));
 		}
 
-		ccGLMatrix transMat = FromCCLibMatrix<PointCoordinateType,float>(trans.R,trans.T);
+		ccGLMatrix transMat = FromCCLibMatrix<PointCoordinateType, float>(trans.R, trans.T);
 		//...virtually
 		m_aligned.entity->setGLTransformation(transMat);
 		m_alignedPoints.setGLTransformation(transMat);
