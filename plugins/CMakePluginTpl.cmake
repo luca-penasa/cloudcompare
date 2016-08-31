@@ -49,6 +49,8 @@ if (QT_STATIC ) # when qt is static we must build static plugins! see here https
 
     get_filename_component(class_name ${CMAKE_CURRENT_SOURCE_DIR} NAME)
 
+    message("-> Generating static_plugins.h file")
+
     file(APPEND "${CMAKE_CURRENT_BINARY_DIR}/../static_plugins.h"  "Q_IMPORT_PLUGIN(${class_name})\n" )
 
     if(qrc_list)
