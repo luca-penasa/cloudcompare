@@ -115,13 +115,15 @@ add_subdirectory( libs/qcustomplot )
 
 #load plugins (potentially used by qCC and ccViewer)
 
+
+
+
+add_subdirectory( plugins )
+
 if (QT_STATIC)
     file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/plugins/static_plugins.h "" )
     file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/plugins/static_plugins_resources.h "" )
 endif(QT_STATIC)
-
-
-add_subdirectory( plugins )
 
 
 # qCC

@@ -105,9 +105,11 @@ set( auxFiles  ${CloudCompareProjects_SOURCE_DIR}/CHANGELOG.md bin_other/license
 
 if( WIN32 )
 	# Export Qt dlls
-	install_Qt_Dlls( ${CLOUDCOMPARE_DEST_FOLDER} )
-	install_Qt_ImageFormats( ${CLOUDCOMPARE_DEST_FOLDER} )
-	install_Qt5_plugins( ${CLOUDCOMPARE_DEST_FOLDER} )
+	if (NOT QT_STATIC)
+	    install_Qt_Dlls( ${CLOUDCOMPARE_DEST_FOLDER} )
+	    install_Qt5_plugins( ${CLOUDCOMPARE_DEST_FOLDER} )
+	    install_Qt_ImageFormats( ${CLOUDCOMPARE_DEST_FOLDER} )
+	endif(NOT QT_STATIC)
 
 	# Additional auxiliary file(s)
 	file( GLOB batch_list bin_other/*.bat )
@@ -156,5 +158,5 @@ endif()
 
 if(QT_STATIC)
     message("Static plugins: " ${STATIC_PLUGINS})
-    target_link_libraries(CloudCompare ${STATIC_PLUGINS})
+    target_link_libraries(CloudCompare ${STATIC_PLUGINS} pcre16)
 endif()

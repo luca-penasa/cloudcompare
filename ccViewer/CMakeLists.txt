@@ -102,8 +102,11 @@ set( auxFiles bin_other/license.txt )
 
 if( WIN32 )
 	# Export Qt dlls
-	install_Qt_Dlls( ${CCVIEWER_DEST_FOLDER} )
-	install_Qt5_plugins( ${CCVIEWER_DEST_FOLDER} )
+	if (NOT QT_STATIC)
+	    install_Qt_Dlls( ${CCVIEWER_DEST_FOLDER} )
+	    install_Qt5_plugins( ${CCVIEWER_DEST_FOLDER} )
+	endif (NOT QT_STATIC)
+
 
 	# Additional auxiliary file(s)
 	list( APPEND auxFiles bin_other/start.bat )
