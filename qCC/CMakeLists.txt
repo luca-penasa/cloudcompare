@@ -157,6 +157,11 @@ else()
 endif()
 
 if(QT_STATIC)
+
+
     message("Static plugins: " ${STATIC_PLUGINS})
-    target_link_libraries(CloudCompare ${STATIC_PLUGINS} pcre16)
+
+    message("qtlibs :  ${Qt5Widgets_LIBRARIES} ${Qt5Core_LIBRARIES}")
+
+    target_link_libraries(CloudCompare ${STATIC_PLUGINS} pcre16 z   harfbuzz jpeg freetype glib-2.0 ws2_32 intl winmm iconv opengl32 glu32)
 endif()
