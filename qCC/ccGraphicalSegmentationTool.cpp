@@ -656,9 +656,6 @@ void ccGraphicalSegmentationTool::segment(bool keepPointsInside)
 				CCVector3d Q2D;
 				camera.project(*P3D, Q2D);
 
-
-
-
 				CCVector2 P2D(	static_cast<PointCoordinateType>(Q2D.x-half_w),
 								static_cast<PointCoordinateType>(Q2D.y-half_h) );
 				

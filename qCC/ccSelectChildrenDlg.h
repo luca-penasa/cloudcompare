@@ -63,6 +63,4 @@ protected slots:
 
 };
 
-
-
 #endif //CC_SELECT_CHILDREN_DLG_HEADER
