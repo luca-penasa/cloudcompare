@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.0)
 
-project( ccViewer VERSION 1.35.0 )
+project( ccViewer VERSION 1.36.0 )
 
 include_directories( ${CC_FBO_LIB_SOURCE_DIR}/include )
 include_directories( ${CC_CORE_LIB_SOURCE_DIR}/include )
@@ -32,6 +32,14 @@ if ( ${OPTION_SUPPORT_3DCONNEXION_DEVICES} )
 	file( GLOB 3DX_source_list ../qCC/devices/3dConnexion/*.cpp )
 	list( APPEND header_list ${3DX_header_list} )
 	list( APPEND source_list ${3DX_source_list} )
+endif()	
+
+# Gamepad support (requires Qt 5.7+)
+if ( ${OPTION_SUPPORT_GAMEPADS} )
+	file( GLOB gamepad_header_list ../qCC/devices/gamepad/*.h )
+	file( GLOB gamepad_source_list ../qCC/devices/gamepad/*.cpp )
+	list( APPEND header_list ${gamepad_header_list} )
+	list( APPEND source_list ${gamepad_source_list} )
 endif()	
 
 qt5_wrap_ui( generated_ui_list ${ui_list} )
@@ -74,6 +82,10 @@ endif()
 if ( ${OPTION_SUPPORT_3DCONNEXION_DEVICES} )
 	target_link_3DXWARE( ${PROJECT_NAME} )
 endif()
+# Gamepad support (requires Qt 5.7+)
+if ( ${OPTION_SUPPORT_GAMEPADS} )
+	target_link_GAMEPADS( ${PROJECT_NAME} )
+endif()
 
 # Add custom preprocessor definitions
 set_property( TARGET ${PROJECT_NAME} APPEND PROPERTY COMPILE_DEFINITIONS CC_VIEWER )
@@ -90,7 +102,7 @@ endif()
 # App icon with Code::Blocks/MinGW
 if( WIN32 )
 	if( MINGW )
-		add_custom_command( TARGET ${PROJECT_NAME} PRE_BUILD COMMAND windres -i ${CMAKE_CURRENT_SOURCE_DIR}/images/icon/cc_viewer_icon.rc --input-format=rc -o ${CMAKE_CURRENT_BINARY_DIR}/ccViewer.res -O coff )
+		add_custom_command( TARGET ${PROJECT_NAME} PRE_BUILD COMMAND ${CMAKE_RC_COMPILER} -i ${CMAKE_CURRENT_SOURCE_DIR}/images/icon/cc_viewer_icon.rc --input-format=rc -o ${CMAKE_CURRENT_BINARY_DIR}/ccViewer.res -O coff )
 	endif()
 endif()
 
@@ -102,7 +114,7 @@ set( auxFiles bin_other/license.txt )
 
 if( WIN32 )
 	# Export Qt dlls
-	install_Qt_Dlls( ${CCVIEWER_DEST_FOLDER} )
+	install_Qt_Dlls( ${CCVIEWER_DEST_FOLDER} ${OPTION_SUPPORT_GAMEPADS} )
 	install_Qt5_plugins( ${CCVIEWER_DEST_FOLDER} )
 
 	# Additional auxiliary file(s)

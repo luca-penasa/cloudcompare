@@ -28,7 +28,6 @@ class QMainWindow;
 class ccGLWindow;
 class ccColorScalesManager;
 
-
 //! Main application interface (for plugins)
 class ccMainAppInterface
 {
@@ -41,10 +40,31 @@ public:
     //! Returns active GL sub-window (if any)
     virtual ccGLWindow* getActiveGLWindow() = 0;
 
+	//! Registers a MDI area 'overlay' dialog
+	/** Overlay dialogs are displayed in the central MDI area, above the 3D views.
+	The position (pos) is defined relatively to the MDI area (as one of its 4 corners).
+	And it is automatically updated when the main window is moved or resized.
+	Registered dialogs are automatically released when CloudCompare stops.
+
+	Notes:
+	- it may be necessary to call 'updateOverlayDialogsPlacement' after calling this method
+	- it's a good idea to freeez the UI when the tool starts to avoid other overlay dialogs
+	to appear (don't forget to unfreeze the UI afterwards)
+	**/
+	virtual void registerOverlayDialog(ccOverlayDialog* dlg, Qt::Corner pos) = 0;
+
+	//! Unregisters a MDI area 'overlay' dialog
+	/** \warning Original overlay dialog object will be deleted (see QObject::deleteLater)
+	**/
+	virtual void unregisterOverlayDialog(ccOverlayDialog* dlg) = 0;
+
+	//! Forces the update of all registered MDI 'overlay' dialogs
+	virtual void updateOverlayDialogsPlacement() = 0;
+
     //! Returns the unique ID generator
     virtual ccUniqueIDGenerator::Shared getUniqueIDGenerator() = 0;
 
-    //! Adds an entity to main db
+	//! Adds an entity to the main db
     /** \param obj entity
             \param updateZoom updates active GL display zoom to fit the whole scene, including this new entity (addToDisplay must be true)
             \param autoExpandDBTree whether DB tree should automatically be expanded
@@ -56,8 +76,6 @@ public:
                                                     bool autoExpandDBTree = true,
                                                     bool checkDimensions = false,
                                                     bool autoRedraw = true ) = 0;
-
-
 
     //! Removes an entity from main db tree
     /** Object is automatically detached from its parent.
@@ -76,7 +94,9 @@ public:
     virtual const ccHObject::Container& getSelectedEntities() const = 0;
 
     //! Console message level (see dispToConsole)
-    enum ConsoleMessageLevel {	STD_CONSOLE_MESSAGE = 0,
+	enum ConsoleMessageLevel
+	{
+		STD_CONSOLE_MESSAGE = 0,
                                                             WRN_CONSOLE_MESSAGE = 1,
                                                             ERR_CONSOLE_MESSAGE = 2,
     };

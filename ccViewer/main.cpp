@@ -6,11 +6,11 @@
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU General Public License as published by  #
-//#  the Free Software Foundation; version 2 of the License.               #
+//#  the Free Software Foundation; version 2 or later of the License.      #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
 //#      +++ COPYRIGHT: EDF R&D + TELECOM ParisTech (ENST-TSI) +++         #
@@ -30,7 +30,6 @@
 
 //qCC_db
 #include <ccIncludeGL.h>
-#include <ccTimer.h>
 #include <ccNormalVectors.h>
 #include <ccColorScalesManager.h>
 #include <ccMaterial.h>
@@ -164,7 +163,6 @@ int main(int argc, char *argv[])
 	}
 
 	//common data initialization
-	ccTimer::Init();
 	FileIOFilter::InitInternalFilters(); //load all known I/O filters (plugins will come later!)
 	ccNormalVectors::GetUniqueInstance(); //force pre-computed normals array initialization
 	ccColorScalesManager::GetUniqueInstance(); //force pre-computed color tables initialization
@@ -188,10 +186,11 @@ int main(int argc, char *argv[])
 		int i = 1;
 		while ( i < argc)
 		{
-			QString argument = QString(argv[i++]).toUpper();
+			QString argument = QString(argv[i++]);
+			QString upperArgument = argument.toUpper();
 
 			//Argument '-WIN X Y W H' (to set window size and position)
-			if (argument.toUpper() == "-WIN")
+			if (upperArgument == "-WIN")
 			{
 				bool ok = true;
 				if (i+3 < argc)
@@ -216,7 +215,7 @@ int main(int argc, char *argv[])
 					break;
 				}
 			}
-			else if (argument == "-TOP")
+			else if (upperArgument == "-TOP")
 			{
 				w.setWindowFlags(w.windowFlags() | Qt::CustomizeWindowHint | Qt::WindowStaysOnTopHint);
 				w.show();
@@ -228,7 +227,9 @@ int main(int argc, char *argv[])
 		}
 
 		if (!filenames.empty())
+		{
 			w.addToDB(filenames);
+		}
 	}
 
 #ifdef Q_OS_MAC

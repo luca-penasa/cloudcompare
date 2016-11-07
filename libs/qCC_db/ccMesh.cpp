@@ -1,14 +1,14 @@
 //##########################################################################
 //#                                                                        #
-//#                            CLOUDCOMPARE                                #
+//#                              CLOUDCOMPARE                              #
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU General Public License as published by  #
-//#  the Free Software Foundation; version 2 of the License.               #
+//#  the Free Software Foundation; version 2 or later of the License.      #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
 //#          COPYRIGHT: EDF R&D / TELECOM ParisTech (ENST-TSI)             #
@@ -24,6 +24,7 @@
 #include "ccGenericPointCloud.h"
 #include "ccNormalVectors.h"
 #include "ccPointCloud.h"
+#include "ccPolyline.h"
 #include "ccNormalVectors.h"
 #include "ccMaterialSet.h"
 #include "ccSubMesh.h"
@@ -34,7 +35,10 @@
 
 //CCLib
 #include <ManualSegmentationTools.h>
+#include <PointProjectionTools.h>
 #include <ReferenceCloud.h>
+#include <Neighbourhood.h>
+#include <Delaunay2dMesh.h>
 
 //System
 #include <string.h>
@@ -886,6 +890,212 @@ ccMesh* ccMesh::cloneMesh(	ccGenericPointCloud* vertices/*=0*/,
 	return cloneMesh;
 }
 
+ccMesh* ccMesh::TriangulateTwoPolylines(ccPolyline* p1, ccPolyline* p2, CCVector3* projectionDir/*=0*/)
+{
+	if (!p1 || p1->size() == 0 || !p2 || p2->size() == 0)
+	{
+		assert(false);
+		return 0;
+	}
+
+	ccPointCloud* vertices = new ccPointCloud("vertices");
+	if (!vertices->reserve(p1->size() + p2->size()))
+	{
+		ccLog::Warning("[ccMesh::TriangulateTwoPolylines] Not enough memory");
+		delete vertices;
+		return 0;
+	}
+
+	//merge the two sets of vertices
+	{
+		for (unsigned i = 0; i < p1->size(); ++i)
+			vertices->addPoint(*p1->getPoint(i));
+		for (unsigned j = 0; j < p2->size(); ++j)
+			vertices->addPoint(*p2->getPoint(j));
+	}
+	assert(vertices->size() != 0);
+
+	CCLib::Neighbourhood N(vertices);
+
+	//get plane coordinate system
+	CCVector3 O = *N.getGravityCenter();
+	CCVector3 X(1, 0, 0), Y(0, 1, 0);
+	if (projectionDir)
+	{
+		//use the input projection dir.
+		X = projectionDir->orthogonal();
+		Y = projectionDir->cross(X);
+	}
+	else
+	{
+		//use the best fit plane (normal)
+		if (!N.getLSPlane())
+		{
+			ccLog::Warning("[ccMesh::TriangulateTwoPolylines] Failed to fit a plane through both polylines");
+			delete vertices;
+			return 0;
+		}
+
+		X = *N.getLSPlaneX();
+		Y = *N.getLSPlaneY();
+	}
+
+	std::vector<CCVector2> points2D;
+	std::vector<int> segments2D;
+	try
+	{
+		points2D.reserve(p1->size() + p2->size());
+		segments2D.reserve(p1->segmentCount() + p2->segmentCount());
+	}
+	catch (const std::bad_alloc&)
+	{
+		//not enough memory
+		ccLog::Warning("[ccMesh::TriangulateTwoPolylines] Not enough memory");
+		delete vertices;
+		return 0;
+	}
+
+	//project the polylines on the best fitting plane
+	{
+		ccPolyline* polylines[2] = { p1, p2 };
+		for (size_t i = 0; i < 2; ++i)
+		{
+			ccPolyline* poly = polylines[i];
+			unsigned vertCount = poly->size();
+			int vertIndex0 = static_cast<int>(points2D.size());
+			bool closed = poly->isClosed();
+			for (unsigned v = 0; v < vertCount; ++v)
+			{
+				const CCVector3* P = poly->getPoint(v);
+				int vertIndex = static_cast<int>(points2D.size());
+				
+				CCVector3 OP = *P - O;
+				CCVector2 P2D(OP.dot(X), OP.dot(Y));
+				points2D.push_back(P2D);
+
+				if (v + 1 < vertCount)
+				{
+					segments2D.push_back(vertIndex);
+					segments2D.push_back(vertIndex + 1);
+				}
+				else if (closed)
+				{
+					segments2D.push_back(vertIndex);
+					segments2D.push_back(vertIndex0);
+				}
+			}
+		}
+		assert(points2D.size() == p1->size() + p2->size());
+		assert(segments2D.size() == (p1->segmentCount() + p2->segmentCount()) * 2);
+	}
+
+	CCLib::Delaunay2dMesh* delaunayMesh = new CCLib::Delaunay2dMesh;
+	char errorStr[1024];
+	if (!delaunayMesh->buildMesh(points2D, segments2D, errorStr))
+	{
+		ccLog::Warning(QString("Thrid party library error: %1").arg(errorStr));
+		delete delaunayMesh;
+		delete vertices;
+		return 0;
+	}
+
+	delaunayMesh->linkMeshWith(vertices, false);
+
+	//remove the points oustide of the 'concave' hull
+	{
+		//first compute the Convex hull
+		std::vector<CCLib::PointProjectionTools::IndexedCCVector2> indexedPoints2D;
+		try
+		{
+			indexedPoints2D.resize(points2D.size());
+			for (size_t i = 0; i < points2D.size(); ++i)
+			{
+				indexedPoints2D[i] = points2D[i];
+				indexedPoints2D[i].index = static_cast<unsigned>(i);
+			}
+			
+			std::list<CCLib::PointProjectionTools::IndexedCCVector2*> hullPoints;
+			if (CCLib::PointProjectionTools::extractConvexHull2D(indexedPoints2D, hullPoints))
+			{
+				std::list<CCLib::PointProjectionTools::IndexedCCVector2*>::iterator A = hullPoints.begin();
+				for (; A != hullPoints.end(); ++A)
+				{
+					//current hull segment
+					std::list<CCLib::PointProjectionTools::IndexedCCVector2*>::iterator B = A; B++;
+					if (B == hullPoints.end())
+					{
+						B = hullPoints.begin();
+					}
+
+					unsigned Aindex = (*A)->index;
+					unsigned Bindex = (*B)->index;
+					int Apoly = (Aindex < p1->size() ? 0 : 1);
+					int Bpoly = (Bindex < p1->size() ? 0 : 1);
+					//both vertices belong to the same polyline
+					if (Apoly == Bpoly)
+					{
+						//if it creates an outer loop
+						if (abs(static_cast<int>(Bindex) - static_cast<int>(Aindex)) > 1)
+						{
+							//create the corresponding contour
+							unsigned iStart = std::min(Aindex, Bindex);
+							unsigned iStop = std::max(Aindex, Bindex);
+							std::vector<CCVector2> contour;
+							contour.reserve(iStop - iStart + 1);
+							for (unsigned j = iStart; j <= iStop; ++j)
+							{
+								contour.push_back(points2D[j]);
+							}
+							delaunayMesh->removeOuterTriangles(points2D, contour, /*remove inside = */false);
+						}
+					}
+				}
+			}
+			else
+			{
+				ccLog::Warning("[ccMesh::TriangulateTwoPolylines] Failed to compute the convex hull (can't clean the mesh borders)");
+			}
+		}
+		catch (const std::bad_alloc&)
+		{
+			ccLog::Warning("[ccMesh::TriangulateTwoPolylines] Not enough memory to clean the mesh borders");
+		}
+
+	}
+
+	ccMesh* mesh = new ccMesh(delaunayMesh, vertices);
+	if (mesh->size() != delaunayMesh->size())
+	{
+		//not enough memory (error will be issued later)
+		delete mesh;
+		mesh = 0;
+	}
+
+	//don't need this anymore
+	delete delaunayMesh;
+	delaunayMesh = 0;
+
+	if (mesh)
+	{
+		mesh->addChild(vertices);
+		mesh->setVisible(true);
+		vertices->setEnabled(false);
+
+		//global shift & scale (we copy it from the first polyline by default)
+		vertices->setGlobalShift(p1->getGlobalShift());
+		vertices->setGlobalScale(p1->getGlobalScale());
+		//same thing for the display
+		mesh->setDisplay(p1->getDisplay());
+	}
+	else
+	{
+		ccLog::Warning("[ccMesh::TriangulateTwoPolylines] Not enough memory");
+		delete vertices;
+		vertices = 0;
+	}
+
+	return mesh;
+}
 
 ccMesh* ccMesh::Triangulate(ccGenericPointCloud* cloud,
 							CC_TRIANGULATION_TYPES type,
@@ -935,7 +1145,9 @@ ccMesh* ccMesh::Triangulate(ccGenericPointCloud* cloud,
 	bool cloudHadNormals = cloud->hasNormals();
 	//compute per-vertex normals if necessary
 	if (!cloudHadNormals || updateNormals)
+	{
 		mesh->computeNormals(true);
+	}
 	mesh->showNormals(cloudHadNormals || !cloud->hasColors());
 	if (mesh->getAssociatedCloud() && mesh->getAssociatedCloud() != cloud)
 	{
@@ -2066,7 +2278,7 @@ ccMesh* ccMesh::createNewMeshFromSelection(bool removeSelectedFaces)
 	}
 
 	//we create a new mesh with the current selection
-	CCLib::GenericIndexedMesh* result = CCLib::ManualSegmentationTools::segmentMesh(this,rc,true,NULL,newVertices);
+	CCLib::GenericIndexedMesh* result = CCLib::ManualSegmentationTools::segmentMesh(this, rc, true, NULL, newVertices);
 
 	//don't use this anymore
 	delete rc;
@@ -2075,7 +2287,7 @@ ccMesh* ccMesh::createNewMeshFromSelection(bool removeSelectedFaces)
 	ccMesh* newMesh = NULL;
 	if (result)
 	{
-		newMesh = new ccMesh(result,newVertices);
+		newMesh = new ccMesh(result, newVertices);
 		if (!newMesh)
 		{
 			delete newVertices;
@@ -2084,7 +2296,7 @@ ccMesh* ccMesh::createNewMeshFromSelection(bool removeSelectedFaces)
 		}
 		else
 		{
-			newMesh->setName(getName()+QString(".part"));
+			newMesh->setName(getName() + QString(".part"));
 
 			//shall we add any advanced features?
 			bool addFeatures = false;
@@ -2108,7 +2320,7 @@ ccMesh* ccMesh::createNewMeshFromSelection(bool removeSelectedFaces)
 					newTriNormals->link();
 					try
 					{
-						newNormIndexes.resize(m_triNormals->currentSize(),-1);
+						newNormIndexes.resize(m_triNormals->currentSize(), -1);
 					}
 					catch (const std::bad_alloc&)
 					{
@@ -2130,7 +2342,7 @@ ccMesh* ccMesh::createNewMeshFromSelection(bool removeSelectedFaces)
 					newTriTexIndexes->link();
 					try
 					{
-						newTexIndexes.resize(m_texCoords->currentSize(),-1);
+						newTexIndexes.resize(m_texCoords->currentSize(), -1);
 					}
 					catch (const std::bad_alloc&)
 					{
@@ -2152,7 +2364,7 @@ ccMesh* ccMesh::createNewMeshFromSelection(bool removeSelectedFaces)
 					newMaterials->link();
 					try
 					{
-						newMatIndexes.resize(m_materials->size(),-1);
+						newMatIndexes.resize(m_materials->size(), -1);
 					}
 					catch (const std::bad_alloc&)
 					{
@@ -2172,7 +2384,7 @@ ccMesh* ccMesh::createNewMeshFromSelection(bool removeSelectedFaces)
 
 				unsigned triNum = m_triVertIndexes->currentSize();
 				m_triVertIndexes->placeIteratorAtBegining();
-				for (unsigned i=0; i<triNum; ++i)
+				for (unsigned i = 0; i < triNum; ++i)
 				{
 					const CCLib::VerticesIndexes* tsi = (CCLib::VerticesIndexes*)m_triVertIndexes->getCurrentValue();
 					m_triVertIndexes->forwardIterator();
@@ -2192,7 +2404,7 @@ ccMesh* ccMesh::createNewMeshFromSelection(bool removeSelectedFaces)
 
 							//for each triangle of this mesh, try to determine if its normals are already in use
 							//(otherwise add them to the new container and increase its index)
-							for (unsigned j=0; j<3; ++j)
+							for (unsigned j = 0; j < 3; ++j)
 							{
 								if (triNormIndexes[j] >= 0 && newNormIndexes[triNormIndexes[j]] < 0)
 								{
