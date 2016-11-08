@@ -10,7 +10,7 @@ import shutil
 
 files = ["Qt5Concurrent.dll",
 "Qt5Core.dll",
-"Qt5Gui.dll2",
+"Qt5Gui.dll",
 "Qt5OpenGL.dll",
 "Qt5PrintSupport.dll",
 "Qt5Svg.dll",
