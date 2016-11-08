@@ -1,5 +1,5 @@
 executable = "CloudCompare.exe"
-dll_dir =  "/root/mxe.git/"
+dll_dir =  "/mxe.git/"
 
 import fnmatch
 import os
@@ -59,7 +59,7 @@ exedir = os.path.dirname(found)
 
 
 for dll in files:
-    print (str(dll))
+    print ("looking for " + str(dll))
     qua = find_file(dll_dir, dll)
 
     if len(qua) == 0:
@@ -70,4 +70,4 @@ for dll in files:
     print( "copying in  " + str(exedir))
 
 
-    shutil.copy2    (qua[0], exedir)
+    shutil.copy2 (qua[0], exedir)
