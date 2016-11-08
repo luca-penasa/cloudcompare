@@ -1,14 +1,14 @@
 //##########################################################################
 //#                                                                        #
-//#                            CLOUDCOMPARE                                #
+//#                              CLOUDCOMPARE                              #
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU General Public License as published by  #
-//#  the Free Software Foundation; version 2 of the License.               #
+//#  the Free Software Foundation; version 2 or later of the License.      #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
 //#          COPYRIGHT: EDF R&D / TELECOM ParisTech (ENST-TSI)             #
@@ -167,7 +167,10 @@ public:
 	virtual inline VisibilityTableType* getTheVisibilityArray() { return m_pointsVisibility; }
 
 	//! Returns a ReferenceCloud equivalent to the visiblity array
-	virtual CCLib::ReferenceCloud* getTheVisiblePoints() const;
+	/** \param visTable visibility table (optional, otherwise the cloud's default one will be used)
+		\return the visible points as a ReferenceCloud
+	**/
+	virtual CCLib::ReferenceCloud* getTheVisiblePoints(VisibilityTableType* visTable = 0) const;
 
 	//! Returns whether the visiblity array is allocated or not
 	virtual bool isVisibilityTableInstantiated() const;
@@ -176,6 +179,9 @@ public:
 	/** Warning: allocates the array if it was not done yet!
 	**/
 	virtual bool resetVisibilityArray();
+
+	//! Inverts the visiblity array
+	virtual void invertVisibilityArray();
 
 	//! Erases the points visibility information
 	virtual void unallocateVisibilityArray();
@@ -195,9 +201,10 @@ public:
 
 	//! Creates a new point cloud with only the 'visible' points (as defined by the visibility array)
 	/** \param removeSelectedPoints if true, exported point are also removed from the current point cloud
+		\param visTable visibility table (optional, otherwise the cloud's default one will be used)
 		\return new point cloud with selected points
 	**/
-	virtual ccGenericPointCloud* createNewCloudFromVisibilitySelection(bool removeSelectedPoints = false) = 0;
+	virtual ccGenericPointCloud* createNewCloudFromVisibilitySelection(bool removeSelectedPoints = false, VisibilityTableType* visTable = 0) = 0;
 
 	//! Applies a rigid transformation (rotation + translation)
 	virtual void applyRigidTransformation(const ccGLMatrix& trans) = 0;

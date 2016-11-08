@@ -4,11 +4,12 @@
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU Library General Public License as       #
-//#  published by the Free Software Foundation; version 2 of the License.  #
+//#  published by the Free Software Foundation; version 2 or later of the  #
+//#  License.                                                              #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
 //#          COPYRIGHT: EDF R&D / TELECOM ParisTech (ENST-TSI)             #
@@ -81,10 +82,12 @@ public:
 	//! Removes the triangles falling outside of a given (2D) polygon
 	/** \param vertices2D vertices of the mesh as 2D points (typically the one used to triangulate the mesh!)
 		\param polygon2D vertices of the 2D boundary polygon (ordered)
+		\param removeOutside whether to remove triangles outside (default) or inside
 		\return success
 	**/
 	virtual bool removeOuterTriangles(	const std::vector<CCVector2>& vertices2D,
-										const std::vector<CCVector2>& polygon2D);
+										const std::vector<CCVector2>& polygon2D,
+										bool removeOutside = true);
 
 	//inherited methods (see GenericMesh)
 	virtual unsigned size() const { return m_numberOfTriangles; }

@@ -1,14 +1,14 @@
 //##########################################################################
 //#                                                                        #
-//#                            CLOUDCOMPARE                                #
+//#                              CLOUDCOMPARE                              #
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU General Public License as published by  #
-//#  the Free Software Foundation; version 2 of the License.               #
+//#  the Free Software Foundation; version 2 or later of the License.      #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
 //#          COPYRIGHT: EDF R&D / TELECOM ParisTech (ENST-TSI)             #
@@ -602,12 +602,22 @@ public slots:
 	//! Tests frame rate
 	void startFrameRateTest();
 
+	//! Request an update of the display
+	/** The request will be executed if not in auto refresh mode already
+	**/
+	void requestUpdate();
+
 #ifdef CC_GL_WINDOW_USE_QWINDOW
-	//! Updates the display
+	//! For compatibility with the QOpenGLWidget version
 	inline void update() { paintGL(); }
 #endif
 
 protected slots:
+
+#ifdef CC_GL_WINDOW_USE_QWINDOW
+	//! Updates the display
+	void paintGL();
+#endif
 
 	//! Renders the next L.O.D. level
 	void renderNextLODLevel();
@@ -671,6 +681,9 @@ signals:
 
 	//! Signal emitted when the f.o.v. changes
 	void fovChanged(float);
+
+	//! Signal emitted when the zNear coef changes
+	void zNearCoefChanged(float);
 
 	//! Signal emitted when the pivot point is changed
 	void pivotPointChanged(const CCVector3d&);
@@ -853,17 +866,16 @@ protected: //other methods
 	bool event(QEvent* evt) override;
 
 	bool initialize();
+	GLuint defaultQtFBO() const;
 
 #ifdef CC_GL_WINDOW_USE_QWINDOW
 	void resizeGL(int w, int h);
-	void paintGL();
 	virtual void dragEnterEvent(QDragEnterEvent* event);
 	virtual void dropEvent(QDropEvent* event);
 #else
 	void initializeGL() override { initialize(); }
 	void resizeGL(int w, int h) override;
 	void paintGL() override;
-	GLuint defaultQtFBO() const;
 	virtual void dragEnterEvent(QDragEnterEvent* event) override;
 	virtual void dropEvent(QDropEvent* event) override;
 #endif
@@ -879,8 +891,8 @@ protected: //other methods
 	//! Optional output metrics (from computeProjectionMatrix)
 	struct ProjectionMetrics
 	{
-		ProjectionMetrics() : zNear(0), zFar(0), pivotCameraDist(0), pivotBorderDist(0) {}
-		double zNear, zFar, pivotCameraDist, pivotBorderDist;
+		ProjectionMetrics() : zNear(0), zFar(0), cameraToBBCenterDist(0), bbHalfDiag(0) {}
+		double zNear, zFar, cameraToBBCenterDist, bbHalfDiag;
 	};
 
 	//! Computes the projection matrix
@@ -1078,10 +1090,10 @@ protected: //members
 	ccGLMatrixd m_projMatd;
 	//! Whether the projection matrix is valid (or need to be recomputed)
 	bool m_validProjectionMatrix;
-	//! Distance between the camera and the pivot point
-	double m_pivotCameraDist;
-	//! Distance between the pivot and the farthest (theoretical) point in DB
-	double m_pivotBorderDist;
+	//! Distance between the camera and the displayed objects bounding-box
+	double m_cameraToBBCenterDist;
+	//! Half size of the displayed objects bounding-box
+	double m_bbHalfDiag;
 
 	//! GL viewport
 	QRect m_glViewport;
@@ -1129,7 +1141,7 @@ protected: //members
 		//! Message
 		QString message;
 		//! Message end time (sec)
-		int messageValidity_sec;
+		qint64 messageValidity_sec;
 		//! Message position on screen
 		MessagePosition position;
 		//! Message type

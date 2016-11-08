@@ -35,7 +35,7 @@
   - on the first run you may have to manually set the **QT5_ROOT_PATH** variable. Make it point to your installation of Qt (on Windows it's where the 'bin' folder lies - e.g. *Qt\5.6\msvc2013_64*)
 
 2. Before clicking on the 'Generate' button, you may want to set some more options. If you expand the `OPTION` group, you'll be able to set some general options:
-  - `OPTION_BUILD_CC_VIEWER`: whether or not to build the ccViewer side project (on by default)
+  - `OPTION_BUILD_CC_VIEWER`: whether or not to build the ccViewer side project (ON by default)
   - `OPTION_SUPPORT_MAC_PDMS_FORMAT`: to add support for PDMS .mac scripts (*CAD format*)
   - `OPTION_USE_DXFLIB`: to add support for DXF files in CloudCompare/ccViewer with **dxflib** - see [below](#optional-setup-for-dxflib-support)
   - `OPTION_USE_FBX_SDK`: to add support for FBX files in CloudCompare/ccViewer with the official **FBX SDK** - see [below](#optional-setup-for-fbx-sdk-support)
@@ -64,7 +64,7 @@
   - qPCL (requires PCL - see [below](#optional-setup-for-pcl-required-by-qpcl))
   - qPCV
   - qPoissonRecon *(note: be sure to update the PoissonRecon submodule - see above)*
-  - qRansacSD *(only tested on Windows)*
+  - qRansacSD *(mainly tested on Windows but works with flaws on Linux)*
   - qSRA
   - qSSAO
 
@@ -98,14 +98,12 @@ As all the files (executables, plugins and other DLLs) are copied in the `CMAKE_
 
 # Appendix
 
-## Common issues
-
-On Linux, you may encounter issues with shared libraries (.so files) if the project is not installed in `/usr`. In this case:
-
-1. either set the `LD_LIBRARY_PATH` variable so that it points to the qCC and ccViewer installation folders (`export LD_LIBRARY_PATH=...`).
-2. or call  `# /sbin/ldconfig -v` once as suggested [here](http://www.danielgm.net/cc/forum/viewtopic.php?f=10&t=195&p=602#p600)
-
 ## Additional optional CMake setup steps
+
+### [Optional] Setup for the qPoissonRecon plugin
+
+1. The version of the Poisson Surface Reconstruction library (M. Kazhdan et al.) used by the  is https://github.com/cloudcompare/PoissonRecon. It is declared as a submodule of CC's repository. You have to explicitly synchronize it (see https://git-scm.com/docs/git-submodule).
+2. Then simply check the INSTALL_QPOISSON_RECON_PLUGIN option in CMake
 
 ### [Optional] Setup for LibLAS support
 
@@ -171,7 +169,7 @@ If you want to compile CloudCompare (and ccViewer) with GDAL (raster) files supp
 
 Then, the CloudCompare CMake project will request that you set the 2 following variables:
 1. `GDAL_INCLUDE_DIR`: GDAL include directory (pretty straightforward ;)
-2. `GFAL_LIBRARY`: the static library (e.g. `gdal_i.lib`)
+2. `GDAL_LIBRARY`: the static library (e.g. `gdal_i.lib`)
 
 ### [Optional] Setup for Cork + MPIR support (for qCork)
 

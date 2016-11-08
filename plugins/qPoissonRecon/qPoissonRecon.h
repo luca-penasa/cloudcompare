@@ -4,14 +4,14 @@
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU General Public License as published by  #
-//#  the Free Software Foundation; version 2 of the License.               #
+//#  the Free Software Foundation; version 2 or later of the License.      #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
-//#               COPYRIGHT: Daniel Girardeau-Montaut                      #
+//#                  COPYRIGHT: Daniel Girardeau-Montaut                   #
 //#                                                                        #
 //##########################################################################
 
@@ -20,7 +20,7 @@
 
 #include "../ccStdPluginInterface.h"
 
-//! Wrapper to the "Poisson Surface Reconstruction (Version 3)" algorithm
+//! Wrapper to the "Poisson Surface Reconstruction (Version 9)" algorithm
 /** "Poisson Surface Reconstruction", M. Kazhdan, M. Bolitho, and H. Hoppe
 	Symposium on Geometry Processing (June 2006), pages 61--70
 	http://www.cs.jhu.edu/~misha/Code/PoissonRecon/
@@ -38,7 +38,7 @@ public:
 
 	//inherited from ccPluginInterface
 	virtual QString getName() const override { return "Poisson Surface Reconstruction"; }
-	virtual QString getDescription() const override { return "Poisson Surface Reconstruction (Kazhdan et al.)"; }
+	virtual QString getDescription() const override { return "Poisson Surface Reconstruction V9.0 (Kazhdan et al.)"; }
 	virtual QIcon getIcon() const override;
 
 	//inherited from ccStdPluginInterface

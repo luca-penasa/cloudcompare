@@ -4,11 +4,12 @@
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU Library General Public License as       #
-//#  published by the Free Software Foundation; version 2 of the License.  #
+//#  published by the Free Software Foundation; version 2 or later of the  #
+//#  License.                                                              #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
 //#          COPYRIGHT: EDF R&D / TELECOM ParisTech (ENST-TSI)             #
@@ -54,22 +55,37 @@ public:
 		bool isLeaf() const { return type == LEAF_TYPE; }
 
 	public:
-		BaseNode* parent;
+
+		//Warning: put the non aligned members (< 4 bytes) at the end to avoid too much alignment padding!
+		BaseNode* parent;					//8 bytes
 
 	protected:
-		const uint8_t type;
+		const uint8_t type;					//1 byte (+ 3 for alignment)
+
+		//Total								//12 bytes
 	};
 
 	//! Tree node
 	struct Node : public BaseNode
 	{
 	public:
-		uint8_t splitDim;
-		PointCoordinateType splitValue;
-		BaseNode* leftChild;
-		BaseNode* rightChild;
+
+		//Warning: put the non aligned members (< 4 bytes) at the end to avoid too much alignment padding!
+		PointCoordinateType splitValue;		//4 bytes
+		BaseNode* leftChild;				//8 bytes
+		BaseNode* rightChild;				//8 bytes
+		uint8_t splitDim;					//1 byte (+ 3 bytes for alignment)
+
+		//Total								//24 bytes (+ 12 for father)
 		
-		Node() : BaseNode(NODE_TYPE), splitDim(X_DIM), splitValue(0), leftChild(0), rightChild(0) {}
+		Node()
+			: BaseNode(NODE_TYPE)
+			, splitValue(0)
+			, leftChild(0)
+			, rightChild(0)
+			, splitDim(X_DIM)
+		{}
+
 		virtual ~Node()
 		{
 			if (leftChild) delete leftChild;
@@ -81,10 +97,14 @@ public:
 	struct Leaf : public BaseNode
 	{
 	public:
-		ReferenceCloud* points;
-		PointCoordinateType planeEq[4];
-		ScalarType error;
-		int userData;
+
+		//Warning: put the non aligned members (< 4 bytes) at the end to avoid too much alignment padding!
+		ReferenceCloud* points;				// 8 bytes
+		PointCoordinateType planeEq[4];		//16 bytes
+		ScalarType error;					// 4 bytes
+		int userData;						// 4 bytes
+
+		//Total								//32 bytes (+ 12 for father)
 
 		//! Constructor
 		/** The Leaf class takes ownership of its associated subset
@@ -95,7 +115,7 @@ public:
 			, error(_error)
 			, userData(0)
 		{ 
-			memcpy(planeEq, planeEquation, sizeof(PointCoordinateType)*4);
+			memcpy(planeEq, planeEquation, sizeof(PointCoordinateType) * 4);
 		}
 
 		virtual ~Leaf()
@@ -134,10 +154,10 @@ public:
 	void clear();
 
 	//! Returns max error threshold used for planarity-based split strategy
-	double getMaxError() const { return m_maxError; }
+	inline double getMaxError() const { return m_maxError; }
 
 	//! Returns max error estimator used for planarity-based split strategy
-	DistanceComputationTools::ERROR_MEASURES getMaxErrorType() const { return m_errorMeasure; }
+	inline DistanceComputationTools::ERROR_MEASURES getMaxErrorType() const { return m_errorMeasure; }
 
 	//! Returns all leaf nodes
 	bool getLeaves(LeafVector& leaves) const;

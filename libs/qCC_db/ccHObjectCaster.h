@@ -1,14 +1,14 @@
 //##########################################################################
 //#                                                                        #
-//#                            CLOUDCOMPARE                                #
+//#                              CLOUDCOMPARE                              #
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU General Public License as published by  #
-//#  the Free Software Foundation; version 2 of the License.               #
+//#  the Free Software Foundation; version 2 or later of the License.      #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
 //#          COPYRIGHT: EDF R&D / TELECOM ParisTech (ENST-TSI)             #
@@ -49,6 +49,7 @@ class ccDish;
 class ccExtru;
 class ccTorus;
 class ccShiftedObject;
+class ccPlanarEntityInterface;
 
 //! Useful class to (try to) statically cast a basic ccHObject to a given type
 class QCC_DB_LIB_API ccHObjectCaster
@@ -86,6 +87,9 @@ public:
 
 	//! Converts current object to ccFacet (if possible)
 	static ccFacet* ToFacet(ccHObject* obj);
+
+	//! Converts current object to ccPlanarEntityInterface (if possible)
+	static ccPlanarEntityInterface* ToPlanarEntity(ccHObject* obj);
 
 	//! Converts current object to ccGenericPrimitive (if possible)
 	static ccGenericPrimitive* ToPrimitive(ccHObject* obj);

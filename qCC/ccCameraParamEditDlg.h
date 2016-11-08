@@ -1,14 +1,14 @@
 //##########################################################################
 //#                                                                        #
-//#                            CLOUDCOMPARE                                #
+//#                              CLOUDCOMPARE                              #
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU General Public License as published by  #
-//#  the Free Software Foundation; version 2 of the License.               #
+//#  the Free Software Foundation; version 2 or later of the License.      #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
 //#          COPYRIGHT: EDF R&D / TELECOM ParisTech (ENST-TSI)             #
@@ -20,15 +20,19 @@
 
 //Local
 #include "ccOverlayDialog.h"
-#include "ccGLWindow.h"
-
 #include <ui_cameraParamDlg.h>
+
+//qCC_db
+#include <ccGLMatrix.h>
+//qCC_gl
+#include <ccGLUtils.h>
 
 //system
 #include <map>
 
 class QMdiSubWindow;
 class ccGLWindow;
+class ccHObject;
 
 //! Dialog to interactively edit the camera pose parameters
 class ccCameraParamEditDlg : public ccOverlayDialog, public Ui::CameraParamDlg
@@ -69,6 +73,8 @@ public slots:
 	void updateViewMode();
 	//! Updates view f.o.v.
 	void updateWinFov(float fov_deg);
+	//! Update the zNear coef.
+	void updateZNearCoef(float zNearCoef);
 
 	void setFrontView();
 	void setBottomView();
@@ -123,4 +129,4 @@ protected:
 	PushedMatricesMapType pushedMatrices;
 };
 
-#endif
+#endif //CC_CAMERA_PARAM_EDIT_DLG_HEADER

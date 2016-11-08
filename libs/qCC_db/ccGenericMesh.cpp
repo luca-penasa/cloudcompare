@@ -1,14 +1,14 @@
 //##########################################################################
 //#                                                                        #
-//#                            CLOUDCOMPARE                                #
+//#                              CLOUDCOMPARE                              #
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU General Public License as published by  #
-//#  the Free Software Foundation; version 2 of the License.               #
+//#  the Free Software Foundation; version 2 or later of the License.      #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
 //#          COPYRIGHT: EDF R&D / TELECOM ParisTech (ENST-TSI)             #
@@ -488,7 +488,7 @@ void ccGenericMesh::drawMeOnly(CC_DRAW_CONTEXT& context)
 			//materials
 			const ccMaterialSet* materials = getMaterialSet();
 
-			QSharedPointer<QOpenGLTexture> currentTexture(0);
+			GLuint currentTexID = 0;
 
 			for (unsigned n = 0; n < triNum; ++n)
 			{
@@ -560,19 +560,18 @@ void ccGenericMesh::drawMeOnly(CC_DRAW_CONTEXT& context)
 						glFunc->glEnd();
 						if (showTextures)
 						{
-							if (currentTexture)
+							if (currentTexID)
 							{
-								currentTexture->release();
-								currentTexture.clear();
+								glFunc->glBindTexture(GL_TEXTURE_2D, 0);
+								currentTexID = 0;
 							}
 
 							if (newMatlIndex >= 0)
 							{
-								QImage texImage = materials->at(newMatlIndex)->getTexture();
-								if (!texImage.isNull())
+								currentTexID = materials->at(newMatlIndex)->getTextureID();
+								if (currentTexID)
 								{
-									currentTexture = QSharedPointer<QOpenGLTexture>(new QOpenGLTexture(texImage));
-									currentTexture->bind();
+									glFunc->glBindTexture(GL_TEXTURE_2D, currentTexID);
 								}
 							}
 						}
@@ -588,7 +587,7 @@ void ccGenericMesh::drawMeOnly(CC_DRAW_CONTEXT& context)
 
 					if (showTextures)
 					{
-						getTriangleTexCoordinates(n,Tx1,Tx2,Tx3);
+						getTriangleTexCoordinates(n, Tx1, Tx2, Tx3);
 					}
 				}
 
@@ -630,10 +629,10 @@ void ccGenericMesh::drawMeOnly(CC_DRAW_CONTEXT& context)
 
 			if (showTextures)
 			{
-				if (currentTexture)
+				if (currentTexID)
 				{
-					currentTexture->release();
-					currentTexture.clear();
+					glFunc->glBindTexture(GL_TEXTURE_2D, 0);
+					currentTexID = 0;
 				}
 				glFunc->glPopAttrib();
 			}
@@ -970,7 +969,7 @@ bool ccGenericMesh::trianglePicking(const CCVector2d& clickPos,
 				l1 /= l1l2;
 				l2 /= l1l2;
 			}
-			GLdouble l3 = 1.0-l1-l2;
+			GLdouble l3 = 1.0 - l1 - l2;
 			assert(l3 >= -1.0e-12);
 
 			//now deduce the 3D position

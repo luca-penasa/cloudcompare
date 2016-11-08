@@ -1,14 +1,14 @@
 //##########################################################################
 //#                                                                        #
-//#                            CLOUDCOMPARE                                #
+//#                              CLOUDCOMPARE                              #
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU General Public License as published by  #
-//#  the Free Software Foundation; version 2 of the License.               #
+//#  the Free Software Foundation; version 2 or later of the License.      #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
 //#          COPYRIGHT: EDF R&D / TELECOM ParisTech (ENST-TSI)             #
@@ -63,6 +63,7 @@ class ccDrawableObject;
 class ccOverlayDialog;
 class QMdiSubWindow;
 class Mouse3DInput;
+class GamepadInput;
 
 //! Main window
 class MainWindow : public QMainWindow, public ccMainAppInterface, public Ui::MainWindow
@@ -123,6 +124,9 @@ public:
 							bool checkDimensions = false,
 							bool autoRedraw = true) override;
 
+	virtual void registerOverlayDialog(ccOverlayDialog* dlg, Qt::Corner pos);
+	virtual void unregisterOverlayDialog(ccOverlayDialog* dlg);
+	virtual void updateOverlayDialogsPlacement();
 	virtual void removeFromDB(ccHObject* obj, bool autoDelete = true) override;
 	virtual void setSelectedInDB(ccHObject* obj, bool selected) override;
 	virtual void dispToConsole(QString message, ConsoleMessageLevel level = STD_CONSOLE_MESSAGE) override;
@@ -177,6 +181,12 @@ public:
 		\return the selected cloud (or null if the user cancelled the operation)
 	**/
 	ccPointCloud* askUserToSelectACloud(ccHObject* defaultCloudEntity = 0, QString inviteMessage = QString());
+
+	//! Dispatches the (loaded) plugins in the UI
+	void dispatchPlugins(const tPluginInfoList& plugins, const QStringList& pluginPaths);
+
+	//! Updates the 'Properties' view
+	void updatePropertiesView();
 	
 protected slots:
 
@@ -337,6 +347,9 @@ protected slots:
 	// For leveling
 	void doLevel();
 	
+	void doActionCreatePlane();
+	void doActionEditPlane();
+
 	void doActionDeleteScalarField();
 	void doActionSmoothMeshSF();
 	void doActionEnhanceMeshSF();
@@ -359,6 +372,7 @@ protected slots:
 	void doActionSubdivideMesh();
 	void doActionComputeCPS();
 	void doActionDeleteAllSF();
+	void doActionShowWaveDialog();
 	void doActionKMeans();
 	void doActionFrontPropagation();
 	void doActionApplyScale();
@@ -382,6 +396,7 @@ protected slots:
 	void doActionRasterize();
 	void doCompute2HalfDimVolume();
 	void doConvertPolylinesToMesh();
+	void doMeshTwoPolylines();
 	void doActionExportCoordToSF();
 	void doComputeBestFitBB();
 	void doActionCrop();
@@ -448,9 +463,23 @@ protected slots:
 	void on3DMouseReleased();
 
 	//! Setups 3D mouse (if any)
-	void setup3DMouse(bool);
+	void setup3DMouse(bool state) { enable3DMouse(state, false); }
 
-	//! Removes all entiites currently loaded in the DB tree
+	//Gamepad
+	void onGamepadInput();
+	void increasePointSize();
+	void decreasePointSize();
+
+	//! Trys to enable (or disable) a gamepad device
+	/** \param state whether to enable or disable the device
+	\param silent whether to issue an error message in case of failure
+	**/
+	void enableGamepad(bool state, bool silent);
+
+	//! Setups gamepad (if any)
+	void setupGamepad(bool state) { enableGamepad(state, false); }
+
+	//! Removes all entities currently loaded in the DB tree
 	void closeAll();
 
 	//! Batch export some pieces of info from a set of selected clouds
@@ -492,9 +521,6 @@ protected:
 	virtual void moveEvent(QMoveEvent* event) override;
 	virtual void resizeEvent(QResizeEvent* event) override;
 
-	void loadPlugins();
-	bool dispatchPlugin(QObject* plugin);
-
 	//! Makes the window including an entity zoom on it (helper)
 	void zoomOn(ccHObject* object);
 
@@ -525,14 +551,17 @@ protected:
 	//! Expands DB tree for selected items
 	void expandDBTreeWithSelection(ccHObject::Container& selection);
 
-	//! Releases any connected 3D mouse (if any)
-	void release3DMouse();
-
 	//! Trys to enable (or disable) a 3D mouse device
 	/** \param state whether to enable or disable the device
 		\param silent whether to issue an error message in case of failure
 	**/
 	void enable3DMouse(bool state, bool silent);
+
+	//! Releases any connected 3D mouse
+	void release3DMouse();
+
+	//! Releases any connected gamepad
+	void releaseGamepad();
 
 	//! Updates the view mode pop-menu based for a given window (or an absence of!)
 	virtual void updateViewModePopUpMenu(ccGLWindow* win);
@@ -554,6 +583,9 @@ protected:
 
 	//! 3D mouse handler
 	Mouse3DInput* m_3dMouseInput;
+
+	//! Gamepad handler
+	GamepadInput* m_gamepadInput;
 
 	//! View mode pop-up menu button
 	QToolButton* m_viewModePopupButton;
@@ -581,18 +613,10 @@ protected:
 		{}
 	};
 
-	//! Replaces an MDI dialog at its right position
-	void placeMDIDialog(ccMDIDialogs& mdiDlg);
+	//! Repositions an MDI dialog at its right position
+	void repositionOverlayDialog(ccMDIDialogs& mdiDlg);
 
-	//! Registers a MDI area overlay dialog
-	void registerMDIDialog(ccOverlayDialog* dlg, Qt::Corner pos);
-	//! Unregisters a MDI area overlay dialog
-	void unregisterMDIDialog(ccOverlayDialog* dlg);
-
-	//! Automatically updates all registered MDI dialogs placement
-	void updateMDIDialogsPlacement();
-
-	//! Registered MDI area overlay dialogs
+	//! Registered MDI area 'overlay' dialogs
 	std::vector<ccMDIDialogs> m_mdiDialogs;
 
 	/*** dialogs ***/

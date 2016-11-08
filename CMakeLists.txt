@@ -8,8 +8,6 @@ if (APPLE)
 	set( CMAKE_SKIP_BUILD_RPATH  FALSE )
 	set( CMAKE_BUILD_WITH_INSTALL_RPATH FALSE ) 
 	set( CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE )
-elseif( UNIX )
-  SET(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_PREFIX}/lib/cloudcompare")
 endif()
 
 include ( CMakePolicies.cmake )
@@ -33,6 +31,12 @@ endif()
 # (on Windows - msvc generator - the '_debug' suffix is automatically added for debug configurations)
 set( INSTALL_DESTINATIONS CloudCompare )
 
+# RPATH Linux/Unix: (dynamic) libs are put in a subdir of prefix/lib,
+# since they are only used by qCC/ccViewer
+if( UNIX AND NOT APPLE )
+	set(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_PREFIX}/lib/cloudcompare")
+endif()
+
 # CCViewer
 OPTION( OPTION_BUILD_CCVIEWER "Check to compile CCViewer project" ON )
 
@@ -44,6 +48,10 @@ OPTION( OPTION_GL_QUAD_BUFFER_SUPPORT "Check to compile CloudCompare and ccViewe
 if(WIN32 OR APPLE) 
   set( CLOUDCOMPARE_DEST_FOLDER CloudCompare )
   set( CCVIEWER_DEST_FOLDER ccViewer )
+  if (OPTION_GL_QUAD_BUFFER_SUPPORT)
+    set ( CLOUDCOMPARE_DEST_FOLDER ${CLOUDCOMPARE_DEST_FOLDER}Stereo )
+    set ( CCVIEWER_DEST_FOLDER ${CCVIEWER_DEST_FOLDER}Stereo )
+  endif()
 else()
   set( CLOUDCOMPARE_DEST_FOLDER bin )
   set( CCVIEWER_DEST_FOLDER bin )

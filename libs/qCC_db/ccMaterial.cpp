@@ -1,14 +1,14 @@
 //##########################################################################
 //#                                                                        #
-//#                            CLOUDCOMPARE                                #
+//#                              CLOUDCOMPARE                              #
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU General Public License as published by  #
-//#  the Free Software Foundation; version 2 of the License.               #
+//#  the Free Software Foundation; version 2 or later of the License.      #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
 //#          COPYRIGHT: EDF R&D / TELECOM ParisTech (ENST-TSI)             #
@@ -28,12 +28,14 @@
 #include <QUuid>
 #include <QFileInfo>
 #include <QDataStream>
+#include <QOpenGLTexture>
 
 //System
 #include <assert.h>
 
 //Textures DB
 QMap<QString, QImage> s_textureDB;
+QMap<QString, QSharedPointer<QOpenGLTexture>> s_openGLTextureDB;
 
 ccMaterial::ccMaterial(QString name)
 	: m_name(name)
@@ -135,7 +137,7 @@ bool ccMaterial::loadAndSetTexture(QString absoluteFilename)
 		}
 		else
 		{
-			setTexture(image,absoluteFilename,true);
+			setTexture(image, absoluteFilename, true);
 		}
 	}
 
@@ -144,7 +146,7 @@ bool ccMaterial::loadAndSetTexture(QString absoluteFilename)
 
 void ccMaterial::setTexture(QImage image, QString absoluteFilename/*=QString()*/, bool mirrorImage/*=true*/)
 {
-	ccLog::PrintDebug(QString("[ccMaterial::setTexture] absoluteFilename = %1 (+ image(%2,%3)").arg(absoluteFilename).arg(image.width()).arg(image.height()));
+	ccLog::PrintDebug(QString("[ccMaterial::setTexture] absoluteFilename = '%1' / size = %2 x %3").arg(absoluteFilename).arg(image.width()).arg(image.height()));
 
 	if (absoluteFilename.isEmpty())
 	{
@@ -176,6 +178,35 @@ void ccMaterial::setTexture(QImage image, QString absoluteFilename/*=QString()*/
 const QImage ccMaterial::getTexture() const
 {
 	return s_textureDB[m_textureFilename];
+}
+
+GLuint ccMaterial::getTextureID() const
+{
+	if (QOpenGLContext::currentContext())
+	{
+		const QImage image = getTexture();
+		if (image.isNull())
+		{
+			return 0;
+		}
+		QSharedPointer<QOpenGLTexture> tex = s_openGLTextureDB[m_textureFilename];
+		if (!tex)
+		{
+			tex = QSharedPointer<QOpenGLTexture>::create(QOpenGLTexture::Target2D);
+			tex->setAutoMipMapGenerationEnabled(false);
+			tex->setMinMagFilters(QOpenGLTexture::Nearest, QOpenGLTexture::Linear);
+			tex->setFormat(QOpenGLTexture::RGB8_UNorm);
+			tex->setData(getTexture(), QOpenGLTexture::DontGenerateMipMaps);
+			tex->create();
+			s_openGLTextureDB[m_textureFilename] = tex;
+		}
+		return tex->textureId();
+	}
+	else
+	{
+		return 0;
+	}
+
 }
 
 bool ccMaterial::hasTexture() const
@@ -228,27 +259,53 @@ void ccMaterial::AddTexture(QImage image, QString absoluteFilename)
 	s_textureDB[absoluteFilename] = image;
 }
 
+void ccMaterial::ReleaseTextures()
+{
+	if (!QOpenGLContext::currentContext())
+	{
+		ccLog::Warning("[ccMaterial::ReleaseTextures] No valid OpenGL context");
+		return;
+	}
+
+	s_openGLTextureDB.clear();
+}
+
+void ccMaterial::releaseTexture()
+{
+	if (m_textureFilename.isEmpty())
+	{
+		//nothing to do
+		return;
+	}
+
+	assert(QOpenGLContext::currentContext());
+
+	s_textureDB.remove(m_textureFilename);
+	s_openGLTextureDB.remove(m_textureFilename);
+	m_textureFilename.clear();
+}
+
 bool ccMaterial::toFile(QFile& out) const
 {
 	QDataStream outStream(&out);
 
-	//material name (dataVersion>=20)
+	//material name (dataVersion >= 20)
 	outStream << m_name;
-	//texture (dataVersion>=20)
+	//texture (dataVersion >= 20)
 	outStream << m_textureFilename;
-	//material colors (dataVersion>=20)
+	//material colors (dataVersion >= 20)
 	//we don't use QByteArray here as it has its own versions!
-	if (out.write((const char*)m_diffuseFront.rgba,sizeof(float)*4) < 0) 
+	if (out.write((const char*)m_diffuseFront.rgba, sizeof(float) * 4) < 0)
 		return WriteError();
-	if (out.write((const char*)m_diffuseBack.rgba,sizeof(float)*4) < 0) 
+	if (out.write((const char*)m_diffuseBack.rgba, sizeof(float) * 4) < 0)
 		return WriteError();
-	if (out.write((const char*)m_ambient.rgba,sizeof(float)*4) < 0) 
+	if (out.write((const char*)m_ambient.rgba, sizeof(float) * 4) < 0)
 		return WriteError();
-	if (out.write((const char*)m_specular.rgba,sizeof(float)*4) < 0) 
+	if (out.write((const char*)m_specular.rgba, sizeof(float) * 4) < 0)
 		return WriteError();
-	if (out.write((const char*)m_emission.rgba,sizeof(float)*4) < 0) 
+	if (out.write((const char*)m_emission.rgba, sizeof(float) * 4) < 0)
 		return WriteError();
-	//material shininess (dataVersion>=20)
+	//material shininess (dataVersion >= 20)
 	outStream << m_shininessFront;
 	outStream << m_shininessBack;
 

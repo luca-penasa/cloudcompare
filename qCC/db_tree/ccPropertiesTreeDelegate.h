@@ -1,14 +1,14 @@
 //##########################################################################
 //#                                                                        #
-//#                            CLOUDCOMPARE                                #
+//#                              CLOUDCOMPARE                              #
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU General Public License as published by  #
-//#  the Free Software Foundation; version 2 of the License.               #
+//#  the Free Software Foundation; version 2 or later of the License.      #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
 //#          COPYRIGHT: EDF R&D / TELECOM ParisTech (ENST-TSI)             #
@@ -42,6 +42,7 @@ class ccSensor;
 class ccIndexedTransformationBuffer;
 class ccShiftedObject;
 class CCShareable;
+class ccPlanarEntityInterface;
 
 class QStandardItemModel;
 class QStandardItem;
@@ -82,7 +83,7 @@ public:
 							OBJECT_MATERIALS						,
 							OBJECT_APPLY_LABEL_VIEWPORT				,
 							OBJECT_LABEL_DISP_2D					,
-							OBJECT_LABEL_DISP_3D					,
+							OBJECT_LABEL_POINT_LEGEND				,
 							OBJECT_PRIMITIVE_PRECISION				,
 							OBJECT_SPHERE_RADIUS					,
 							OBJECT_CONE_HEIGHT						,
@@ -92,7 +93,7 @@ public:
 							OBJECT_NAME_IN_3D						,
 							OBJECT_FACET_CONTOUR					,
 							OBJECT_FACET_MESH						,
-							OBJECT_FACET_NORMAL_VECTOR				,
+							OBJECT_PLANE_NORMAL_VECTOR				,
 							OBJECT_SENSOR_INDEX						,
 							OBJECT_SHOW_TRANS_BUFFER_PATH			,
 							OBJECT_SHOW_TRANS_BUFFER_TRIHDERONS		,
@@ -165,6 +166,7 @@ protected:
 	void fillSFWithPointCloud(ccGenericPointCloud*);
 	void fillWithMesh(ccGenericMesh*);
 	void fillWithFacet(ccFacet*);
+	void fillWithPlanarEntity(ccPlanarEntityInterface*);
 	void fillWithSensor(ccSensor*);
 	void fillWithTransBuffer(ccIndexedTransformationBuffer*);
 	void fillWithPolyline(ccPolyline*);

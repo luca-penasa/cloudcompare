@@ -4,11 +4,12 @@
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU Library General Public License as       #
-//#  published by the Free Software Foundation; version 2 of the License.  #
+//#  published by the Free Software Foundation; version 2 or later of the  #
+//#  License.                                                              #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
 //#          COPYRIGHT: EDF R&D / TELECOM ParisTech (ENST-TSI)             #
@@ -720,12 +721,16 @@ bool DistanceComputationTools::computeCellHausdorffDistanceWithLocalModel(	const
 //Internal structure used by DistanceComputationTools::computeCloud2MeshDistance
 struct CellToTest
 {
+	//Warning: put the non aligned members (< 4 bytes) at the end to avoid too much alignment padding!
+
 	//! Cell position
-	Tuple3i pos;
+	Tuple3i pos;				//12 bytes
 	//! Cell size
-	int cellSize;
+	int cellSize;				// 4 bytes
 	//! Subdivision level
-	unsigned char level;
+	unsigned char level;		// 1 byte (+ 3 for alignment)
+
+	//Total						//20 bytes
 };
 
 int DistanceComputationTools::intersectMeshWithOctree(	OctreeAndMeshIntersection* intersection,

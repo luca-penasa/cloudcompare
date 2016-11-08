@@ -1,14 +1,14 @@
 //##########################################################################
 //#                                                                        #
-//#                            CLOUDCOMPARE                                #
+//#                              CLOUDCOMPARE                              #
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU General Public License as published by  #
-//#  the Free Software Foundation; version 2 of the License.               #
+//#  the Free Software Foundation; version 2 or later of the License.      #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
 //#          COPYRIGHT: EDF R&D / TELECOM ParisTech (ENST-TSI)             #
@@ -46,6 +46,7 @@ struct dbTreeSelectionInfo
 	size_t cloudCount;
 	size_t groupCount;
 	size_t polylineCount;
+	size_t planeCount;
 	size_t meshCount;
 	size_t imageCount;
 	size_t sensorCount;
@@ -55,7 +56,7 @@ struct dbTreeSelectionInfo
 
 	void reset()
 	{
-		memset(this,0,sizeof(dbTreeSelectionInfo));
+		memset(this, 0, sizeof(dbTreeSelectionInfo));
 	}
 };
 
@@ -238,7 +239,10 @@ protected:
 	void expandOrCollapseHoveredBranch(bool expand);
 
 	//! Selects objects by type and/or name
-	void selectChildrenByTypeAndName(CC_CLASS_ENUM type, bool typeIsExclusive = true, QString name = QString());
+    void selectChildrenByTypeAndName(CC_CLASS_ENUM type,
+                                     bool typeIsExclusive = true,
+                                     QString name = QString(),
+                                     bool nameIsRegex = false);
 
 	//! Associated DB root
 	ccHObject* m_treeRoot;

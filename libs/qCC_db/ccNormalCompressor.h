@@ -1,14 +1,14 @@
 //##########################################################################
 //#                                                                        #
-//#                            CLOUDCOMPARE                                #
+//#                              CLOUDCOMPARE                              #
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU General Public License as published by  #
-//#  the Free Software Foundation; version 2 of the License.               #
+//#  the Free Software Foundation; version 2 or later of the License.      #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
 //#          COPYRIGHT: EDF R&D / TELECOM ParisTech (ENST-TSI)             #
@@ -32,14 +32,19 @@ public:
 	**/
 	static const unsigned char QUANTIZE_LEVEL = 9; //2097152 normals * 12 bytes = 24 Mb of memory
 
+	//! Last valid normal code
+	static const unsigned MAX_VALID_NORM_CODE = (1 << (QUANTIZE_LEVEL * 2 + 3)) - 1;
+	//! Null normal code
+	static const unsigned NULL_NORM_CODE = MAX_VALID_NORM_CODE + 1;
+
 	//! Compression algorithm
-	static unsigned Compress(const PointCoordinateType N[3], unsigned char level = QUANTIZE_LEVEL);
+	static unsigned Compress(const PointCoordinateType N[3]);
 
 	//! Decompression algorithm
 	static void Decompress(unsigned index, PointCoordinateType N[3], unsigned char level = QUANTIZE_LEVEL);
 
 	//! Inverts a (compressed) normal
-	inline static void InvertNormal(CompressedNormType &code) { code ^= (static_cast<CompressedNormType>(7) << 2*QUANTIZE_LEVEL); } //See 'Decompress' for a better understanding
+	static void InvertNormal(CompressedNormType &code);
 
 };
 
