@@ -1,45 +1,30 @@
 dist: trusty
 sudo: required
-
-language:
-    cpp
-
-
-
+language: cpp
+addons:
+  artifacts: true
 install:
-    - ls /etc/apt/
-    - ls /etc/apt/sources.list.d
-
-    - echo "deb http://pkg.mxe.cc/repos/apt/debian wheezy main" | sudo tee -a /etc/apt/sources.list
-
-    -  sudo  apt-key adv --keyserver keyserver.ubuntu.com --recv-keys D43A795B73B16ABE9643FE1AFD8FFF16DB45C6AB
-    -  sudo apt-get update
-    -  sudo apt-get install -y mxe-i686-w64-mingw32.shared-qtbase
-    -  PATH=${PATH}:/usr/lib/mxe/usr/bin
-
-    # CC submodules
-    - git submodule init && git submodule update
-    #stuff
-   
-
-
-before_script:    
-
-    - mkdir build
-    - cd build
-    - i686-w64-mingw32.shared-cmake -DCMAKE_BUILD_TYPE=Release ..
-
-
-      # -DOPTION_USE_GDAL=ON
-      # -DINSTALL_QKINECT_PLUGIN=ON
-      # -DLIBFREENECT_INCLUDE_DIR="/usr/include"
-      # -DLIBFREENECT_LIBRARY_FILE="/usr/lib/x86_64-linux-gnu/libfreenect.so"
-
-      # For now:
-      # - qRansacSD fails on Clang
-      # - no libav/FFMPEG. Version in repos is < 10.7 (no frame.h)
-      # - could not use CGAL from Ubuntu (< 4.3)
-
+- ls /etc/apt/
+- ls /etc/apt/sources.list.d
+- echo "deb http://pkg.mxe.cc/repos/apt/debian wheezy main" | sudo tee -a /etc/apt/sources.list
+- sudo  apt-key adv --keyserver keyserver.ubuntu.com --recv-keys D43A795B73B16ABE9643FE1AFD8FFF16DB45C6AB
+- sudo apt-get update
+- sudo apt-get install -y mxe-i686-w64-mingw32.shared-qtbase
+- PATH=${PATH}:/usr/lib/mxe/usr/bin
+- git submodule init && git submodule update
+before_script:
+- mkdir build
+- cd build
+- i686-w64-mingw32.shared-cmake -DCMAKE_BUILD_TYPE=Release .. -DCMAKE_INSTALL_PREFIX=${TRAVIS_BUILD_DIR}
+  -DOPTION_BUILD_CCVIEWER=OFF
+- tar -zcvf cloudcompare-latest.tar.gz CloudCompare
 script:
-    # We use only 4 core because gcc and clang can be memory hungry
-    - make -j2
+- make -j2 install
+deploy:
+  provider: releases
+  api_key:
+    secure: P4lYE8L5Z3I36hn7syUtDjZ4q4vcyaXdpjgPd6tfnhDGg3V5NJqud+0G240V3Cp0//T4PJSKaTSrQ/8/SmFyzcP16f0ypSmddfpIN/O1pJMImptkO1FF8dR/vxHw02RJtYjxk4Znzs19u2okr9Ikft0cJwFHP7T+cPY+0shzNjc=
+  file: cloudcompare-latest.tar.gz
+  on:
+    repo: cloudcompare/trunk
+    branch: newtravis
