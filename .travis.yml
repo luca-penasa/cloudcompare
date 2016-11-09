@@ -17,9 +17,10 @@ before_script:
 - cd build
 - i686-w64-mingw32.shared-cmake -DCMAKE_BUILD_TYPE=Release .. -DCMAKE_INSTALL_PREFIX=${TRAVIS_BUILD_DIR}
   -DOPTION_BUILD_CCVIEWER=OFF
-- tar -zcvf cloudcompare-latest.tar.gz CloudCompare
+
 script:
 - make -j2 install
+- tar -zcvf cloudcompare-latest.tar.gz CloudCompare
 deploy:
   provider: releases
   api_key:
