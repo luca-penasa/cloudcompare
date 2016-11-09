@@ -20,7 +20,7 @@ before_script:
 
 script:
 - make -j2 install
-- tar -zcvf cloudcompare-latest.tar.gz CloudCompare
+- tar -zcvf cloudcompare-latest.tar.gz ${TRAVIS_BUILD_DIR}/CloudCompare
 deploy:
   provider: releases
   api_key:
