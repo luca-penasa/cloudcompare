@@ -29,3 +29,4 @@ deploy:
   on:
     repo: cloudcompare/trunk
     branch: newtravis
+
