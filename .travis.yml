@@ -20,13 +20,15 @@ before_script:
 
 script:
 - make -j2 install
-- tar -zcvf cloudcompare-latest.tar.gz ${TRAVIS_BUILD_DIR}/CloudCompare
+- cd ${TRAVIS_BUILD_DIR}
+- tar -zcvf cloudcompare-latest.tar.gz CloudCompare
 deploy:
   provider: releases
   api_key:
     secure: P4lYE8L5Z3I36hn7syUtDjZ4q4vcyaXdpjgPd6tfnhDGg3V5NJqud+0G240V3Cp0//T4PJSKaTSrQ/8/SmFyzcP16f0ypSmddfpIN/O1pJMImptkO1FF8dR/vxHw02RJtYjxk4Znzs19u2okr9Ikft0cJwFHP7T+cPY+0shzNjc=
   file: CloudCompare
+  skip_cleanup: true
   on:
-    repo: cloudcompare/trunk
+    repo: luca-penasa/trunk
     branch: newtravis
 
