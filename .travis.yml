@@ -9,7 +9,7 @@ install:
 - echo "deb http://pkg.mxe.cc/repos/apt/debian wheezy main" | sudo tee -a /etc/apt/sources.list
 - sudo  apt-key adv --keyserver keyserver.ubuntu.com --recv-keys D43A795B73B16ABE9643FE1AFD8FFF16DB45C6AB
 - sudo apt-get update
-- sudo apt-get install -y mxe-i686-w64-mingw32.shared-qtbase
+- sudo apt-get install -y mxe-i686-w64-mingw32.shared-qtbase tar
 - PATH=${PATH}:/usr/lib/mxe/usr/bin
 - git submodule init && git submodule update
 before_script:
