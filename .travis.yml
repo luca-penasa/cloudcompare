@@ -1,4 +1,6 @@
 dist: trusty
+sudo: false
+group: beta
 
 language:
     cpp
@@ -6,6 +8,8 @@ language:
 
 
 install:
+    - ls /etc/apt/
+    - ls /etc/apt/sources.list.d
     -  echo "deb http://pkg.mxe.cc/repos/apt/debian wheezy main" > /etc/apt/sources.list.d/mxeapt.list
     -  apt-key adv --keyserver keyserver.ubuntu.com --recv-keys D43A795B73B16ABE9643FE1AFD8FFF16DB45C6AB
     -  apt-get update
