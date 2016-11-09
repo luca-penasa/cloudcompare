@@ -1,6 +1,5 @@
 dist: trusty
-sudo: false
-group: beta
+sudo: required
 
 language:
     cpp
@@ -10,10 +9,10 @@ language:
 install:
     - ls /etc/apt/
     - ls /etc/apt/sources.list.d
-    -  echo "deb http://pkg.mxe.cc/repos/apt/debian wheezy main" > /etc/apt/sources.list.d/mxeapt.list
-    -  apt-key adv --keyserver keyserver.ubuntu.com --recv-keys D43A795B73B16ABE9643FE1AFD8FFF16DB45C6AB
-    -  apt-get update
-    -  apt-get install -y mxe-i686-w64-mingw32.shared-qt 
+    -  sudo echo "deb http://pkg.mxe.cc/repos/apt/debian wheezy main" > /etc/apt/sources.list.d/mxeapt.list
+    -  sudo  apt-key adv --keyserver keyserver.ubuntu.com --recv-keys D43A795B73B16ABE9643FE1AFD8FFF16DB45C6AB
+    -  sudo apt-get update
+    -  sudo apt-get install -y mxe-i686-w64-mingw32.shared-qt 
     -  PATH=${PATH}:/usr/lib/mxe/usr/bin
 
     # CC submodules
