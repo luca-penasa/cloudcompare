@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 
 if [[$OS== "MXEWIN"]; then
 	echo "compiling for win on mxe"
@@ -41,3 +42,5 @@ name=cloudcompare-${TRAVIS_BRANCH}-${TRAVIS_COMMIT}
 mv CloudCompare ${name}
 tar -zcvf ${name}.tar.gz ${name}
 curl -X PUT -u ${OWNCLOUD_USER}:${OWNCLOUD_PASSWORD} "https://ns392452.ip-176-31-109.eu/owncloud/remote.php/webdav/cloudcompare-builds/${name}.tar.gz" --data-binary @"${name}.tar.gz" --insecure
+=======
+>>>>>>> newtravis

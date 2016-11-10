@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 #!/bin/bash
 
 echo "os ${OS}, compiler ${COMPILER}, bits ${BITS}"
@@ -35,3 +36,5 @@ if [[$OS=="LINUX"]]; then
 
 fi
 
+=======
+>>>>>>> newtravis

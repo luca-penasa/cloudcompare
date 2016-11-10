@@ -8,9 +8,6 @@ env:
     - OS=MXEWIN BITS=64
     - OS=MXEWIN BITS=32
     
-
-
-
 before_script: . .travis/setup.sh
 
 script: . .travis/build.sh
