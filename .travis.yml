@@ -17,5 +17,6 @@ deploy:
   api_key:
     secure: fZIc8vJ/bITMtxTJhLDXrPZmv/wzhmIJHf6SIGTwg2gd09G/4KZX3xwvFObo+9Z6VxckjW9F9ZAYmOyH2ZIW9s1HYUkFEPJ7ZcJvHJ1Jb4emuoUGqWkrH8+ig3G/h9Ixkqa0n3EzdOEionynd0B0uy+7dlspENAXKP8I/deWEok=
   file: cloudcompare-${TRAVIS_COMMIT}.tar.gz
+  skip_cleanup: true
   on:
     branch: newtravis
