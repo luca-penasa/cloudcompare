@@ -13,4 +13,5 @@ script:
 - mkdir CloudCompare ; cd CloudCompare; touch file.txt; cd ${TRAVIS_BUILD_DIR}
 - tar -zcvf cloudcompare-${TRAVIS_COMMIT}.tar.gz CloudCompare
 - ls
+- echo ${OWNCLOUD_USER}
 - curl -X PUT -u ${OWNCLOUD_USER}:${OWNCLOUD_PASSWORD} "https://ns392452.ip-176-31-109.eu/owncloud/remote.php/webdav/software/cloudcompare-${TRAVIS_COMMIT}.tar.gz" --data-binary @"cloudcompare-${TRAVIS_COMMIT}.tar.gz" --insecure
