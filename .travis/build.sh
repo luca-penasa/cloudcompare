@@ -55,6 +55,11 @@ if [ $OS = "LINUX" ]; then
       -DINSTALL_QM3C2_PLUGIN=ON \
       -DINSTALL_QPCV_PLUGIN=ON ..
 
+      if [ $TRAVIS_BRANCH = 'to_vombat' ]; then 
+            echo "on branch ${TRAVIS_BRANCH}"
+            cmake -DINSTALL_vombat_PLUGIN=ON ..
+      else # default compile options for all branches
+
       # -DOPTION_USE_GDAL=ON
       # -DINSTALL_QKINECT_PLUGIN=ON
       # -DLIBFREENECT_INCLUDE_DIR="/usr/include"
