@@ -2,7 +2,7 @@
 
 echo "os ${OS}, compiler ${COMPILER}, bits ${BITS}"
 
-if [[${OS}="MXEWIN"]]; then
+if ["${OS}"=="MXEWIN"]; then
 	echo "deb http://pkg.mxe.cc/repos/apt/debian wheezy main" | sudo tee -a /etc/apt/sources.list
 	sudo  apt-key adv --keyserver keyserver.ubuntu.com --recv-keys D43A795B73B16ABE9643FE1AFD8FFF16DB45C6AB
 	sudo apt-get update
@@ -14,7 +14,7 @@ if [[${OS}="MXEWIN"]]; then
 fi
 
 
-if [[${OS}="LINUX"]]; then
+if ["${OS}"=="LINUX"]; then
 	# Install dependencies
 	sudo add-apt-repository --yes ppa:george-edison55/cmake-3.x
     sudo add-apt-repository --yes ppa:beineri/opt-qt551-trusty
