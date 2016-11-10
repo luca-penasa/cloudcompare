@@ -11,6 +11,6 @@ env:
 
 
 
-before_script: .travis/setup.sh
+before_script: . .travis/setup.sh
 
-script: .travis/build.sh
+script: . .travis/build.sh
