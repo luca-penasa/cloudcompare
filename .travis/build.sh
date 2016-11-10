@@ -3,6 +3,8 @@ cd ${TRAVIS_BUILD_DIR}
 mkdir build
 cd build
 
+PATH=${PATH}:/usr/lib/mxe/usr/bin:/usr/lib/mxe/tools
+
 if [[ $TRAVIS_BRANCH == 'to_vombat' ]]; then # on this branch we also need boost and eigen
 	i686-w64-mingw32.shared-cmake -DCMAKE_BUILD_TYPE=Release .. -DCMAKE_INSTALL_PREFIX=${TRAVIS_BUILD_DIR} -DOPTION_BUILD_CCVIEWER=OFF -DINSTALL_vombat_PLUGIN=ON
 else # default compile options for all branches

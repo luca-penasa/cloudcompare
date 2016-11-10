@@ -8,4 +8,4 @@ if [[ $TRAVIS_BRANCH == 'to_vombat' ]]; then # on this branch we also need boost
 	sudo apt-get install -y mxe-i686-w64-mingw32.shared-eigen mxe-i686-w64-mingw32.shared-boost
 fi
 
-PATH=${PATH}:/usr/lib/mxe/usr/bin:/usr/lib/mxe/tools
+export PATH=${PATH}:/usr/lib/mxe/usr/bin:/usr/lib/mxe/tools
