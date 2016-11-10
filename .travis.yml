@@ -21,4 +21,4 @@ script:
 #- wget https://raw.githubusercontent.com/mxe/mxe/master/tools/copydlldeps.sh; chmod a+x copydlldeps.sh
 - copydlldeps.sh -c -F ./CloudCompare -d ./CloudCompare -R /usr/lib/mxe
 - tar -zcvf cloudcompare-${TRAVIS_COMMIT}.tar.gz CloudCompare
-- curl -X PUT -u ${OWNCLOUD_USER}:${OWNCLOUD_PASSWORD} "https://ns392452.ip-176-31-109.eu/owncloud/remote.php/webdav/software/cloudcompare-${TRAVIS_COMMIT}.tar.gz" --data-binary @"cloudcompare-${TRAVIS_COMMIT}.tar.gz" --insecure
+- curl -X PUT -u ${OWNCLOUD_USER}:${OWNCLOUD_PASSWORD} "https://ns392452.ip-176-31-109.eu/owncloud/remote.php/webdav/cloudcompare-builds/cloudcompare-${TRAVIS_COMMIT}.tar.gz" --data-binary @"cloudcompare-${TRAVIS_COMMIT}.tar.gz" --insecure
