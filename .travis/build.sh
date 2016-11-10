@@ -1,3 +1,22 @@
+
+if [[$OS== "MXEWIN"]; then
+	echo "compiling for win on mxe"
+
+	if [[$BITS == 64]]; then
+		echo "compiling for win on mxe 64 bits"		
+	fi
+
+	if [[$BITS == 32]]; then
+		echo "compiling for win on mxe 34 bits"		
+	fi
+fi
+
+
+if [[$OS == "LINUX"]]; then
+	echo "compiling for linux"
+fi
+
+
 echo "travis build dir is ${TRAVIS_BUILD_DIR}"
 cd ${TRAVIS_BUILD_DIR}
 mkdir build
