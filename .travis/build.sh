@@ -14,9 +14,9 @@ if [ $OS = "MXEWIN" ]; then
 
 	if [ $TRAVIS_BRANCH = 'to_vombat' ]; then 
 		echo "on branch ${TRAVIS_BRANCH}"
-		${mxearchname}-cmake -DCMAKE_BUILD_TYPE=Release .. -DCMAKE_INSTALL_PREFIX=${TRAVIS_BUILD_DIR} -DOPTION_BUILD_CCVIEWER=OFF -DINSTALL_vombat_PLUGIN=ON
+		$cmakename -DCMAKE_BUILD_TYPE=Release .. -DCMAKE_INSTALL_PREFIX=${TRAVIS_BUILD_DIR} -DOPTION_BUILD_CCVIEWER=OFF -DINSTALL_vombat_PLUGIN=ON
 	else # default compile options for all branches
-		${mxearchname}-cmake -DCMAKE_BUILD_TYPE=Release .. -DCMAKE_INSTALL_PREFIX=${TRAVIS_BUILD_DIR} -DOPTION_BUILD_CCVIEWER=OFF	
+		$cmakename-cmake -DCMAKE_BUILD_TYPE=Release .. -DCMAKE_INSTALL_PREFIX=${TRAVIS_BUILD_DIR} -DOPTION_BUILD_CCVIEWER=OFF	
 	fi
 
 

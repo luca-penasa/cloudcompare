@@ -7,11 +7,13 @@ if [ $OS = "MXEWIN" ]; then
 
 	if [ $BITS == 64 ]; then
 		mxearchname="x86-64-w64-mingw32.shared"
+		cmakename=x86_64-w64-mingw32.shared-cmake
 		echo "compiling for win on mxe 64 bits"		
 	fi
 
 	if [ $BITS == 32 ]; then
 		mxearchname="i686-w64-mingw32.shared"
+		cmakename=$mxearchname-cmake
 		echo "compiling for win on mxe 34 bits"		
 	fi
 
