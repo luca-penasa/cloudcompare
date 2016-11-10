@@ -19,7 +19,6 @@ deploy:
   api_key:
     secure: b7tXYoPWy5fUCJKAVPFD9D8ZZRo6/cwVRFYHPAM7IYfpBPYDFshvwK/b/yvksrGu/JXj1m05TcfAUqooxtKVBCw77mZartybsmixTATmz5/ayCxEZb6lQROdE1Ajx+CjCzYNXrpOzkSUGaNvE4NP5W6wsvlJWek35CMZsyti7jM=
   file: 
-    - CloudCompare
     - cloudcompare-latest.tar.gz
   on:
     branch: newtravis
