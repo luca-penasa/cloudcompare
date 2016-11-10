@@ -3,9 +3,10 @@ cd ${TRAVIS_BUILD_DIR}
 mkdir build
 cd build
 
-if [[ $TRAVIS_BRANCH == 'to_vombat' ]] # on this branch we also need boost and eigen
+if [[ $TRAVIS_BRANCH == 'to_vombat' ]]; then # on this branch we also need boost and eigen
 	i686-w64-mingw32.shared-cmake -DCMAKE_BUILD_TYPE=Release .. -DCMAKE_INSTALL_PREFIX=${TRAVIS_BUILD_DIR} -DOPTION_BUILD_CCVIEWER=OFF -DINSTALL_vombat_PLUGIN=ON
 else # default compile options for all branches
+
 	i686-w64-mingw32.shared-cmake -DCMAKE_BUILD_TYPE=Release .. -DCMAKE_INSTALL_PREFIX=${TRAVIS_BUILD_DIR} -DOPTION_BUILD_CCVIEWER=OFF	
 fi
 
