@@ -20,7 +20,7 @@ script:
 #- make -j2 install
 - echo ${TRAVIS_BUILD_DIR}
 - cd ${TRAVIS_BUILD_DIR}
-- mkdir CloudCompare ; cd CloudCompare; touch file.txt
+- mkdir CloudCompare ; cd CloudCompare; touch file.txt; cd ${TRAVIS_BUILD_DIR}
 - tar -zcvf cloudcompare-latest.tar.gz CloudCompare
 
 deploy:
