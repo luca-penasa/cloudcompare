@@ -47,6 +47,10 @@ if [ $OS = "LINUX" ]; then
 		export CC="gcc"
 	fi
 
+	if [ $TRAVIS_BRANCH = 'to_vombat' ]; then # we need eigen, and boost
+        sudo apt-get install -y libeigen3-dev libboost-dev
+    fi
+
 
 fi
 
