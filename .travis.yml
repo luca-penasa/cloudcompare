@@ -1,6 +1,15 @@
 dist: trusty
 sudo: required
-language: cpp
+
+env:  
+  matrix:
+    - OS=LINUX COMPILER=GCC 
+    - OS=LINUX COMPILER=CLANG 
+    - OS=MXEWIN BITS=64
+    - OS=MXEWIN BITS=32
+    
+
+
 
 before_script: .travis/setup.sh
 
