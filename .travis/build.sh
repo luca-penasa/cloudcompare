@@ -58,7 +58,7 @@ if [ $OS = "LINUX" ]; then
       if [ $TRAVIS_BRANCH = 'to_vombat' ]; then 
             echo "on branch ${TRAVIS_BRANCH}"
             cmake -DINSTALL_vombat_PLUGIN=ON ..
-      else # default compile options for all branches
+      fi
 
       # -DOPTION_USE_GDAL=ON
       # -DINSTALL_QKINECT_PLUGIN=ON
