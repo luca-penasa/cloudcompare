@@ -1,3 +1,5 @@
+echo "compiler ${CXX}, and ${CC}"
+
 
 if [[$OS== "MXEWIN"]; then
 	echo "compiling for win on mxe"
