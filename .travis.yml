@@ -1,8 +1,7 @@
 dist: trusty
 sudo: required
 language: cpp
-addons:
-  artifacts: true
+
 install:
 - echo "deb http://pkg.mxe.cc/repos/apt/debian wheezy main" | sudo tee -a /etc/apt/sources.list
 - sudo  apt-key adv --keyserver keyserver.ubuntu.com --recv-keys D43A795B73B16ABE9643FE1AFD8FFF16DB45C6AB
@@ -20,7 +19,7 @@ deploy:
   api_key:
     secure: b7tXYoPWy5fUCJKAVPFD9D8ZZRo6/cwVRFYHPAM7IYfpBPYDFshvwK/b/yvksrGu/JXj1m05TcfAUqooxtKVBCw77mZartybsmixTATmz5/ayCxEZb6lQROdE1Ajx+CjCzYNXrpOzkSUGaNvE4NP5W6wsvlJWek35CMZsyti7jM=
   file: CloudCompare
-   on:
-     repo: luca-penasa/trunk
-     branch: newtravis
-     
+  on:
+    repo: luca-penasa/trunk
+    branch: newtravis
+
