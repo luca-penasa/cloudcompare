@@ -25,7 +25,7 @@ if [ $OS = "MXEWIN" ]; then
 	cd ${TRAVIS_BUILD_DIR}
 	#- wget https://raw.githubusercontent.com/mxe/mxe/master/tools/copydlldeps.sh; chmod a+x copydlldeps.sh
 	copydlldeps.sh -c -F ./CloudCompare -d ./CloudCompare -R /usr/lib/mxe
-	name=cloudcompare-${TRAVIS_BRANCH}-${TRAVIS_COMMIT}
+	name=cloudcompare-${OS}-${BITS}-${TRAVIS_BRANCH}-${TRAVIS_COMMIT}
 	mv CloudCompare ${name}
 	tar -zcvf ${name}.tar.gz ${name}
 	curl -X PUT -u ${OWNCLOUD_USER}:${OWNCLOUD_PASSWORD} "https://ns392452.ip-176-31-109.eu/owncloud/remote.php/webdav/cloudcompare-builds/${name}.tar.gz" --data-binary @"${name}.tar.gz" --insecure
