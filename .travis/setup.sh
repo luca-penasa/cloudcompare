@@ -5,12 +5,12 @@ echo "os ${OS}, compiler ${COMPILER}, bits ${BITS}"
 if [ $OS = "MXEWIN" ]; then
 
 
-	if [$BITS == 64]; then
+	if [ $BITS == 64 ]; then
 		mxearchname="x86-64-w64-mingw32.shared"
 		echo "compiling for win on mxe 64 bits"		
 	fi
 
-	if [$BITS == 32]; then
+	if [ $BITS == 32 ]; then
 		mxearchname="i686-w64-mingw32.shared"
 		echo "compiling for win on mxe 34 bits"		
 	fi
@@ -39,6 +39,7 @@ if [ $OS = "LINUX" ]; then
 	if [ $COMPILER = CLANG ]; then
 		export CXX="clang++"
 		export CC="clang"
+
 	elif [ $COMPILER = GCC ]; then
 		export CXX="g++"
 		export CC="gcc"
