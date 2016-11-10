@@ -13,13 +13,13 @@ script:
 - echo ${TRAVIS_BUILD_DIR}
 - cd ${TRAVIS_BUILD_DIR}
 - mkdir CloudCompare ; cd CloudCompare; touch file.txt; cd ${TRAVIS_BUILD_DIR}
-- tar -zcvf cloudcompare-latest.tar.gz CloudCompare
+- tar -zcvf cloudcompare-${TRAVIS_COMMIT}.tar.gz CloudCompare
 deploy:
   overwrite: true
   provider: releases
   api_key:
     secure: b7tXYoPWy5fUCJKAVPFD9D8ZZRo6/cwVRFYHPAM7IYfpBPYDFshvwK/b/yvksrGu/JXj1m05TcfAUqooxtKVBCw77mZartybsmixTATmz5/ayCxEZb6lQROdE1Ajx+CjCzYNXrpOzkSUGaNvE4NP5W6wsvlJWek35CMZsyti7jM=
   file: 
-    - cloudcompare-latest.tar.gz
+    - cloudcompare-${TRAVIS_COMMIT}.tar.gz
   on:
     branch: newtravis
