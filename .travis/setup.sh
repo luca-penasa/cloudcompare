@@ -24,7 +24,7 @@ if [ $OS = "MXEWIN" ]; then
 	sudo apt-get install -y $mxearchname-qtbase
 
 	if [[ $TRAVIS_BRANCH == 'to_vombat' ]]; then # on this branch we also need boost and eigen
-		sudo apt-get install -y $mxearchname-eigen $mxearchname-boost
+		sudo apt-get install -y $mxearchname-eigen $mxearchname-boost 
 	fi
 fi
 
@@ -48,7 +48,7 @@ if [ $OS = "LINUX" ]; then
 	fi
 
 	if [ $TRAVIS_BRANCH = 'to_vombat' ]; then # we need eigen, and boost
-        sudo apt-get install -y libeigen3-dev libboost-dev
+        sudo apt-get install -y libeigen3-dev libboost-regex-dev libboost-filesystem-dev libboost-system-dev
     fi
 
 
