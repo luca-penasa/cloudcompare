@@ -11,16 +11,16 @@ sudo: required
 matrix:
     include:
       - os: linux  
-        COMPILER: MXE64     
+        env: COMPILER: MXE64     
 
       - os: linux  
-        COMPILER: MXE32
+        env: COMPILER: MXE32
 
       - os: linux  
-        COMPILER: GCC
+        env: COMPILER: GCC
 
       - os: linux  
-        COMPILER: CLANG
+        env: COMPILER: CLANG
         
       - os: osx
         osx_image: xcode7.2
