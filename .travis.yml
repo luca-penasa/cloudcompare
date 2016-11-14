@@ -5,7 +5,10 @@ matrix:
         dist: trusty
         sudo: required
         env:
-          -COMPILER: GCC
+          - COMPILER: GCC
+          - COMPILER: CLANG
+          - COMPILER: MXE64
+          - COMPILER: MXE32
         
       - os: osx
         osx_image: xcode7.2
