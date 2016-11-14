@@ -1,6 +1,8 @@
 #!/bin/bash
 set -e
 
+# need to do this for solving issue https://github.com/travis-ci/travis-ci/issues/6307
+rvm get head
 
 mkdir build
 cd build
