@@ -36,7 +36,7 @@ if [ $TRAVIS_BRANCH = 'to_vombat' ]; then
       echo "on branch ${TRAVIS_BRANCH}"
       $cmakename ..  \
       -DCMAKE_INSTALL_PREFIX=${TRAVIS_BUILD_DIR} \
-      -DINSTALL_vombat_PLUGIN=ON \
+      -DINSTALL_vombat_PLUGIN=ON 
 fi
 
 
