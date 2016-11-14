@@ -1,13 +1,14 @@
-dist: trusty
-sudo: required
 
-env:  
-  matrix:
-    - OS=LINUX COMPILER=GCC 
-    - OS=LINUX COMPILER=CLANG 
-    - OS=MXEWIN BITS=64
-    - OS=MXEWIN BITS=32
-    
+matrix:
+    include:
+      - os: linux        
+        dist: trusty
+        sudo: required
+        COMPILER: GCC
+        
+      - os: osx
+        osx_image: xcode7.2
+
 before_script: . .travis/setup.sh
 
 script: . .travis/build.sh
