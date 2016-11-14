@@ -6,6 +6,7 @@ echo "compiler ${CXX}, and ${CC}"
 mkdir build
 cd build
 cmake -DCMAKE_BUILD_TYPE=Release \
+-DQT5_ROOT_PATH=/usr/local/opt/Qt5 \
 -DOPTION_USE_DXF_LIB=ON \
 -DOPTION_USE_SHAPE_LIB=ON \
 -DINSTALL_QANIMATION_PLUGIN=ON \
