@@ -1,6 +1,5 @@
 #!/bin/bash
 set -e
-echo "compiler ${CXX}, and ${CC}"
 
 
 mkdir build
@@ -18,7 +17,6 @@ cmake -DCMAKE_BUILD_TYPE=Release \
 -DINSTALL_QPOISSON_RECON_PLUGIN=ON \
 -DINSTALL_QSRA_PLUGIN=ON \
 -DINSTALL_QSSAO_PLUGIN=ON \
-#-DINSTALL_QGMMREG_PLUGIN=ON \ #vxl is needed
 -DINSTALL_QCSF_PLUGIN=ON \
 -DINSTALL_QPHOTOSCAN_IO_PLUGIN=ON \
 -DINSTALL_QM3C2_PLUGIN=ON \
@@ -29,6 +27,7 @@ if [ $TRAVIS_BRANCH = 'to_vombat' ]; then
       cmake -DINSTALL_vombat_PLUGIN=ON ..
 fi
 
+#-DINSTALL_QGMMREG_PLUGIN=ON \ #vxl is needed
       # -DOPTION_USE_GDAL=ON
       # -DINSTALL_QKINECT_PLUGIN=ON
       # -DLIBFREENECT_INCLUDE_DIR="/usr/include"
