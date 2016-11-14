@@ -15,8 +15,7 @@ sudo: required
 matrix:
     include:
       - os: linux  
-        env: COMPILER=MXE64 
-        env: COMPILER=MXE32    
+        env: COMPILER=MXE64     
 
       - os: linux  
         env: COMPILER=MXE32
