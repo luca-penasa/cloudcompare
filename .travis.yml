@@ -23,11 +23,17 @@ matrix:
         env: COMPILER=CLANG
         
       - os: osx
-        osx_image: xcode7.2
+        osx_image: xcode7.3
+
+      - os: osx
+        osx_image: xcode8
 
 before_script: 
   - if [ $TRAVIS_OS_NAME = linux ]  && ([  $COMPILER = GCC ] || [  $COMPILER = CLANG ]) ; then . .travis/setup_linux.sh; fi
   - if [ $TRAVIS_OS_NAME = linux ]  && ([  $COMPILER = MXE32 ] || [  $COMPILER = MXE64 ]) ; then . .travis/setup_mxe.sh; fi
   - if [ $TRAVIS_OS_NAME = osx ]  ; then . .travis/setup_osx.sh; fi
 
-#script: . .travis/build.sh
+script: 
+  - if [ $TRAVIS_OS_NAME = linux ]  && ([  $COMPILER = GCC ] || [  $COMPILER = CLANG ]) ; then . .travis/build_linux.sh; fi
+  - if [ $TRAVIS_OS_NAME = linux ]  && ([  $COMPILER = MXE32 ] || [  $COMPILER = MXE64 ]) ; then . .travis/build_mxe.sh; fi
+  - if [ $TRAVIS_OS_NAME = osx ]  ; then . .travis/build_osx.sh; fi
