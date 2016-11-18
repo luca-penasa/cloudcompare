@@ -23,7 +23,7 @@ sudo apt-get install -y $mxearchname-qtbase
 
 ######### BRANCH SPECIFICS
 
-if [[ $TRAVIS_BRANCH == 'to_vombat' ]]; then # on this branch we also need boost and eigen
+if [[ $TRAVIS_BRANCH == 'vombat' ]]; then # on this branch we also need boost and eigen
 	sudo apt-get install -y $mxearchname-eigen $mxearchname-boost 
 fi
 
