@@ -25,7 +25,7 @@ cmake -DCMAKE_BUILD_TYPE=Release \
 -DINSTALL_QM3C2_PLUGIN=ON \
 -DINSTALL_QPCV_PLUGIN=ON ..
 
-if [ $TRAVIS_BRANCH = 'to_vombat' ]; then 
+if [ $TRAVIS_BRANCH = 'vombat' ]; then 
       echo "on branch ${TRAVIS_BRANCH}"
       cmake -DINSTALL_vombat_PLUGIN=ON ..
 fi

@@ -23,7 +23,7 @@ fi
 ############## BRANCH SPECIFICS
 
 
-if [ $TRAVIS_BRANCH = 'to_vombat' ]; then # we need eigen, and boost
+if [ $TRAVIS_BRANCH = 'vombat' ]; then # we need eigen, and boost
     sudo apt-get install -y libeigen3-dev libboost-regex-dev libboost-filesystem-dev libboost-system-dev
 fi
 
