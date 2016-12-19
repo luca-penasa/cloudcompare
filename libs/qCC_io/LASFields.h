@@ -2,8 +2,6 @@
 //#                                                                        #
 //#                              CLOUDCOMPARE                              #
 //#                                                                        #
-//#  This project has been initiated under funding from ANR/CIFRE          #
-//#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU General Public License as published by  #
 //#  the Free Software Foundation; version 2 or later of the License.      #
@@ -17,52 +15,57 @@
 //#                                                                        #
 //##########################################################################
 
-#include "ccCommon.h"
+#ifndef CC_LAS_FIELDS_HEADER
+#define CC_LAS_FIELDS_HEADER
 
-//CCLib
-#include <CCPlatform.h>
-
-#define CC_VER_NUM "2"
-#define CC_SUB_VER "8" //2016-12-17
-
-//! Returns current version as a string
-QString ccCommon::GetCCVersion(bool full/*=true*/)
-{
-	QString verStr = QString("%1.%2").arg(CC_VER_NUM).arg(CC_SUB_VER);
-#ifdef CC_GL_WINDOW_USE_QWINDOW
-	verStr += " Stereo";
-#endif
-
-#if defined(CC_ENV_64)
-	QString arch = "64-bit";
-#elif defined(CC_ENV_32)
-	QString arch = "32-bit";
-#else
-	QString arch = "??-bit";
-#endif
-
-	if (full)
-	{
-#if defined(CC_WINDOWS)
-		QString platform = "Windows";
-#elif defined(CC_MAC_OS)
-		QString platform = "macOS";
-#elif defined(CC_LINUX)
-		QString platform = "Linux";
-#else
-		QString platform = "Unknown OS";
-#endif
-
-		verStr += QString(" [%1 %2]").arg(platform).arg(arch);
-	}
-	else
-	{
-		verStr += QString(" [%1]").arg(arch);
-	}
-
-#ifdef QT_DEBUG
-	verStr += QString(" [DEBUG]");
-#endif
-
-	return verStr;
+enum LAS_FIELDS {
+	LAS_X = 0,
+	LAS_Y = 1,
+	LAS_Z = 2,
+	LAS_INTENSITY = 3,
+	LAS_RETURN_NUMBER = 4,
+	LAS_NUMBER_OF_RETURNS = 5,
+	LAS_SCAN_DIRECTION = 6,
+	LAS_FLIGHT_LINE_EDGE = 7,
+	LAS_CLASSIFICATION = 8,
+	LAS_SCAN_ANGLE_RANK = 9,
+	LAS_USER_DATA = 10,
+	LAS_POINT_SOURCE_ID = 11,
+	LAS_RED = 12,
+	LAS_GREEN = 13,
+	LAS_BLUE = 14,
+	LAS_TIME = 15,
+	LAS_EXTRA = 16,
+	//Sub fields
+	LAS_CLASSIF_VALUE = 17,
+	LAS_CLASSIF_SYNTHETIC = 18,
+	LAS_CLASSIF_KEYPOINT = 19,
+	LAS_CLASSIF_WITHHELD = 20,
+	//Invald flag
+	LAS_INVALID = 255
 };
+
+const char LAS_FIELD_NAMES[][28] = {"X",
+									"Y",
+									"Z",
+									"Intensity",
+									"Return Number",
+									"Number of Returns",
+									"Scan Direction",
+									"Flightline Edge",
+									"Classification",
+									"Scan Angle Rank",
+									"User Data",
+									"Point Source ID",
+									"Red",
+									"Green",
+									"Blue",
+									"Time",
+									"extra",
+									"[Classif] Value",
+									"[Classif] Synthetic flag",
+									"[Classif] Key-point flag",
+									"[Classif] Withheld flag",
+};
+
+#endif //CC_LAS_FIELDS_HEADER

@@ -401,6 +401,9 @@ void MainWindow::dispatchPlugins(const tPluginInfoList& plugins, const QStringLi
 
 			//add to std. plugins list
 			m_stdPlugins.push_back(stdPlugin);
+
+			//last but not least: update the current plugin state
+			stdPlugin->onNewSelection(m_selectedEntities);
 		}
 		break;
 
@@ -2629,7 +2632,7 @@ void MainWindow::doActionComputePointsVisibility()
 		pdlg.start();
 		QApplication::processEvents();
 
-		for (unsigned i=0; i<pointCloud->size(); i++)
+		for (unsigned i = 0; i < pointCloud->size(); i++)
 		{
 			const CCVector3* P = pointCloud->getPoint(i);
 			unsigned char visibility = sensor->checkVisibility(*P);
@@ -5629,11 +5632,9 @@ ccGLWindow* MainWindow::new3DView()
 {
 	assert(m_ccRoot && m_mdiArea);
 
-	bool stereoMode = QSurfaceFormat::defaultFormat().stereo();
-
 	QWidget* viewWidget = nullptr;
 	ccGLWindow* view3D = nullptr;
-	CreateGLWindow(view3D, viewWidget, stereoMode, false);
+	createGLWindow(view3D, viewWidget);
 	assert(viewWidget && view3D);
 
 	viewWidget->setMinimumSize(400, 300);
@@ -5740,7 +5741,47 @@ void MainWindow::showEvent(QShowEvent* event)
 			actionFullScreen->setText( tr( "Enter Full Screen" ) );
 		}
 #endif
+
+		//special warning message for high DPI (Retina) displays
+		if (devicePixelRatio() != 1.0)
+		{
+			//we always show a warning in the console
+			ccLog::Warning("High pixel density screen detected: point picking and label display won't work properly!");
+			//but the first time we also show an annoying warning popup ;)
+			QMetaObject::invokeMethod(this, "showHighDPIScreenWarning", Qt::QueuedConnection);
+		}
 	}
+}
+
+void MainWindow::showHighDPIScreenWarning()
+{
+	QSettings settings;
+	if (settings.value("HighDPIScreenWarningIssued", false).toBool())
+	{
+		//message already issued
+		return;
+	}
+
+	QMessageBox* msgBox = new QMessageBox(this);
+	msgBox->setWindowTitle("High DPI screen detected");
+	msgBox->setIcon(QMessageBox::Warning);
+	msgBox->setText("Your screen (Apple Retina?) seems to have a high pixel density: point picking and label display won't work properly!");
+	msgBox->setInformativeText("(Note from Daniel: if you want this issue to be solved fast, you should send a Retina screen to Andy ;)");
+	msgBox->setStandardButtons(QMessageBox::Ignore | QMessageBox::Ok);
+	msgBox->setDefaultButton(QMessageBox::Ignore);
+
+	//Man, I love lambdas!
+	connect(msgBox->button(QMessageBox::Ok), &QAbstractButton::clicked, []()
+		{
+			//don't annoy the user ever again
+			QSettings settings;
+			settings.setValue("HighDPIScreenWarningIssued", true);
+		}
+	);
+
+	//DGM: don't 'exec' this dialog, otherwise it will block the main loop
+	//and it will prevent the spash screen from disappearing!
+	msgBox->show();
 }
 
 void MainWindow::closeEvent(QCloseEvent *event)
@@ -6781,7 +6822,7 @@ void MainWindow::doActionRenderToFile()
 	if (!win)
 		return;
 
-	ccRenderToFileDlg rtfDlg(win->width(), win->height(), this);
+	ccRenderToFileDlg rtfDlg(win->glWidth(), win->glHeight(), this);
 
 	if (rtfDlg.exec())
 	{
@@ -10160,6 +10201,23 @@ ccHObject* MainWindow::dbRootObject()
 ccUniqueIDGenerator::Shared MainWindow::getUniqueIDGenerator()
 {
 	return ccObject::GetUniqueIDGenerator();
+}
+
+void MainWindow::createGLWindow(ccGLWindow*& window, QWidget*& widget) const
+{
+	bool stereoMode = QSurfaceFormat::defaultFormat().stereo();
+
+	CreateGLWindow(window, widget, stereoMode);
+	assert(window && widget);
+}
+
+void MainWindow::destroyGLWindow(ccGLWindow* view3D) const
+{
+	if (view3D)
+	{
+		view3D->setParent(0);
+		delete view3D;
+	}
 }
 
 MainWindow::ccHObjectContext MainWindow::removeObjectTemporarilyFromDBTree(ccHObject* obj)

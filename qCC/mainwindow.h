@@ -135,6 +135,8 @@ public:
 	virtual ccHObject* dbRootObject() override;
 	inline virtual QMainWindow* getMainWindow() override { return this; }
 	inline virtual const ccHObject::Container& getSelectedEntities() const override { return m_selectedEntities; }
+	virtual void createGLWindow(ccGLWindow*& window, QWidget*& widget) const override;
+	virtual void destroyGLWindow(ccGLWindow*) const override;
 	virtual ccUniqueIDGenerator::Shared getUniqueIDGenerator() override;
 	virtual ccColorScalesManager* getColorScalesManager() override;
 	virtual void spawnHistogramDialog(const std::vector<unsigned>& histoValues,
@@ -475,6 +477,9 @@ protected slots:
 
 	//! Creates a cloud with the (bounding-box) centers of all selected entities
 	void doActionCreateCloudFromEntCenters();
+
+	//! Show high DPI (Retina) screen warning
+	void showHighDPIScreenWarning();
 
 protected:
 
