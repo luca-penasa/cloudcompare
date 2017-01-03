@@ -32,7 +32,6 @@ public:
 	virtual QStringList& arguments() override { return m_arguments; }
 	virtual const QStringList& arguments() const override { return m_arguments; }
 	virtual bool registerCommand(Command::Shared command) override;
-	virtual ccProgressDialog* progressDialog() override { return m_progressDialog; }
 	virtual QDialog* widgetParent() override { return m_parentWidget; }
 	virtual void print(const QString& message) const override;
 	virtual void warning(const QString& message) const override;
@@ -40,6 +39,12 @@ public:
 	virtual bool saveClouds(QString suffix = QString(), bool allAtOnce = false) override;
 	virtual bool saveMeshes(QString suffix = QString(), bool allAtOnce = false) override;
 	virtual bool importFile(QString filename, FileIOFilter::Shared filter = FileIOFilter::Shared(0)) override;
+	virtual QString cloudExportFormat() const override { return m_cloudExportFormat; }
+	virtual QString cloudExportExt() const override { return m_cloudExportExt; }
+	virtual QString meshExportFormat() const override { return m_meshExportFormat; }
+	virtual QString meshExportExt() const override { return m_meshExportExt; }
+	virtual void setCloudExportFormat(QString format, QString ext) override { m_cloudExportFormat = format; m_cloudExportExt = ext; }
+	virtual void setMeshExportFormat(QString format, QString ext) override { m_meshExportFormat = format; m_meshExportExt = ext; }
 
 protected: //other methods
 
@@ -51,7 +56,7 @@ protected: //other methods
 	//! Parses the command line
 	int start(QDialog* parent = 0);
 
-public: //members (too annoying to make them private ;)
+private: //members
 
 	//! Current cloud(s) export format (can be modified with the 'COMMAND_CLOUD_EXPORT_FORMAT' option)
 	QString m_cloudExportFormat;
@@ -61,8 +66,6 @@ public: //members (too annoying to make them private ;)
 	QString m_meshExportFormat;
 	//! Current mesh(es) export extension (warning: can be anything)
 	QString m_meshExportExt;
-
-private: //members
 
 	//! Mesh filename
 	QString m_meshFilename;

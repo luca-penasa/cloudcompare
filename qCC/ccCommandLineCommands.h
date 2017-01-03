@@ -41,6 +41,13 @@
 #include <QTextStream>
 
 //commands
+static const char COMMAND_CLOUD_EXPORT_FORMAT[]				= "C_EXPORT_FMT";
+static const char COMMAND_EXPORT_EXTENSION[]				= "EXT";
+static const char COMMAND_ASCII_EXPORT_PRECISION[]			= "PREC";
+static const char COMMAND_ASCII_EXPORT_SEPARATOR[]			= "SEP";
+static const char COMMAND_ASCII_EXPORT_ADD_COL_HEADER[]		= "ADD_HEADER";
+static const char COMMAND_MESH_EXPORT_FORMAT[]				= "M_EXPORT_FMT";
+static const char COMMAND_ASCII_EXPORT_ADD_PTS_COUNT[]		= "ADD_PTS_COUNT";
 static const char COMMAND_OPEN[]							= "O";				//+file name
 static const char COMMAND_OPEN_SKIP_LINES[]					= "SKIP";			//+number of lines to skip
 static const char COMMAND_OPEN_SHIFT_ON_LOAD[]				= "GLOBAL_SHIFT";	//+global shift
@@ -120,6 +127,225 @@ static const char OPTION_ALL_AT_ONCE[]						= "ALL_AT_ONCE";
 static const char OPTION_ON[]								= "ON";
 static const char OPTION_OFF[]								= "OFF";
 static const char OPTION_LAST[]								= "LAST";
+
+struct CommandChangeOutputFormat : public ccCommandLineInterface::Command
+{
+	CommandChangeOutputFormat(QString name, QString keyword) : ccCommandLineInterface::Command(name, keyword) {}
+
+	QString getFileFormatFilter(ccCommandLineInterface& cmd, QString& defaultExt)
+	{
+		QString fileFilter;
+		defaultExt = QString();
+
+		if (!cmd.arguments().isEmpty())
+		{
+			//test if the specified format corresponds to a known file type
+			QString argument = cmd.arguments().front().toUpper();
+			cmd.arguments().pop_front();
+
+			const FileIOFilter::FilterContainer& filters = FileIOFilter::GetFilters();
+			for (size_t i = 0; i < filters.size(); ++i)
+			{
+				if (argument == QString(filters[i]->getDefaultExtension()).toUpper())
+				{
+					//found
+					fileFilter = filters[i]->getFileFilters(false).first(); //Take the first 'output' file filter by default (could we be smarter?)
+					defaultExt = filters[i]->getDefaultExtension();
+					break;
+				}
+			}
+
+			//haven't found anything?
+			if (fileFilter.isEmpty())
+			{
+				cmd.error(QString("Unhandled format specifier (%1)").arg(argument));
+			}
+		}
+		else
+		{
+			cmd.error("Missing file format specifier!");
+		}
+
+		return fileFilter;
+	}
+};
+
+struct CommandChangeCloudOutputFormat : public CommandChangeOutputFormat
+{
+	CommandChangeCloudOutputFormat() : CommandChangeOutputFormat("Change cloud output format", COMMAND_CLOUD_EXPORT_FORMAT) {}
+
+	virtual bool process(ccCommandLineInterface& cmd) override
+	{
+		QString defaultExt;
+		QString fileFilter = getFileFormatFilter(cmd, defaultExt);
+		if (fileFilter.isEmpty())
+			return false;
+
+		cmd.setCloudExportFormat(fileFilter, defaultExt);
+		cmd.print(QString("Output export format (clouds) set to: %1").arg(defaultExt.toUpper()));
+
+		//default options for ASCII output
+		if (fileFilter == AsciiFilter::GetFileFilter())
+		{
+			AsciiSaveDlg* saveDialog = AsciiFilter::GetSaveDialog();
+			assert(saveDialog);
+			saveDialog->setCoordsPrecision(cmd.numericalPrecision());
+			saveDialog->setSfPrecision(cmd.numericalPrecision());
+			saveDialog->setSeparatorIndex(0); //space
+			saveDialog->enableSwapColorAndSF(false); //default order: point, color, SF, normal
+			saveDialog->enableSaveColumnsNamesHeader(false);
+			saveDialog->enableSavePointCountHeader(false);
+		}
+
+		//look for additional parameters
+		while (!cmd.arguments().empty())
+		{
+			QString argument = cmd.arguments().front();
+			if (ccCommandLineInterface::IsCommand(argument, COMMAND_EXPORT_EXTENSION))
+			{
+				//local option confirmed, we can move on
+				cmd.arguments().pop_front();
+
+				if (cmd.arguments().empty())
+					return cmd.error(QString("Missing parameter: extension after '%1'").arg(COMMAND_EXPORT_EXTENSION));
+
+				cmd.setCloudExportFormat(cmd.cloudExportFormat(), cmd.arguments().takeFirst());
+				cmd.print(QString("New output extension for clouds: %1").arg(cmd.cloudExportExt()));
+			}
+			else if (ccCommandLineInterface::IsCommand(argument, COMMAND_ASCII_EXPORT_PRECISION))
+			{
+				//local option confirmed, we can move on
+				cmd.arguments().pop_front();
+
+				if (cmd.arguments().empty())
+					return cmd.error(QString("Missing parameter: precision value after '%1'").arg(COMMAND_ASCII_EXPORT_PRECISION));
+				bool ok;
+				int precision = cmd.arguments().takeFirst().toInt(&ok);
+				if (!ok || precision < 0)
+					return cmd.error(QString("Invalid value for precision! (%1)").arg(COMMAND_ASCII_EXPORT_PRECISION));
+
+				if (fileFilter != AsciiFilter::GetFileFilter())
+					cmd.warning(QString("Argument '%1' is only applicable to ASCII format!").arg(argument));
+
+				AsciiSaveDlg* saveDialog = AsciiFilter::GetSaveDialog();
+				assert(saveDialog);
+				if (saveDialog)
+				{
+					saveDialog->setCoordsPrecision(precision);
+					saveDialog->setSfPrecision(precision);
+				}
+			}
+			else if (ccCommandLineInterface::IsCommand(argument, COMMAND_ASCII_EXPORT_SEPARATOR))
+			{
+				//local option confirmed, we can move on
+				cmd.arguments().pop_front();
+
+				if (cmd.arguments().empty())
+					return cmd.error(QString("Missing parameter: separator character after '%1'").arg(COMMAND_ASCII_EXPORT_SEPARATOR));
+
+				if (fileFilter != AsciiFilter::GetFileFilter())
+					cmd.warning(QString("Argument '%1' is only applicable to ASCII format!").arg(argument));
+
+				QString separatorStr = cmd.arguments().takeFirst().toUpper();
+				//printf("%s\n",qPrintable(separatorStr));
+				int index = -1;
+				if (separatorStr == "SPACE")
+					index = 0;
+				else if (separatorStr == "SEMICOLON")
+					index = 1;
+				else if (separatorStr == "COMMA")
+					index = 2;
+				else if (separatorStr == "TAB")
+					index = 3;
+				else
+					return cmd.error(QString("Invalid separator! ('%1')").arg(separatorStr));
+
+				AsciiSaveDlg* saveDialog = AsciiFilter::GetSaveDialog();
+				assert(saveDialog);
+				if (saveDialog)
+				{
+					saveDialog->setSeparatorIndex(index);
+				}
+			}
+			else if (ccCommandLineInterface::IsCommand(argument, COMMAND_ASCII_EXPORT_ADD_COL_HEADER))
+			{
+				//local option confirmed, we can move on
+				cmd.arguments().pop_front();
+
+				if (fileFilter != AsciiFilter::GetFileFilter())
+					cmd.warning(QString("Argument '%1' is only applicable to ASCII format!").arg(argument));
+
+				AsciiSaveDlg* saveDialog = AsciiFilter::GetSaveDialog();
+				assert(saveDialog);
+				if (saveDialog)
+				{
+					saveDialog->enableSaveColumnsNamesHeader(true);
+				}
+			}
+			else if (ccCommandLineInterface::IsCommand(argument, COMMAND_ASCII_EXPORT_ADD_PTS_COUNT))
+			{
+				//local option confirmed, we can move on
+				cmd.arguments().pop_front();
+
+				if (fileFilter != AsciiFilter::GetFileFilter())
+					cmd.warning(QString("Argument '%1' is only applicable to ASCII format!").arg(argument));
+
+				AsciiSaveDlg* saveDialog = AsciiFilter::GetSaveDialog();
+				assert(saveDialog);
+				if (saveDialog)
+				{
+					saveDialog->enableSavePointCountHeader(true);
+				}
+			}
+			else
+			{
+				break; //as soon as we encounter an unrecognized argument, we break the local loop to go back to the main one!
+			}
+		}
+
+		return true;
+	}
+};
+
+struct CommandChangeMeshOutputFormat : public CommandChangeOutputFormat
+{
+	CommandChangeMeshOutputFormat() : CommandChangeOutputFormat("Change mesh output format", COMMAND_MESH_EXPORT_FORMAT) {}
+
+	virtual bool process(ccCommandLineInterface& cmd) override
+	{
+		QString defaultExt;
+		QString fileFilter = getFileFormatFilter(cmd, defaultExt);
+		if (fileFilter.isEmpty())
+			return false;
+
+		cmd.setMeshExportFormat(fileFilter, defaultExt);
+		cmd.print(QString("Output export format (meshes) set to: %1").arg(defaultExt.toUpper()));
+
+		//look for additional parameters
+		while (!cmd.arguments().empty())
+		{
+			QString argument = cmd.arguments().front();
+
+			if (ccCommandLineInterface::IsCommand(argument, COMMAND_EXPORT_EXTENSION))
+			{
+				//local option confirmed, we can move on
+				cmd.arguments().pop_front();
+
+				if (cmd.arguments().empty())
+					return cmd.error(QString("Missing parameter: extension after '%1'").arg(COMMAND_EXPORT_EXTENSION));
+
+				cmd.setMeshExportFormat(cmd.meshExportFormat(), cmd.arguments().takeFirst());
+				cmd.print(QString("New output extension for meshes: %1").arg(cmd.meshExportExt()));
+			}
+			else
+			{
+				break; //as soon as we encounter an unrecognized argument, we break the local loop to go back to the main one!
+			}
+		}
+
+		return true;
+	}
+};
 
 struct CommandLoad : public ccCommandLineInterface::Command
 {
@@ -370,15 +596,22 @@ struct CommandSubsample : public ccCommandLineInterface::Command
 			}
 			cmd.print(QString("\tOctree level: %1").arg(octreeLevel));
 
+			QScopedPointer<ccProgressDialog> progressDialog(0);
+			if (!cmd.silentMode())
+			{
+				progressDialog.reset(new ccProgressDialog(false, cmd.widgetParent()));
+				progressDialog->setAutoClose(false);
+			}
+
 			for (size_t i = 0; i < cmd.clouds().size(); ++i)
 			{
 				ccPointCloud* cloud = cmd.clouds()[i].pc;
 				cmd.print(QString("\tProcessing cloud #%1 (%2)").arg(i + 1).arg(!cloud->getName().isEmpty() ? cloud->getName() : "no name"));
 
-				CCLib::ReferenceCloud* refCloud = CCLib::CloudSamplingTools::subsampleCloudWithOctreeAtLevel(cloud,
-					static_cast<unsigned char>(octreeLevel),
-					CCLib::CloudSamplingTools::NEAREST_POINT_TO_CELL_CENTER,
-					cmd.progressDialog());
+				CCLib::ReferenceCloud* refCloud = CCLib::CloudSamplingTools::subsampleCloudWithOctreeAtLevel(	cloud,
+																												static_cast<unsigned char>(octreeLevel),
+																												CCLib::CloudSamplingTools::NEAREST_POINT_TO_CELL_CENTER,
+																												progressDialog.data());
 				if (!refCloud)
 				{
 					return cmd.error("Subsampling process failed!");
@@ -414,6 +647,12 @@ struct CommandSubsample : public ccCommandLineInterface::Command
 				{
 					return cmd.error("Not enough memory!");
 				}
+			}
+
+			if (progressDialog)
+			{
+				progressDialog->close();
+				QCoreApplication::processEvents();
 			}
 		}
 		else
@@ -464,6 +703,13 @@ struct CommandExtractCCs : public ccCommandLineInterface::Command
 
 		try
 		{
+			QScopedPointer<ccProgressDialog> progressDialog(0);
+			if (!cmd.silentMode())
+			{
+				progressDialog.reset(new ccProgressDialog(false, cmd.widgetParent()));
+				progressDialog->setAutoClose(false);
+			}
+
 			std::vector< CLCloudDesc > inputClouds = cmd.clouds();
 			cmd.clouds().clear();
 			for (size_t i = 0; i < inputClouds.size(); ++i)
@@ -486,9 +732,9 @@ struct CommandExtractCCs : public ccCommandLineInterface::Command
 
 				//try to label all CCs
 				int componentCount = CCLib::AutoSegmentationTools::labelConnectedComponents(cloud,
-					static_cast<unsigned char>(octreeLevel),
-					false,
-					cmd.progressDialog());
+																							static_cast<unsigned char>(octreeLevel),
+																							false,
+																							progressDialog.data());
 
 				if (componentCount == 0)
 				{
@@ -558,6 +804,12 @@ struct CommandExtractCCs : public ccCommandLineInterface::Command
 				{
 					cmd.print(QString("%1 component(s) were created").arg(cmd.clouds().size()));
 				}
+			}
+
+			if (progressDialog)
+			{
+				progressDialog->close();
+				QCoreApplication::processEvents();
 			}
 		}
 		catch (const std::bad_alloc&)
@@ -1283,7 +1535,7 @@ struct CommandMatchBestFitPlane : public ccCommandLineInterface::Command
 			}
 			else
 			{
-				break; //as soon as we encounter an unrecognized argument, we break the local loop to go back on the main one!
+				break; //as soon as we encounter an unrecognized argument, we break the local loop to go back to the main one!
 			}
 		}
 
@@ -1403,13 +1655,20 @@ struct CommandOrientNormalsMST : public ccCommandLineInterface::Command
 		if (cmd.clouds().empty())
 			return cmd.error(QString("No cloud available. Be sure to open one first!"));
 
+		QScopedPointer<ccProgressDialog> progressDialog(0);
+		if (!cmd.silentMode())
+		{
+			progressDialog.reset(new ccProgressDialog(false, cmd.widgetParent()));
+			progressDialog->setAutoClose(false);
+		}
+
 		for (size_t i = 0; i < cmd.clouds().size(); ++i)
 		{
 			ccPointCloud* cloud = cmd.clouds()[i].pc;
 			assert(cloud);
 
 			//computation
-			if (cloud->orientNormalsWithMST(knn, cmd.progressDialog()))
+			if (cloud->orientNormalsWithMST(knn, progressDialog.data()))
 			{
 				cmd.clouds()[i].basename += QString("_NORMS_REORIENTED");
 				if (cmd.autoSaveMode())
@@ -1423,6 +1682,12 @@ struct CommandOrientNormalsMST : public ccCommandLineInterface::Command
 			{
 				return cmd.error(QString("Failed to orient the normals of cloud '%1'!").arg(cloud->getName()));
 			}
+		}
+
+		if (progressDialog)
+		{
+			progressDialog->close();
+			QCoreApplication::processEvents();
 		}
 
 		return true;
@@ -1456,6 +1721,13 @@ struct CommandSORFilter : public ccCommandLineInterface::Command
 		if (cmd.clouds().empty())
 			return cmd.error(QString("No cloud available. Be sure to open one first!"));
 
+		QScopedPointer<ccProgressDialog> progressDialog(0);
+		if (!cmd.silentMode())
+		{
+			progressDialog.reset(new ccProgressDialog(false, cmd.widgetParent()));
+			progressDialog->setAutoClose(false);
+		}
+		
 		for (size_t i = 0; i < cmd.clouds().size(); ++i)
 		{
 			ccPointCloud* cloud = cmd.clouds()[i].pc;
@@ -1463,10 +1735,10 @@ struct CommandSORFilter : public ccCommandLineInterface::Command
 
 			//computation
 			CCLib::ReferenceCloud* selection = CCLib::CloudSamplingTools::sorFilter(cloud,
-				knn,
-				nSigma,
-				0,
-				cmd.progressDialog());
+																					knn,
+																					nSigma,
+																					0,
+																					progressDialog.data());
 
 			if (selection)
 			{
@@ -1506,6 +1778,12 @@ struct CommandSORFilter : public ccCommandLineInterface::Command
 			}
 		}
 
+		if (progressDialog)
+		{
+			progressDialog->close();
+			QCoreApplication::processEvents();
+		}
+
 		return true;
 	}
 };
@@ -1542,10 +1820,16 @@ struct CommandSampleMesh : public ccCommandLineInterface::Command
 		if (cmd.meshes().empty())
 			return cmd.error(QString("No mesh available. Be sure to open one first!"));
 
+		QScopedPointer<ccProgressDialog> progressDialog(0);
+		if (!cmd.silentMode())
+		{
+			progressDialog.reset(new ccProgressDialog(false, cmd.widgetParent()));
+			progressDialog->setAutoClose(false);
+		}
+
 		for (size_t i = 0; i < cmd.meshes().size(); ++i)
 		{
-
-			ccPointCloud* cloud = cmd.meshes()[i].mesh->samplePoints(useDensity, parameter, true, true, true, cmd.progressDialog());
+			ccPointCloud* cloud = cmd.meshes()[i].mesh->samplePoints(useDensity, parameter, true, true, true, progressDialog.data());
 
 			if (!cloud)
 			{
@@ -1563,6 +1847,12 @@ struct CommandSampleMesh : public ccCommandLineInterface::Command
 				if (!errorStr.isEmpty())
 					return cmd.error(errorStr);
 			}
+		}
+
+		if (progressDialog)
+		{
+			progressDialog->close();
+			QCoreApplication::processEvents();
 		}
 
 		return true;
@@ -1953,7 +2243,7 @@ struct CommandBundler : public ccCommandLineInterface::Command
 			}
 			else
 			{
-				break; //as soon as we encounter an unrecognized argument, we break the local loop to go back on the main one!
+				break; //as soon as we encounter an unrecognized argument, we break the local loop to go back to the main one!
 			}
 		}
 
@@ -2132,7 +2422,7 @@ struct CommandDist : public ccCommandLineInterface::Command
 			}
 			else
 			{
-				break; //as soon as we encounter an unrecognized argument, we break the local loop to go back on the main one!
+				break; //as soon as we encounter an unrecognized argument, we break the local loop to go back to the main one!
 			}
 		}
 
@@ -2322,6 +2612,13 @@ struct CommandStatTest : public ccCommandLineInterface::Command
 		if (cmd.clouds().empty())
 			return cmd.error(QString("No cloud available. Be sure to open one first!"));
 
+		QScopedPointer<ccProgressDialog> progressDialog(0);
+		if (!cmd.silentMode())
+		{
+			progressDialog.reset(new ccProgressDialog(false, cmd.widgetParent()));
+			progressDialog->setAutoClose(false);
+		}
+
 		for (size_t i = 0; i < cmd.clouds().size(); ++i)
 		{
 			ccPointCloud* pc = cmd.clouds()[i].pc;
@@ -2348,7 +2645,7 @@ struct CommandStatTest : public ccCommandLineInterface::Command
 				ccOctree::Shared theOctree = pc->getOctree();
 				if (!theOctree)
 				{
-					theOctree = pc->computeOctree(cmd.progressDialog());
+					theOctree = pc->computeOctree(progressDialog.data());
 					if (!theOctree)
 					{
 						if (distrib)
@@ -2358,7 +2655,7 @@ struct CommandStatTest : public ccCommandLineInterface::Command
 					}
 				}
 
-				double chi2dist = CCLib::StatisticalTestingTools::testCloudWithStatisticalModel(distrib, pc, kNN, pValue, cmd.progressDialog(), theOctree.data());
+				double chi2dist = CCLib::StatisticalTestingTools::testCloudWithStatisticalModel(distrib, pc, kNN, pValue, progressDialog.data(), theOctree.data());
 
 				cmd.print(QString("[Chi2 Test] %1 test result = %2").arg(distrib->getName()).arg(chi2dist));
 
@@ -2384,6 +2681,12 @@ struct CommandStatTest : public ccCommandLineInterface::Command
 						return cmd.error(errorStr);
 				}
 			}
+		}
+
+		if (progressDialog)
+		{
+			progressDialog->close();
+			QCoreApplication::processEvents();
 		}
 
 		return true;
@@ -2833,7 +3136,7 @@ struct CommandICP : public ccCommandLineInterface::Command
 			}
 			else
 			{
-				break; //as soon as we encounter an unrecognized argument, we break the local loop to go back on the main one!
+				break; //as soon as we encounter an unrecognized argument, we break the local loop to go back to the main one!
 			}
 		}
 
@@ -3038,7 +3341,7 @@ struct CommandSaveClouds : public ccCommandLineInterface::Command
 			}
 			else
 			{
-				break; //as soon as we encounter an unrecognized argument, we break the local loop to go back on the main one!
+				break; //as soon as we encounter an unrecognized argument, we break the local loop to go back to the main one!
 			}
 		}
 
@@ -3067,7 +3370,7 @@ struct CommandSaveMeshes : public ccCommandLineInterface::Command
 			}
 			else
 			{
-				break; //as soon as we encounter an unrecognized argument, we break the local loop to go back on the main one!
+				break; //as soon as we encounter an unrecognized argument, we break the local loop to go back to the main one!
 			}
 		}
 

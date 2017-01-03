@@ -838,7 +838,7 @@ void DistanceMapGenerationDlg::spawnColorScaleEditor()
 	if (cseDlg.exec())
 	{
 		colorScale = cseDlg.getActiveScale();
-		if (colorScale)
+		if (colorScale && m_colorScaleSelector)
 		{
 			m_colorScaleSelector->init(); //in fact it's a 're-init'
 			m_colorScaleSelector->setSelectedScale(colorScale->getUuid());
@@ -1491,6 +1491,9 @@ void DistanceMapGenerationDlg::loadOverlaySymbols()
 
 		if (error)
 		{
+			delete symbolCloud;
+			symbolCloud = nullptr;
+			
 			if (m_app)
 				m_app->dispToConsole(QString("An error occurred while loading the file! Result may be incomplete"),ccMainAppInterface::ERR_CONSOLE_MESSAGE);
 			return;

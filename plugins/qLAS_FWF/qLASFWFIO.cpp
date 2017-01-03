@@ -19,7 +19,7 @@
 
 //local
 #include "Filter/LASFWFFilter.h"
-#include "../ccCommandLineInterface.h"
+#include "qLASFWFIOCommands.h"
 
 //Qt
 #include <QtPlugin>
@@ -28,35 +28,6 @@ FileIOFilter::Shared qLASFWFIO::getFilter()
 {
 	return FileIOFilter::Shared(new LASFWFFilter);
 }
-
-static const char COMMAND_LOAD_FWF[] = "FWF_O";
-
-struct CommandLoadLASFWF : public ccCommandLineInterface::Command
-{
-	CommandLoadLASFWF() : ccCommandLineInterface::Command("Load FWF", COMMAND_LOAD_FWF) {}
-
-	virtual bool process(ccCommandLineInterface& cmd) override
-	{
-		cmd.print("[LOADING LAS]");
-		if (cmd.arguments().empty())
-		{
-			return cmd.error(QString("Missing parameter: filename after \"-%1\"").arg(COMMAND_LOAD_FWF));
-		}
-
-		//open specified file
-		QString filename(cmd.arguments().takeFirst());
-		cmd.print(QString("Opening file: '%1'").arg(filename));
-
-		CC_FILE_ERROR result = CC_FERR_NO_ERROR;
-		FileIOFilter::Shared filter = FileIOFilter::GetFilter(LASFWFFilter::GetFileFilter(), true);
-		if (!filter)
-		{
-			return cmd.error("Internal error: failed to load the LAS FWF I/O filter");
-		}
-		
-		return cmd.importFile(filename, filter);
-	}
-};
 
 void qLASFWFIO::registerCommands(ccCommandLineInterface* cmd)
 {
