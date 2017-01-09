@@ -4,6 +4,10 @@ CloudCompare versions history
 v2.9.alpha - XX/XX/XXXX
 ----------------------
 
+- New features:
+
+	* New shortcut: P (pick rotation center)
+
 - enhancements:
 
 	* Plugins can now be called in command line mode
@@ -21,6 +25,8 @@ v2.9.alpha - XX/XX/XXXX
 	* LAS I/O filter: if the points of a LAS file were not saved in increasing GPS time order,
 		the corresponding 'Time' scalar field could be rejected later at export time
 	* A visible 2D label with the 'show 2D label' option disabled could break the picking process
+	* The sphere fitting algorithm was not always finding the optimal sphere
+	* Rasterize tool: scalar fields were vertically mirrored when exported to a geotiff raster
 
 v2.8 - 12/18/2016
 ----------------------
