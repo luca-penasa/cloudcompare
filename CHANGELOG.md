@@ -20,6 +20,9 @@ v2.9.alpha - XX/XX/XXXX
 			-FWF_O: open a LAS 1.3+ file
 			-FWF_SAVE_CLOUDS: save cloud(s) to LAS 1.3+ file(s) (options are 'ALL_AT_ONCE' and 'COMPRESSED' to save LAZ files instead of LAS)
 
+	* Trace polyline tool
+		- the tool now works on meshes
+
 - Bug fixes:
 
 	* LAS I/O filter: if the points of a LAS file were not saved in increasing GPS time order,
@@ -27,6 +30,8 @@ v2.9.alpha - XX/XX/XXXX
 	* A visible 2D label with the 'show 2D label' option disabled could break the picking process
 	* The sphere fitting algorithm was not always finding the optimal sphere
 	* Rasterize tool: scalar fields were vertically mirrored when exported to a geotiff raster
+	* STL files are now output by default in BINARY mode in command line mode (no more annoying dialog)
+	* qAnimation plugin: the export to separate frames was broken
 
 v2.8 - 12/18/2016
 ----------------------
