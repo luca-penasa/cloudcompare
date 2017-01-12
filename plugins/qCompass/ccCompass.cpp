@@ -21,23 +21,14 @@
 //Qt
 #include <QtGui>
 
-//potentially useful code snippets
-
-//get main app interface
-//ccMainAppInterface* app = ccStdPluginInterface::getMainAppInterface();
-
-//Default constructor: should mainly be used to initialize
-//actions (pointers) and other members
 ccCompass::ccCompass(QObject* parent/*=0*/)
 	: QObject(parent)
 	, m_action(0)
 {
 	//bind GUI events
 	m_dlg = new ccCompassDlg();
-	//m_dlg->setWindowFlags(Qt::SubWindow);
 
 	ccCompassDlg::connect(m_dlg->closeButton, SIGNAL(clicked()), this, SLOT(onClose()));
-	//ccCompassDlg::connect(m_dlg, SIGNAL(closed()), this, SLOT(onClose()));
 	ccCompassDlg::connect(m_dlg->acceptButton, SIGNAL(clicked()), this, SLOT(onAccept()));
 	ccCompassDlg::connect(m_dlg->saveButton, SIGNAL(clicked()), this, SLOT(onSave()));
 	ccCompassDlg::connect(m_dlg->undoButton, SIGNAL(clicked()), this, SLOT(onUndo()));
@@ -125,8 +116,6 @@ void ccCompass::doAction()
 	//(--> pure internal check)
 	assert(m_app);
 
-	/*** HERE STARTS THE ACTION ***/
-
 	//Get handle to ccGLWindow
 	m_window = m_app->getActiveGLWindow();
 
@@ -136,9 +125,6 @@ void ccCompass::doAction()
 		m_app->dispToConsole("[ccCompass] Could not find valid 3D window.", ccMainAppInterface::ERR_CONSOLE_MESSAGE);
 		return;
 	}
-
-	//setup picking callback
-	//QObject::connect(m_window, SIGNAL(itemPicked(ccHObject*, unsigned, int, int, const CCVector3&)), this, SLOT(pointPicked(ccHObject*, unsigned, int, int, const CCVector3&)));
 
 	//bind gui
 	m_dlg->linkWith(m_window);
@@ -185,17 +171,11 @@ bool ccCompass::startMeasuring()
 	for (ccHObject* obj : m_app->getSelectedEntities())
 	{
 		if (obj->isKindOf(CC_TYPES::POLY_LINE))
+		{
 			pickupTrace(obj);
-			/*if (m_trace = dynamic_cast<ccTrace*>(obj)) //try casting to ccTrace
-			{
-				//change color
-				m_trace->setTraceColor(ccColor::yellow);
-				m_trace->setWaypointColor(ccColor::green);
-				//remove any fit planes
-				m_trace->removeAllChildren(); 
-			}*/
 			if (m_trace)
 				break; //bail now we've found it
+		}
 	}
 
 	//setup listener for mouse events
@@ -359,12 +339,7 @@ void ccCompass::pointPicked(ccHObject* entity, unsigned itemIdx, int x, int y, c
 				pPlane->prepareDisplayForRefresh_recursive(); //not sure what this does, but it looks like fun
 				//add plane to TOC
 				m_app->addToDB(pPlane, false, false, false, false);
-				//write answer
-				m_app->dispToConsole(QString("[ccCompass] Sampled %d points in radius %f. Fitted plane %s").arg(QString(n), QString("%.3f").arg(r), QString::fromStdString(dipAndDipDirStr.toStdString())), ccMainAppInterface::STD_CONSOLE_MESSAGE);
-			} else
-			{
-				m_app->dispToConsole(QString("[ccCompass] Sampled %d points in radius %.3f. Could not fit a plane.").arg(n, r), ccMainAppInterface::STD_CONSOLE_MESSAGE);
-			}
+			} 
 		} else if (m_pickingMode == MODE::TRACE_MODE) //TRACE PICKING MODE
 		{
 			if (m_trace)
@@ -388,7 +363,7 @@ void ccCompass::pointPicked(ccHObject* entity, unsigned itemIdx, int x, int y, c
 				m_trace_id = m_trace->getUniqueID();
 				category_group->addChild(m_trace);
 				m_app->addToDB(m_trace, false, false, false, false);
-				m_app->dispToConsole(QString("[ccCompass] Added trace waypoint."), ccMainAppInterface::STD_CONSOLE_MESSAGE);
+				//m_app->dispToConsole(QString("[ccCompass] Added trace waypoint."), ccMainAppInterface::STD_CONSOLE_MESSAGE);
 			}
 
 			//update cost function
@@ -396,15 +371,13 @@ void ccCompass::pointPicked(ccHObject* entity, unsigned itemIdx, int x, int y, c
 
 			//add point
 			int index = m_trace->insertWaypoint(itemIdx);
-			m_app->dispToConsole(QString("[ccCompass] Added point to active trace."), ccMainAppInterface::STD_CONSOLE_MESSAGE);
+			//m_app->dispToConsole(QString("[ccCompass] Added point to active trace."), ccMainAppInterface::STD_CONSOLE_MESSAGE);
 
 			//optimise points
 			if (m_trace->waypoint_count() >= 2) {
-				m_app->dispToConsole(QString("[ccCompass] Optimising path..."), ccMainAppInterface::STD_CONSOLE_MESSAGE);
-				if (m_trace->optimizePath(100000000))
-					m_app->dispToConsole(QString("[ccCompass] Success :)"), ccMainAppInterface::STD_CONSOLE_MESSAGE);
-				else
-					m_app->dispToConsole(QString("[ccCompass] Fail :("), ccMainAppInterface::STD_CONSOLE_MESSAGE);
+				//m_app->dispToConsole(QString("[ccCompass] Optimising path..."), ccMainAppInterface::STD_CONSOLE_MESSAGE);
+				if (!m_trace->optimizePath())
+					m_app->dispToConsole(QString("[ccCompass] Failed to optimize trace path... please try again."), ccMainAppInterface::WRN_CONSOLE_MESSAGE);
 			}
 		}
 		else if (m_pickingMode == MODE::LINEATION_MODE)
@@ -419,7 +392,7 @@ void ccCompass::pointPicked(ccHObject* entity, unsigned itemIdx, int x, int y, c
 				m_lineation->prepareDisplayForRefresh_recursive();
 				category_group->addChild(m_lineation);
 				m_app->addToDB(m_lineation, false, false, false, false);
-				m_app->dispToConsole(QString("[ccCompass] Measuring new lineation."), ccMainAppInterface::STD_CONSOLE_MESSAGE);
+				//m_app->dispToConsole(QString("[ccCompass] Measuring new lineation."), ccMainAppInterface::STD_CONSOLE_MESSAGE);
 			}
 
 			//add point
@@ -491,8 +464,7 @@ void ccCompass::onItemPicked(const ccPickingListener::PickedItem& pi)
 
 bool ccCompass::eventFilter(QObject* obj, QEvent* event)
 {
-
-	m_dlg->raise(); //keep gui on top
+	m_dlg->raise(); //keep gui on top - otherwise it gets hidden when the user clicks on the 3D-window (even though it's added to the MDI form?). [This is a bit of a hack...]
 	if (event->type() == QEvent::MouseButtonDblClick)
 	{
 		QMouseEvent* mouseEvent = static_cast<QMouseEvent *>(event);
@@ -665,6 +637,7 @@ void ccCompass::onSave()
 	if (lineations == 0) //delete if nothing written
 		l_file.remove();
 }
+
 //write plane data
 int ccCompass::writePlanes(ccHObject* object, QTextStream* out, QString parentName)
 {
@@ -700,6 +673,7 @@ int ccCompass::writePlanes(ccHObject* object, QTextStream* out, QString parentNa
 
 	return n;
 }
+
 //write trace data
 int ccCompass::writeTraces(ccHObject* object, QTextStream* out, QString parentName)
 {
@@ -752,6 +726,7 @@ int ccCompass::writeTraces(ccHObject* object, QTextStream* out, QString parentNa
 
 	return n;
 }
+
 //write lineation data
 int ccCompass::writeLineations(ccHObject* object, QTextStream* out, QString parentName)
 {
@@ -785,11 +760,13 @@ int ccCompass::writeLineations(ccHObject* object, QTextStream* out, QString pare
 	}
 	return n;
 }
+
 //returns true if object was created by ccCompass
 bool ccCompass::madeByMe(ccHObject* object)
 {
 	return isFitPlane(object) | isTrace(object) | isLineation(object);
 }
+
 //returns true if object is a fitPlane
 bool ccCompass::isFitPlane(ccHObject* object)
 {
@@ -801,6 +778,7 @@ bool ccCompass::isFitPlane(ccHObject* object)
 			object->hasMetaData("Strike") && object->hasMetaData("Dip") &&
 			object->hasMetaData("RMS") && object->hasMetaData("Radius");
 }
+
 //returns true if object is a lineation
 bool ccCompass::isLineation(ccHObject* object)
 {
@@ -811,6 +789,7 @@ bool ccCompass::isLineation(ccHObject* object)
 		object->hasMetaData("Ex") && object->hasMetaData("Ey") && object->hasMetaData("Ez") &&
 		object->hasMetaData("Trend") && object->hasMetaData("Plunge");
 }
+
 //returns true if object is a trace
 bool ccCompass::isTrace(ccHObject* object)
 {
@@ -847,6 +826,7 @@ void ccCompass::setLineationMode()
 	m_window->redraw(true, false);
 	m_dlg->algorithmButton->setEnabled(false);
 }
+
 //activate plane mode
 void ccCompass::setPlaneMode()
 {
@@ -863,6 +843,7 @@ void ccCompass::setPlaneMode()
 	m_window->redraw(true, false);
 	m_dlg->algorithmButton->setEnabled(false); //disable. IDEA: Could add functionality here to allow RANSAC or Least Squares plane fitting.
 }
+
 //activate trace mode
 void ccCompass::setTraceMode()
 {
@@ -885,6 +866,7 @@ void ccCompass::toggleStipple(bool checked)
 	recurseStipple(m_app->dbRootObject(), checked); //change stippling for existing planes
 	m_window->redraw(); //redraw
 }
+
 void ccCompass::recurseStipple(ccHObject* object,bool checked)
 {
 	//check this object
@@ -909,6 +891,7 @@ void ccCompass::toggleLabels(bool checked)
 	m_drawName = checked; //change labels for newly created planes
 	m_window->redraw(); //redraw
 }
+
 void ccCompass::recurseLabels(ccHObject* object, bool checked)
 {
 	//check this object
@@ -924,6 +907,7 @@ void ccCompass::recurseLabels(ccHObject* object, bool checked)
 		recurseLabels(o, checked);
 	}
 }
+
 //toggle plane normals
 void ccCompass::toggleNormals(bool checked)
 {
@@ -931,6 +915,7 @@ void ccCompass::toggleNormals(bool checked)
 	m_drawNormals = checked; //change labels for newly created planes
 	m_window->redraw(); //redraw
 }
+
 void ccCompass::recurseNormals(ccHObject* object, bool checked)
 {
 	//check this object
@@ -969,6 +954,7 @@ void ccCompass::changeType()
 	}
 	m_category = m_dlg->categoryBox->currentText();
 }
+
 //displays the info dialog
 void ccCompass::showHelp()
 {
