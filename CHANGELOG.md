@@ -10,6 +10,12 @@ v2.9.alpha - XX/XX/XXXX
 
 - enhancements:
 
+	* 'Unroll' tool:
+		- new cone 'unroll' mode (the true 'unroll' mode - the other one has been renamed 'Straightened cone' ;)
+		- option to export the deviation scalar-field (deviation to the theoretical cylinder / cone)
+		- dialog parameters are now saved in persistent settings
+
+
 	* Plugins can now be called in command line mode
 		(the 'ccPluginInterface::registerCommands' method must be reimplemented)
 
@@ -32,6 +38,8 @@ v2.9.alpha - XX/XX/XXXX
 	* Rasterize tool: scalar fields were vertically mirrored when exported to a geotiff raster
 	* STL files are now output by default in BINARY mode in command line mode (no more annoying dialog)
 	* qAnimation plugin: the export to separate frames was broken
+	* when computing distances, the octree could be modified but the LOD structure was not updated
+		(resulting in potentially heavy display artifacts)
 
 v2.8 - 12/18/2016
 ----------------------
