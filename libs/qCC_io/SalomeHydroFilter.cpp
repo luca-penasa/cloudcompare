@@ -1,14 +1,14 @@
 //##########################################################################
 //#                                                                        #
-//#                            CLOUDCOMPARE                                #
+//#                              CLOUDCOMPARE                              #
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU General Public License as published by  #
-//#  the Free Software Foundation; version 2 of the License.               #
+//#  the Free Software Foundation; version 2 or later of the License.      #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
 //#          COPYRIGHT: EDF R&D / TELECOM ParisTech (ENST-TSI)             #
@@ -89,7 +89,8 @@ CC_FILE_ERROR SalomeHydroFilter::saveToFile(ccHObject* entity, QString filename,
 		if (vertCount < 2)
 		{
 			//invalid size
-			ccLog::Warning(QString("[Salome Hydro] Polyline '%1' does not have enough vertices").arg(poly->getName()));
+			ccLog::Warning(QString("[Salome Hydro] Polyline '%1' does not have enough vertices")
+						   .arg(poly ? poly->getName() : QStringLiteral("unnamed")));
 			continue;
 		}
 		
@@ -198,7 +199,7 @@ CC_FILE_ERROR SalomeHydroFilter::loadFile(QString filename, ccHObject& container
 					if (HandleGlobalShift(P,Pshift,parameters))
 					{
 						currentVertices->setGlobalShift(Pshift);
-						ccLog::Warning("[Salome Hydro] Polylines will be recentered! Translation: (%.2f,%.2f,%.2f)",Pshift.x,Pshift.y,Pshift.z);
+						ccLog::Warning("[Salome Hydro] Polylines will be recentered! Translation: (%.2f ; %.2f ; %.2f)",Pshift.x,Pshift.y,Pshift.z);
 					}
 					firstPoint = false;
 				}

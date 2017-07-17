@@ -1,14 +1,14 @@
 //##########################################################################
 //#                                                                        #
-//#                            CLOUDCOMPARE                                #
+//#                              CLOUDCOMPARE                              #
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU General Public License as published by  #
-//#  the Free Software Foundation; version 2 of the License.               #
+//#  the Free Software Foundation; version 2 or later of the License.      #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
 //#          COPYRIGHT: EDF R&D / TELECOM ParisTech (ENST-TSI)             #
@@ -31,8 +31,8 @@
 //system
 #include <assert.h>
 
-ccOverlayDialog::ccOverlayDialog(QWidget* parent/*=0*/)
-	: QDialog(parent, Qt::FramelessWindowHint | Qt::Tool)
+ccOverlayDialog::ccOverlayDialog(QWidget* parent/*=0*/, Qt::WindowFlags flags/*=Qt::FramelessWindowHint | Qt::Tool*/)
+	: QDialog(parent, flags)
 	, m_associatedWin(0)
 	, m_processing(false)
 {
@@ -56,26 +56,26 @@ bool ccOverlayDialog::linkWith(ccGLWindow* win)
 	{
 		return true;
 	}
-		
+
 	if (m_associatedWin)
 	{
 		//we automatically detach the former dialog
 		{
 			QWidgetList topWidgets = QApplication::topLevelWidgets();
-			foreach(QWidget* widget,topWidgets)
+			foreach(QWidget* widget, topWidgets)
 			{
 				widget->removeEventFilter(this);
 			}
 		}
 		m_associatedWin->disconnect(this);
-		m_associatedWin = 0;
+		m_associatedWin = nullptr;
 	}
 
 	m_associatedWin = win;
 	if (m_associatedWin)
 	{
 		QWidgetList topWidgets = QApplication::topLevelWidgets();
-		foreach(QWidget* widget,topWidgets)
+		foreach(QWidget* widget, topWidgets)
 		{
 			widget->installEventFilter(this);
 		}
@@ -148,6 +148,11 @@ bool ccOverlayDialog::eventFilter(QObject *obj, QEvent *e)
 	}
 	else
 	{
+		if (e->type() == QEvent::Show)
+		{
+			emit shown();
+		}
+		
 		// standard event processing
 		return QObject::eventFilter(obj, e);
 	}

@@ -4,14 +4,14 @@
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU General Public License as published by  #
-//#  the Free Software Foundation; version 2 of the License.               #
+//#  the Free Software Foundation; version 2 or later of the License.      #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
-//#                           COPYRIGHT: BRGM                              #
+//#                      COPYRIGHT: Thomas Dewez, BRGM                     #
 //#                                                                        #
 //##########################################################################
 
@@ -35,6 +35,7 @@ public:
 		\param errorMeasure error measure type
 		\param maxAngle_deg maximum angle between two sets to allow fusion (in degrees)
 		\param overlapCoef maximum relative distance between two sets to accept fusion (1 = no distance, < 1 = overlap, > 1 = gap)
+		\param closestFirst
 		\param progressCb for progress notifications (optional)
 	**/
 	static bool FuseCells(	ccKdTree* kdTree,

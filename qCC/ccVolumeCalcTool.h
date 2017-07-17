@@ -1,14 +1,14 @@
 //##########################################################################
 //#                                                                        #
-//#                            CLOUDCOMPARE                                #
+//#                              CLOUDCOMPARE                              #
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU General Public License as published by  #
-//#  the Free Software Foundation; version 2 of the License.               #
+//#  the Free Software Foundation; version 2 or later of the License.      #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
 //#          COPYRIGHT: EDF R&D / TELECOM ParisTech (ENST-TSI)             #
@@ -44,11 +44,60 @@ public:
 	~ccVolumeCalcTool();
 
 	//Inherited from cc2Point5DimEditor
-	virtual double getGridStep() const;
-	virtual unsigned char getProjectionDimension() const;
-	virtual ProjectionType getTypeOfProjection() const;
+	virtual double getGridStep() const override;
+	virtual unsigned char getProjectionDimension() const override;
+	virtual ccRasterGrid::ProjectionType getTypeOfProjection() const override;
 
-protected slots:
+	//! Report info
+	struct ReportInfo
+	{
+		ReportInfo()
+			: volume(0)
+			, addedVolume(0)
+			, removedVolume(0)
+			, surface(0)
+			, matchingPrecent(0)
+			, ceilNonMatchingPercent(0)
+			, groundNonMatchingPercent(0)
+			, averageNeighborsPerCell(0)
+		{}
+
+		QString toText(int precision = 6) const;
+
+		double volume;
+		double addedVolume;
+		double removedVolume;
+		double surface;
+		float matchingPrecent;
+		float ceilNonMatchingPercent;
+		float groundNonMatchingPercent;
+		double averageNeighborsPerCell;
+	};
+
+	//! Static accessor
+	static bool ComputeVolume(	ccRasterGrid& grid,
+								ccGenericPointCloud* ground,
+								ccGenericPointCloud* ceil,
+								const ccBBox& gridBox,
+								unsigned char vertDim,
+								double gridStep,
+								unsigned gridWidth,
+								unsigned gridHeight,
+								ccRasterGrid::ProjectionType projectionType,
+								ccRasterGrid::EmptyCellFillOption emptyCellFillStrategy,
+								ccVolumeCalcTool::ReportInfo& reportInfo,
+								double groundHeight,
+								double ceilHeight,
+								QWidget* parentWidget = 0);
+
+	//! Converts a (volume) grid to a point cloud
+	static ccPointCloud* ConvertGridToCloud(	ccRasterGrid& grid,
+												const ccBBox& gridBox,
+												unsigned char vertDim,
+												bool exportToOriginalCS);
+
+	
+	protected slots:
 
 	//! Accepts the dialog and save settings
 	void saveSettingsAndAccept();
@@ -63,7 +112,7 @@ protected slots:
 	void sfProjectionTypeChanged(int);
 
 	//Inherited from cc2Point5DimEditor
-	virtual bool showGridBoxEditor();
+	virtual bool showGridBoxEditor() override;
 
 	//! Called when the (ground) empty cell filling strategy changes
 	void groundFillEmptyCellStrategyChanged(int);
@@ -90,13 +139,16 @@ protected slots:
 	//! Exports info to clipboard
 	void exportToClipboard() const;
 
+	//! Exports the grid as a point cloud
+	void exportGridAsCloud() const;
+
 	//! Sets the displayed number precision
 	void setDisplayedNumberPrecision(int);
 
 protected: //standard methods
 
 	//Inherited from cc2Point5DimEditor
-	virtual void gridIsUpToDate(bool state);
+	virtual void gridIsUpToDate(bool state) override;
 
 	//! Load persistent settings
 	void loadSettings();
@@ -104,29 +156,8 @@ protected: //standard methods
 	//! Updates the grid
 	bool updateGrid();
 
-	//! Report info
-	struct ReportInfo
-	{
-		ReportInfo()
-			: volume(0)
-			, addedVolume(0)
-			, removedVolume(0)
-			, surface(0)
-			, matchingPrecent(0)
-			, ceilNonMatchingPercent(0)
-			, groundNonMatchingPercent(0)
-			, averageNeighborsPerCell(0)
-		{}
-
-		double volume;
-		double addedVolume;
-		double removedVolume;
-		double surface;
-		float matchingPrecent;
-		float ceilNonMatchingPercent;
-		float groundNonMatchingPercent;
-		double averageNeighborsPerCell;
-	};
+	//! Converts the grid to a point cloud
+	ccPointCloud* convertGridToCloud(bool exportToOriginalCS) const;
 
 	//! Outputs the report
 	void outputReport(const ReportInfo& info);

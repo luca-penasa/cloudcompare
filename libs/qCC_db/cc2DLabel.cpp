@@ -1,14 +1,14 @@
 //##########################################################################
 //#                                                                        #
-//#                            CLOUDCOMPARE                                #
+//#                              CLOUDCOMPARE                              #
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU General Public License as published by  #
-//#  the Free Software Foundation; version 2 of the License.               #
+//#  the Free Software Foundation; version 2 or later of the License.      #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
 //#          COPYRIGHT: EDF R&D / TELECOM ParisTech (ENST-TSI)             #
@@ -39,7 +39,7 @@ static const QChar MathSymbolDelta(0x0394);
 cc2DLabel::cc2DLabel(QString name/*=QString()*/)
 	: ccHObject(name.isEmpty() ? "label" : name)
 	, m_showFullBody(true)
-	, m_dispIn3D(false)
+	, m_dispPointsLegend(false)
 	, m_dispIn2D(true)
 	, m_relMarkerScale(1.0f)
 {
@@ -112,7 +112,7 @@ QString cc2DLabel::getTitle(int precision) const
 		if (info.hasSF)
 		{
 			QString sfVal = GetSFValueAsString(info, precision);
-			title = QString("%1 = %2").arg(info.sfName).arg(sfVal);
+			title = QString("%1 = %2").arg(info.sfName,sfVal);
 		}
 	}
 	else if (count == 2)
@@ -171,8 +171,8 @@ bool cc2DLabel::move2D(int x, int y, int dx, int dy, int screenWidth, int screen
 {
 	assert(screenHeight > 0 && screenWidth > 0);
 	
-	m_screenPos[0] += static_cast<float>(dx)/screenWidth;
-	m_screenPos[1] += static_cast<float>(dy)/screenHeight;
+	m_screenPos[0] += static_cast<float>(dx) / screenWidth;
+	m_screenPos[1] += static_cast<float>(dy) / screenHeight;
 
 	return true;
 }
@@ -332,8 +332,8 @@ bool cc2DLabel::toFile_MeOnly(QFile& out) const
 	if (out.write((const char*)&m_dispIn2D,sizeof(bool)) < 0)
 		return WriteError();
 
-	//Show in 3D boolean (dataVersion >= 21)
-	if (out.write((const char*)&m_dispIn3D,sizeof(bool)) < 0)
+	//Show point(s) legend boolean (dataVersion >= 21)
+	if (out.write((const char*)&m_dispPointsLegend,sizeof(bool)) < 0)
 		return WriteError();
 
 	return true;
@@ -385,8 +385,8 @@ bool cc2DLabel::fromFile_MeOnly(QFile& in, short dataVersion, int flags)
 		if (in.read((char*)&m_dispIn2D,sizeof(bool)) < 0)
 			return ReadError();
 
-		//Show in 3D boolean (dataVersion >= 21)
-		if (in.read((char*)&m_dispIn3D,sizeof(bool)) < 0)
+		//Show point(s) legend boolean (dataVersion >= 21)
+		if (in.read((char*)&m_dispPointsLegend,sizeof(bool)) < 0)
 			return ReadError();
 	}
 
@@ -401,7 +401,7 @@ void AddPointCoordinates(QStringList& body, unsigned pointIndex, ccGenericPointC
 
 	QString coordStr = QString("P#%0:").arg(pointIndex);
 	if (!pointName.isEmpty())
-		coordStr = QString("%1 (%2)").arg(pointName).arg(coordStr);
+		coordStr = QString("%1 (%2)").arg(pointName,coordStr);
 	if (isShifted)
 	{
 		body << coordStr;
@@ -511,9 +511,9 @@ void cc2DLabel::getLabelInfo3(LabelInfo3& info) const
 	const CCVector3* P3 = info.cloud3->getPointPersistentPtr(info.point3Index);
 
 	//area
-	CCVector3 P1P2 = *P2-*P1;
-	CCVector3 P1P3 = *P3-*P1;
-	CCVector3 P2P3 = *P3-*P2;
+	CCVector3 P1P2 = *P2 - *P1;
+	CCVector3 P1P3 = *P3 - *P1;
+	CCVector3 P2P3 = *P3 - *P2;
 	CCVector3 N = P1P2.cross(P1P3); //N = ABxAC
 	info.area = N.norm()/2;
 
@@ -527,9 +527,9 @@ void cc2DLabel::getLabelInfo3(LabelInfo3& info) const
 	info.edges.u[2] = P1P3.norm2d();  //edge 3-1
 
 	//angle
-	info.angles.u[0] = GetAngle_deg(P1P2,P1P3);   //angleAtP1
-	info.angles.u[1] = GetAngle_deg(P2P3,-P1P2);  //angleAtP2
-	info.angles.u[2] = GetAngle_deg(-P1P3,-P2P3); //angleAtP3 (should be equal to 180-a1-a2!)
+	info.angles.u[0] = GetAngle_deg( P1P2,  P1P3);   //angleAtP1
+	info.angles.u[1] = GetAngle_deg( P2P3, -P1P2);  //angleAtP2
+	info.angles.u[2] = GetAngle_deg(-P1P3, -P2P3); //angleAtP3 (should be equal to 180-a1-a2!)
 }
 
 QStringList cc2DLabel::getLabelContent(int precision)
@@ -569,7 +569,7 @@ QStringList cc2DLabel::getLabelContent(int precision)
 			if (info.hasSF)
 			{
 				QString sfVal = GetSFValueAsString(info, precision);
-				QString sfStr = QString("%1 = %2").arg(info.sfName).arg(sfVal);
+				QString sfStr = QString("%1 = %2").arg(info.sfName,sfVal);
 				body << sfStr;
 			}
 		}
@@ -653,7 +653,7 @@ bool cc2DLabel::acceptClick(int x, int y, Qt::MouseButton button)
 {
 	if (button == Qt::RightButton)
 	{
-		if (m_labelROI.contains(x-m_lastScreenPos[0],y-m_lastScreenPos[1]))
+		if (m_labelROI.contains(x - m_lastScreenPos[0], y - m_lastScreenPos[1]))
 		{
 			//toggle collapse state
 			m_showFullBody = !m_showFullBody;
@@ -688,29 +688,51 @@ static QSharedPointer<ccSphere> c_unitPointMarker(0);
 
 void cc2DLabel::drawMeOnly3D(CC_DRAW_CONTEXT& context)
 {
-	assert(!m_points.empty());
+	size_t count = m_points.size();
+	if (count == 0)
+	{
+		return;
+	}
 
 	//get the set of OpenGL functions (version 2.1)
 	QOpenGLFunctions_2_1 *glFunc = context.glFunctions<QOpenGLFunctions_2_1>();
-	assert( glFunc != nullptr );
-	
 	if ( glFunc == nullptr )
+	{
+		assert(false);
 		return;
+	}
 
 	//standard case: list names pushing
 	bool pushName = MACRO_DrawEntityNames(context);
 	if (pushName)
 	{
-		//not particularily fast
+		//not particularly fast
 		if (MACRO_DrawFastNamesOnly(context))
 			return;
 		glFunc->glPushName(getUniqueIDForDisplay());
 	}
 
-	const float c_sizeFactor = 4.0f;
-	bool loop = false;
+	//we always project the points in 2D (maybe useful later, even when displaying the label during the 2D pass!)
+	ccGLCameraParameters camera;
+	//we can't use the context 'ccGLCameraParameters' (viewport, modelView matrix, etc. )
+	//because it doesn't take the temporary 'GL transformation' into account!
+	//context.display->getGLCameraParameters(camera);
+	glFunc->glGetIntegerv(GL_VIEWPORT, camera.viewport);
+	glFunc->glGetDoublev(GL_PROJECTION_MATRIX, camera.projectionMat.data());
+	glFunc->glGetDoublev(GL_MODELVIEW_MATRIX, camera.modelViewMat.data());
 
-	size_t count = m_points.size();
+	//don't do this in picking mode!
+	if (!pushName)
+	{
+		for (size_t i = 0; i < count; i++)
+		{
+			//project the point in 2D
+			const CCVector3* P3D = m_points[i].cloud->getPoint(m_points[i].index);
+			camera.project(*P3D, m_points[i].pos2D);
+		}
+	}
+
+//	bool loop = false;
 	switch (count)
 	{
 	case 3:
@@ -726,32 +748,34 @@ void cc2DLabel::drawMeOnly3D(CC_DRAW_CONTEXT& context)
 			ccGL::Vertex3v(glFunc, m_points[2].cloud->getPoint(m_points[2].index)->u);
 			glFunc->glEnd();
 
-			glFunc->glPopAttrib();
-			loop = true;
+			glFunc->glPopAttrib(); //GL_COLOR_BUFFER_BIT
+//			loop = true;
 		}
 	case 2:
 		{
-			//segment width
-			glFunc->glPushAttrib(GL_LINE_BIT);
-			glFunc->glLineWidth(c_sizeFactor * context.renderZoom);
+			//This is now done in 2D so that it's always displayed on top of the entities
+			////segment width
+			//const float c_sizeFactor = 4.0f;
+			//glFunc->glPushAttrib(GL_LINE_BIT);
+			//glFunc->glLineWidth(c_sizeFactor * context.renderZoom);
 
-			//we draw the segments
-			if (isSelected())
-				ccGL::Color3v(glFunc, ccColor::red.rgba);
-			else
-				ccGL::Color3v(glFunc, ccColor::green.rgba);
-			
-			glFunc->glBegin(GL_LINES);
-			for (unsigned i=0; i<count; i++)
-			{
-				if (i+1<count || loop)
-				{
-					ccGL::Vertex3v(glFunc, m_points[i].cloud->getPoint(m_points[i].index)->u);
-					ccGL::Vertex3v(glFunc, m_points[(i+1)%count].cloud->getPoint(m_points[(i+1)%count].index)->u);
-				}
-			}
-			glFunc->glEnd();
-			glFunc->glPopAttrib();
+			////we draw the segments
+			//if (isSelected())
+			//	ccGL::Color3v(glFunc, ccColor::red.rgba);
+			//else
+			//	ccGL::Color3v(glFunc, ccColor::green.rgba);
+			//
+			//glFunc->glBegin(GL_LINES);
+			//for (unsigned i=0; i<count; i++)
+			//{
+			//	if (i+1<count || loop)
+			//	{
+			//		ccGL::Vertex3v(glFunc, m_points[i].cloud->getPoint(m_points[i].index)->u);
+			//		ccGL::Vertex3v(glFunc, m_points[(i+1)%count].cloud->getPoint(m_points[(i+1)%count].index)->u);
+			//	}
+			//}
+			//glFunc->glEnd();
+			//glFunc->glPopAttrib(); //GL_LINE_BIT
 		}
 
 	case 1:
@@ -776,61 +800,25 @@ void cc2DLabel::drawMeOnly3D(CC_DRAW_CONTEXT& context)
 				else
 					c_unitPointMarker->setTempColor(context.labelDefaultMarkerCol);
 
-				for (unsigned i=0; i<count; i++)
+				const ccViewportParameters& viewportParams = context.display->getViewportParameters();
+				for (size_t i = 0; i<count; i++)
 				{
 					glFunc->glMatrixMode(GL_MODELVIEW);
 					glFunc->glPushMatrix();
 					const CCVector3* P = m_points[i].cloud->getPoint(m_points[i].index);
 					ccGL::Translate(glFunc, P->x, P->y, P->z);
 					float scale = context.labelMarkerSize * m_relMarkerScale;
+					if (viewportParams.perspectiveView && viewportParams.zFar > 0)
+					{
+						//in perspective view, the actual scale depends on the distance to the camera!
+						double d = (camera.modelViewMat * CCVector3d::fromArray(P->u)).norm();
+						double unitD = viewportParams.zFar / 2; //we consider that the 'standard' scale is at half the depth
+						scale = static_cast<float>(scale * sqrt(d / unitD)); //sqrt = empirical (probably because the marker size is already partly compensated by ccGLWindow::computeActualPixelSize())
+					}
 					glFunc->glScalef(scale, scale, scale);
 					c_unitPointMarker->draw(markerContext);
 					glFunc->glPopMatrix();
 				}
-			}
-
-			if (m_dispIn3D && !pushName) //no need to display label in point picking mode
-			{
-				QFont font(context.display->getTextDisplayFont()); //takes rendering zoom into account!
-				//font.setPointSize(font.pointSize()+2);
-				font.setBold(true);
-				static const QChar ABC[3] = {'A','B','C'};
-
-				//we can't use the context 'ccGLCameraParameters' (viewport, modelView matrix, etc. )
-				//because it doesn't take the temporary 'GL transformation' into account!
-				ccGLCameraParameters camera;
-				//context.display->getGLCameraParameters(camera);
-				glFunc->glGetIntegerv(GL_VIEWPORT, camera.viewport);
-				glFunc->glGetDoublev(GL_PROJECTION_MATRIX, camera.projectionMat.data());
-				glFunc->glGetDoublev(GL_MODELVIEW_MATRIX, camera.modelViewMat.data());
-
-				//draw their name
-				glFunc->glPushAttrib(GL_DEPTH_BUFFER_BIT);
-				glFunc->glDisable(GL_DEPTH_TEST);
-				for (unsigned j=0; j<count; j++)
-				{
-					const CCVector3* P = m_points[j].cloud->getPoint(m_points[j].index);
-					QString title;
-					if (count == 1)
-						title = getName(); //for single-point labels we prefer the name
-					else if (count == 3)
-						title = ABC[j]; //for triangle-labels, we only display "A","B","C"
-					else
-						title = QString("P#%0").arg(m_points[j].index); 
-
-					//project it in 2D screen coordinates
-					CCVector3d Q2D;
-					camera.project(*P, Q2D);
-
-					context.display->displayText(	title,
-													static_cast<int>(Q2D.x) + context.labelMarkerTextShift_pix,
-													static_cast<int>(Q2D.y) + context.labelMarkerTextShift_pix,
-													ccGenericGLDisplay::ALIGN_DEFAULT,
-													context.labelOpacity / 100.0f,
-													ccColor::white.rgba,
-													&font );
-				}
-				glFunc->glPopAttrib();
 			}
 		}
 	}
@@ -920,17 +908,15 @@ struct Tab
 
 void cc2DLabel::drawMeOnly2D(CC_DRAW_CONTEXT& context)
 {
-	if (!m_dispIn2D)
-		return;
-
 	assert(!m_points.empty());
 
 	//get the set of OpenGL functions (version 2.1)
 	QOpenGLFunctions_2_1 *glFunc = context.glFunctions<QOpenGLFunctions_2_1>();
-	assert( glFunc != nullptr );
-	
 	if ( glFunc == nullptr )
+	{
+		assert(false);
 		return;
+	}
 
 	//standard case: list names pushing
 	bool pushName = MACRO_DrawEntityNames(context);
@@ -939,8 +925,107 @@ void cc2DLabel::drawMeOnly2D(CC_DRAW_CONTEXT& context)
 		glFunc->glPushName(getUniqueID());
 	}
 
-	//we should already be in orthoprojective & centered omde
-	//glFunc->glOrtho(-halfW,halfW,-halfH,halfH,-maxS,maxS);
+	float halfW = context.glW / 2.0f;
+	float halfH = context.glH / 2.0f;
+
+	size_t count = m_points.size();
+	assert(count != 0);
+
+	//we should already be in orthoprojective & centered mode
+	//glFunc->glOrtho(-halfW, halfW, -halfH, halfH, -maxS, maxS);
+
+	//hack: we display the label connecting 'segments' and the point(s) legend
+	//in 2D so that they always appear above the entities
+	{
+		//test if the label points are visible
+		size_t visibleCount = 0;
+		for (unsigned j = 0; j < count; ++j)
+		{
+			if (m_points[j].pos2D.z >= 0.0 && m_points[j].pos2D.z <= 1.0)
+			{
+				++visibleCount;
+			}
+		}
+
+		if (visibleCount)
+		{
+			glFunc->glPushAttrib(GL_DEPTH_BUFFER_BIT);
+			glFunc->glDisable(GL_DEPTH_TEST);
+
+			//contour segments (before the labels!)
+			if (count > 1)
+			{
+				//segment width
+				const float c_sizeFactor = 4.0f;
+				glFunc->glPushAttrib(GL_LINE_BIT);
+				glFunc->glLineWidth(c_sizeFactor * context.renderZoom);
+
+				//we draw the segments
+				if (isSelected())
+					ccGL::Color3v(glFunc, ccColor::red.rgba);
+				else
+					ccGL::Color3v(glFunc, context.labelDefaultMarkerCol.rgb/*ccColor::green.rgba*/);
+
+				glFunc->glBegin(count == 2 ? GL_LINES : GL_LINE_LOOP);
+				for (unsigned j = 0; j < count; ++j)
+				{
+					glFunc->glVertex2d(m_points[j].pos2D.x - halfW, m_points[j].pos2D.y - halfH);
+				}
+				glFunc->glEnd();
+				glFunc->glPopAttrib(); //GL_LINE_BIT
+			}
+
+			//no need to display the point(s) legend in picking mode
+			if (m_dispPointsLegend && !pushName)
+			{
+				QFont font(context.display->getTextDisplayFont()); //takes rendering zoom into account!
+				//font.setPointSize(font.pointSize() + 2);
+				font.setBold(true);
+				static const QChar ABC[3] = { 'A', 'B', 'C' };
+
+				//draw the label 'legend(s)'
+				for (size_t j = 0; j < count; j++)
+				{
+					QString title;
+					if (count == 1)
+						title = getName(); //for single-point labels we prefer the name
+					else if (count == 3)
+						title = ABC[j]; //for triangle-labels, we only display "A","B","C"
+					else
+						title = QString("P#%0").arg(m_points[j].index);
+
+					context.display->displayText(	title,
+													static_cast<int>(m_points[j].pos2D.x) + context.labelMarkerTextShift_pix,
+													static_cast<int>(m_points[j].pos2D.y) + context.labelMarkerTextShift_pix,
+													ccGenericGLDisplay::ALIGN_DEFAULT,
+													context.labelOpacity / 100.0f,
+													ccColor::white.rgba,
+													&font);
+				}
+			}
+
+			glFunc->glPopAttrib(); //GL_DEPTH_BUFFER_BIT
+		}
+		else
+		{
+			//no need to draw anything (might be confusing)
+			if (pushName)
+			{
+				glFunc->glPopName();
+			}
+			return;
+		}
+	}
+	
+	if (!m_dispIn2D)
+	{
+		//nothing to do
+		if (pushName)
+		{
+			glFunc->glPopName();
+		}
+		return;
+	}
 
 	//label title
 	const int precision = context.dispNumberPrecision;
@@ -963,32 +1048,9 @@ void cc2DLabel::drawMeOnly2D(CC_DRAW_CONTEXT& context)
 	int arrowBaseSize = static_cast<int>(c_arrowBaseSize * context.renderZoom);
 	
 	int titleHeight = 0;
-	GLdouble arrowDestX = -1.0, arrowDestY = -1.0;
-	QFont bodyFont,titleFont;
+	QFont bodyFont, titleFont;
 	if (!pushName)
 	{
-		/*** line from 2D point to label ***/
-
-		//compute arrow head position
-		CCVector3 arrowDest;
-		m_points[0].cloud->getPoint(m_points[0].index,arrowDest);
-		for (unsigned i = 1; i < m_points.size(); ++i)
-		{
-			arrowDest += *m_points[i].cloud->getPointPersistentPtr(m_points[i].index);
-		}
-		arrowDest /= static_cast<PointCoordinateType>(m_points.size());
-
-		//project it in 2D screen coordinates
-		{
-			ccGLCameraParameters camera;
-			context.display->getGLCameraParameters(camera);
-
-			CCVector3d Q2D;
-			camera.project(arrowDest, Q2D);
-			arrowDestX = Q2D.x;
-			arrowDestY = Q2D.y;
-		}
-
 		/*** label border ***/
 		bodyFont = context.display->getLabelDisplayFont(); //takes rendering zoom into account!
 		titleFont = bodyFont; //takes rendering zoom into account!
@@ -1006,7 +1068,7 @@ void cc2DLabel::drawMeOnly2D(CC_DRAW_CONTEXT& context)
 		//int buttonSize    = static_cast<int>(c_buttonSize * context.renderZoom);
 		{
 			//base box dimension
-			dx = std::max(dx,titleFontMetrics.width(title));
+			dx = std::max(dx, titleFontMetrics.width(title));
 			dy += margin;		//top vertical margin
 			dy += titleHeight;	//title
 
@@ -1015,8 +1077,7 @@ void cc2DLabel::drawMeOnly2D(CC_DRAW_CONTEXT& context)
 #ifdef DRAW_CONTENT_AS_TAB
 				try
 				{
-					size_t labelCount = m_points.size();
-					if (labelCount == 1)
+					if (count == 1)
 					{
 						LabelInfo1 info;
 						getLabelInfo1(info);
@@ -1027,7 +1088,9 @@ void cc2DLabel::drawMeOnly2D(CC_DRAW_CONTEXT& context)
 							int c = tab.add2x3Block();
 							QChar suffix;
 							if (isShifted)
+							{
 								suffix = 'l'; //'l' for local
+							}
 							const CCVector3* P = info.cloud->getPoint(info.pointIndex);
 							tab.colContent[c] << QString("X") + suffix; tab.colContent[c+1] << QString::number(P->x,'f',precision);
 							tab.colContent[c] << QString("Y") + suffix; tab.colContent[c+1] << QString::number(P->y,'f',precision);
@@ -1060,7 +1123,7 @@ void cc2DLabel::drawMeOnly2D(CC_DRAW_CONTEXT& context)
 							tab.colContent[c] <<"B"; tab.colContent[c+1] << QString::number(info.rgb.z);
 						}
 					}
-					else if (labelCount == 2)
+					else if (count == 2)
 					{
 						LabelInfo2 info;
 						getLabelInfo2(info);
@@ -1078,12 +1141,12 @@ void cc2DLabel::drawMeOnly2D(CC_DRAW_CONTEXT& context)
 							PointCoordinateType dXY = sqrt(info.diff.x*info.diff.x + info.diff.y*info.diff.y);
 							PointCoordinateType dXZ = sqrt(info.diff.x*info.diff.x + info.diff.z*info.diff.z);
 							PointCoordinateType dZY = sqrt(info.diff.z*info.diff.z + info.diff.y*info.diff.y);
-							tab.colContent[c] << MathSymbolDelta + QString("XY"); tab.colContent[c+1] << QString::number(dXY,'f',precision);
-							tab.colContent[c] << MathSymbolDelta + QString("XZ"); tab.colContent[c+1] << QString::number(dXZ,'f',precision);
-							tab.colContent[c] << MathSymbolDelta + QString("ZY"); tab.colContent[c+1] << QString::number(dZY,'f',precision);
+							tab.colContent[c] << MathSymbolDelta + QString("XY"); tab.colContent[c + 1] << QString::number(dXY, 'f', precision);
+							tab.colContent[c] << MathSymbolDelta + QString("XZ"); tab.colContent[c + 1] << QString::number(dXZ, 'f', precision);
+							tab.colContent[c] << MathSymbolDelta + QString("ZY"); tab.colContent[c + 1] << QString::number(dZY, 'f', precision);
 						}
 					}
-					else if (labelCount == 3)
+					else if (count == 3)
 					{
 						LabelInfo3 info;
 						getLabelInfo3(info);
@@ -1092,47 +1155,48 @@ void cc2DLabel::drawMeOnly2D(CC_DRAW_CONTEXT& context)
 						//next block: indexes
 						{
 							int c = tab.add2x3Block();
-							tab.colContent[c] << "index.A"; tab.colContent[c+1] << QString::number(info.point1Index);
-							tab.colContent[c] << "index.B"; tab.colContent[c+1] << QString::number(info.point2Index);
-							tab.colContent[c] << "index.C"; tab.colContent[c+1] << QString::number(info.point3Index);
+							tab.colContent[c] << "index.A"; tab.colContent[c + 1] << QString::number(info.point1Index);
+							tab.colContent[c] << "index.B"; tab.colContent[c + 1] << QString::number(info.point2Index);
+							tab.colContent[c] << "index.C"; tab.colContent[c + 1] << QString::number(info.point3Index);
 						}
 						//next block: edges length
 						{
 							int c = tab.add2x3Block();
-							tab.colContent[c] << "AB"; tab.colContent[c+1] << QString::number(info.edges.u[0],'f',precision);
-							tab.colContent[c] << "BC"; tab.colContent[c+1] << QString::number(info.edges.u[1],'f',precision);
-							tab.colContent[c] << "CA"; tab.colContent[c+1] << QString::number(info.edges.u[2],'f',precision);
+							tab.colContent[c] << "AB"; tab.colContent[c + 1] << QString::number(info.edges.u[0], 'f', precision);
+							tab.colContent[c] << "BC"; tab.colContent[c + 1] << QString::number(info.edges.u[1], 'f', precision);
+							tab.colContent[c] << "CA"; tab.colContent[c + 1] << QString::number(info.edges.u[2], 'f', precision);
 						}
 						//next block: angles
 						{
 							int c = tab.add2x3Block();
-							tab.colContent[c] << "angle.A"; tab.colContent[c+1] << QString::number(info.angles.u[0],'f',precision);
-							tab.colContent[c] << "angle.B"; tab.colContent[c+1] << QString::number(info.angles.u[1],'f',precision);
-							tab.colContent[c] << "angle.C"; tab.colContent[c+1] << QString::number(info.angles.u[2],'f',precision);
+							tab.colContent[c] << "angle.A"; tab.colContent[c + 1] << QString::number(info.angles.u[0], 'f', precision);
+							tab.colContent[c] << "angle.B"; tab.colContent[c + 1] << QString::number(info.angles.u[1], 'f', precision);
+							tab.colContent[c] << "angle.C"; tab.colContent[c + 1] << QString::number(info.angles.u[2], 'f', precision);
 						}
 						//next block: normal
 						{
 							int c = tab.add2x3Block();
-							tab.colContent[c] << "Nx"; tab.colContent[c+1] << QString::number(info.normal.x,'f',precision);
-							tab.colContent[c] << "Ny"; tab.colContent[c+1] << QString::number(info.normal.y,'f',precision);
-							tab.colContent[c] << "Nz"; tab.colContent[c+1] << QString::number(info.normal.z,'f',precision);
+							tab.colContent[c] << "Nx"; tab.colContent[c + 1] << QString::number(info.normal.x, 'f', precision);
+							tab.colContent[c] << "Ny"; tab.colContent[c + 1] << QString::number(info.normal.y, 'f', precision);
+							tab.colContent[c] << "Nz"; tab.colContent[c + 1] << QString::number(info.normal.z, 'f', precision);
 						}
 					}
 				}
 				catch (const std::bad_alloc&)
 				{
 					//not enough memory
+					assert(!pushName);
 					return;
 				}
 
 				//compute min width of each column
 				int totalWidth = tab.updateColumnsWidthTable(bodyFontMetrics);
 
-				int tabWidth = totalWidth + tab.colCount * (2*tabMarginX); //add inner margins
-				dx = std::max(dx,tabWidth);
-				dy += tab.rowCount * (rowHeight + 2*tabMarginY); //add inner margins
+				int tabWidth = totalWidth + tab.colCount * (2 * tabMarginX); //add inner margins
+				dx = std::max(dx, tabWidth);
+				dy += tab.rowCount * (rowHeight + 2 * tabMarginY); //add inner margins
 				//we also add a margin every 3 rows
-				dy += std::max(0,(tab.rowCount/3)-1) * margin;
+				dy += std::max(0, (tab.rowCount / 3) - 1) * margin;
 				dy += margin;		//bottom vertical margin
 #else
 				body = getLabelContent(precision);
@@ -1149,11 +1213,11 @@ void cc2DLabel::drawMeOnly2D(CC_DRAW_CONTEXT& context)
 #endif //DRAW_CONTENT_AS_TAB
 			}
 
-			dx += margin*2;	// horizontal margins
+			dx += margin * 2;	// horizontal margins
 		}
 
 		//main rectangle
-		m_labelROI = QRect(0,0,dx,dy);
+		m_labelROI = QRect(0, 0, dx, dy);
 
 		//close button
 		//m_closeButtonROI.right()   = dx-margin;
@@ -1162,15 +1226,12 @@ void cc2DLabel::drawMeOnly2D(CC_DRAW_CONTEXT& context)
 		//m_closeButtonROI.top()     = m_closeButtonROI.bottom()+buttonSize;
 
 		//automatically elide the title
-		//title = titleFontMetrics.elidedText(title,Qt::ElideRight,m_closeButtonROI[0]-2*margin);
+		//title = titleFontMetrics.elidedText(title, Qt::ElideRight, m_closeButtonROI[0] - 2 * margin);
 	}
 
-	int halfW = (context.glW >> 1);
-	int halfH = (context.glH >> 1);
-
 	//draw label rectangle
-	int xStart = static_cast<int>(context.glW * m_screenPos[0]);
-	int yStart = static_cast<int>(context.glH * (1.0f - m_screenPos[1]));
+	const int xStart = static_cast<int>(context.glW * m_screenPos[0]);
+	const int yStart = static_cast<int>(context.glH * (1.0f - m_screenPos[1]));
 
 	m_lastScreenPos[0] = xStart;
 	m_lastScreenPos[1] = yStart - m_labelROI.height();
@@ -1178,15 +1239,15 @@ void cc2DLabel::drawMeOnly2D(CC_DRAW_CONTEXT& context)
 	//colors
 	bool highlighted = (!pushName && isSelected());
 	//default background color
-	unsigned char alpha = static_cast<unsigned char>((context.labelOpacity/100.0) * 255);
-	ccColor::Rgbaub defaultBkgColor(context.labelDefaultBkgCol,alpha);
+	unsigned char alpha = static_cast<unsigned char>((context.labelOpacity / 100.0) * 255);
+	ccColor::Rgbaub defaultBkgColor(context.labelDefaultBkgCol, alpha);
 	//default border color (mustn't be totally transparent!)
 	ccColor::Rgbaub defaultBorderColor(ccColor::red);
 	if (!highlighted)
 	{
 		//apply only half of the transparency
-		unsigned char halfAlpha = static_cast<unsigned char>((50.0 + context.labelOpacity/200.0) * 255);
-		defaultBorderColor = ccColor::Rgbaub(context.labelDefaultBkgCol,halfAlpha);
+		unsigned char halfAlpha = static_cast<unsigned char>((50.0 + context.labelOpacity / 200.0) * 255);
+		defaultBorderColor = ccColor::Rgbaub(context.labelDefaultBkgCol, halfAlpha);
 	}
 
 	glFunc->glPushAttrib(GL_COLOR_BUFFER_BIT);
@@ -1194,14 +1255,25 @@ void cc2DLabel::drawMeOnly2D(CC_DRAW_CONTEXT& context)
 
 	glFunc->glMatrixMode(GL_MODELVIEW);
 	glFunc->glPushMatrix();
-	glFunc->glTranslatef(static_cast<GLfloat>(-halfW + xStart), static_cast<GLfloat>(-halfH + yStart), 0);
+	glFunc->glTranslatef(static_cast<GLfloat>(xStart - halfW), static_cast<GLfloat>(yStart - halfH), 0);
 
 	if (!pushName)
 	{
 		//compute arrow base position relatively to the label rectangle (for 0 to 8)
 		int arrowBaseConfig = 0;
-		int iArrowDestX = static_cast<int>(arrowDestX)-xStart;
-		int iArrowDestY = static_cast<int>(arrowDestY)-yStart;
+
+		//compute arrow head position
+		CCVector3d arrowDest2D(0, 0, 0);
+		for (size_t i = 0; i < count; ++i)
+		{
+			arrowDest2D += m_points[i].pos2D;
+		}
+		arrowDest2D /= static_cast<PointCoordinateType>(count);
+		//arrowDest2D.x -= halfW;
+		//arrowDest2D.y -= halfH;
+		
+		int iArrowDestX = static_cast<int>(arrowDest2D.x - xStart);
+		int iArrowDestY = static_cast<int>(arrowDest2D.y - yStart);
 		{
 			if (iArrowDestX < m_labelROI.left()) //left
 				arrowBaseConfig += 0;
@@ -1223,46 +1295,46 @@ void cc2DLabel::drawMeOnly2D(CC_DRAW_CONTEXT& context)
 		{
 			glFunc->glColor4ubv(defaultBorderColor.rgba);
 			glFunc->glBegin(GL_TRIANGLE_FAN);
-			glFunc->glVertex2d(arrowDestX - xStart, arrowDestY - yStart);
+			glFunc->glVertex2i(iArrowDestX, iArrowDestY);
 			switch(arrowBaseConfig)
 			{
 			case 0: //top-left corner
-				glFunc->glVertex2i(m_labelROI.left(), -m_labelROI.top()-2*arrowBaseSize);
+				glFunc->glVertex2i(m_labelROI.left(), -m_labelROI.top() - 2 * arrowBaseSize);
 				glFunc->glVertex2i(m_labelROI.left(), -m_labelROI.top());
-				glFunc->glVertex2i(m_labelROI.left()+2*arrowBaseSize, -m_labelROI.top());
+				glFunc->glVertex2i(m_labelROI.left() + 2 * arrowBaseSize, -m_labelROI.top());
 				break;
 			case 1: //top-middle edge
-				glFunc->glVertex2i(std::max(m_labelROI.left(),iArrowDestX-arrowBaseSize), -m_labelROI.top());
-				glFunc->glVertex2i(std::min(m_labelROI.right(),iArrowDestX+arrowBaseSize), -m_labelROI.top());
+				glFunc->glVertex2i(std::max(m_labelROI.left(), iArrowDestX - arrowBaseSize), -m_labelROI.top());
+				glFunc->glVertex2i(std::min(m_labelROI.right(), iArrowDestX + arrowBaseSize), -m_labelROI.top());
 				break;
 			case 2: //top-right corner
-				glFunc->glVertex2i(m_labelROI.right(), -m_labelROI.top()-2*arrowBaseSize);
+				glFunc->glVertex2i(m_labelROI.right(), -m_labelROI.top() - 2 * arrowBaseSize);
 				glFunc->glVertex2i(m_labelROI.right(), -m_labelROI.top());
-				glFunc->glVertex2i(m_labelROI.right()-2*arrowBaseSize, -m_labelROI.top());
+				glFunc->glVertex2i(m_labelROI.right() - 2 * arrowBaseSize, -m_labelROI.top());
 				break;
 			case 3: //middle-left edge
-				glFunc->glVertex2i(m_labelROI.left(), std::min(-m_labelROI.top(),iArrowDestY+arrowBaseSize));
-				glFunc->glVertex2i(m_labelROI.left(), std::max(-m_labelROI.bottom(),iArrowDestY-arrowBaseSize));
+				glFunc->glVertex2i(m_labelROI.left(), std::min(-m_labelROI.top(), iArrowDestY + arrowBaseSize));
+				glFunc->glVertex2i(m_labelROI.left(), std::max(-m_labelROI.bottom(), iArrowDestY - arrowBaseSize));
 				break;
 			case 4: //middle of rectangle!
 				break;
 			case 5: //middle-right edge
-				glFunc->glVertex2i(m_labelROI.right(), std::min(-m_labelROI.top(),iArrowDestY+arrowBaseSize));
-				glFunc->glVertex2i(m_labelROI.right(), std::max(-m_labelROI.bottom(),iArrowDestY-arrowBaseSize));
+				glFunc->glVertex2i(m_labelROI.right(), std::min(-m_labelROI.top(), iArrowDestY + arrowBaseSize));
+				glFunc->glVertex2i(m_labelROI.right(), std::max(-m_labelROI.bottom(), iArrowDestY - arrowBaseSize));
 				break;
 			case 6: //bottom-left corner
-				glFunc->glVertex2i(m_labelROI.left(), -m_labelROI.bottom()+2*arrowBaseSize);
+				glFunc->glVertex2i(m_labelROI.left(), -m_labelROI.bottom() + 2 * arrowBaseSize);
 				glFunc->glVertex2i(m_labelROI.left(), -m_labelROI.bottom());
-				glFunc->glVertex2i(m_labelROI.left()+2*arrowBaseSize, -m_labelROI.bottom());
+				glFunc->glVertex2i(m_labelROI.left() + 2 * arrowBaseSize, -m_labelROI.bottom());
 				break;
 			case 7: //bottom-middle edge
-				glFunc->glVertex2i(std::max(m_labelROI.left(),iArrowDestX-arrowBaseSize), -m_labelROI.bottom());
-				glFunc->glVertex2i(std::min(m_labelROI.right(),iArrowDestX+arrowBaseSize), -m_labelROI.bottom());
+				glFunc->glVertex2i(std::max(m_labelROI.left(), iArrowDestX - arrowBaseSize), -m_labelROI.bottom());
+				glFunc->glVertex2i(std::min(m_labelROI.right(), iArrowDestX + arrowBaseSize), -m_labelROI.bottom());
 				break;
 			case 8: //bottom-right corner
-				glFunc->glVertex2i(m_labelROI.right(), -m_labelROI.bottom()+2*arrowBaseSize);
+				glFunc->glVertex2i(m_labelROI.right(), -m_labelROI.bottom() + 2 * arrowBaseSize);
 				glFunc->glVertex2i(m_labelROI.right(), -m_labelROI.bottom());
-				glFunc->glVertex2i(m_labelROI.right()-2*arrowBaseSize, -m_labelROI.bottom());
+				glFunc->glVertex2i(m_labelROI.right() - 2 * arrowBaseSize, -m_labelROI.bottom());
 				break;
 			}
 			glFunc->glEnd();
@@ -1289,7 +1361,7 @@ void cc2DLabel::drawMeOnly2D(CC_DRAW_CONTEXT& context)
 		glFunc->glVertex2i(m_labelROI.right(), -m_labelROI.bottom());
 		glFunc->glVertex2i(m_labelROI.right(), -m_labelROI.top());
 		glFunc->glEnd();
-		glFunc->glPopAttrib();
+		glFunc->glPopAttrib(); //GL_LINE_BIT
 	}
 
 	//draw close button
@@ -1329,8 +1401,8 @@ void cc2DLabel::drawMeOnly2D(CC_DRAW_CONTEXT& context)
 
 		//label title
 		context.display->displayText(	title,
-										xStart+xStartRel,
-										yStart+yStartRel,
+										xStart + xStartRel,
+										yStart + yStartRel,
 										ccGenericGLDisplay::ALIGN_DEFAULT,
 										0,
 										defaultTextColor.rgb,
@@ -1341,7 +1413,7 @@ void cc2DLabel::drawMeOnly2D(CC_DRAW_CONTEXT& context)
 		{
 #ifdef DRAW_CONTENT_AS_TAB
 			int xCol = xStartRel;
-			for (int c=0; c<tab.colCount; ++c)
+			for (int c = 0; c < tab.colCount; ++c)
 			{
 				int width = tab.colWidth[c] + 2*tabMarginX;
 				int height = rowHeight + 2*tabMarginY;
@@ -1414,7 +1486,7 @@ void cc2DLabel::drawMeOnly2D(CC_DRAW_CONTEXT& context)
 		}
 	}
 
-	glFunc->glPopAttrib();
+	glFunc->glPopAttrib(); //GL_COLOR_BUFFER_BIT
 
 	glFunc->glPopMatrix();
 

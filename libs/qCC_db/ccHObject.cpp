@@ -1,14 +1,14 @@
 //##########################################################################
 //#                                                                        #
-//#                            CLOUDCOMPARE                                #
+//#                              CLOUDCOMPARE                              #
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU General Public License as published by  #
-//#  the Free Software Foundation; version 2 of the License.               #
+//#  the Free Software Foundation; version 2 or later of the License.      #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
 //#          COPYRIGHT: EDF R&D / TELECOM ParisTech (ENST-TSI)             #
@@ -40,6 +40,8 @@
 #include "ccQuadric.h"
 #include "ccCustomObject.h"
 #include "ccExternalFactory.h"
+#include "ccPointCloud.h"
+#include "ccPolyline.h"
 
 //Qt
 #include <QIcon>
@@ -72,7 +74,7 @@ ccHObject::~ccHObject()
 	m_isDeleting = true;
 
 	//process dependencies
-	for (std::map<ccHObject*,int>::const_iterator it=m_dependencies.begin(); it!=m_dependencies.end(); ++it)
+	for (std::map<ccHObject*, int>::const_iterator it = m_dependencies.begin(); it != m_dependencies.end(); ++it)
 	{
 		assert(it->first);
 		//notify deletion to other object?
@@ -101,10 +103,13 @@ void ccHObject::notifyGeometryUpdate()
 {
 	//the associated display bounding-box is (potentially) deprecated!!!
 	if (m_currentDisplay)
+	{
 		m_currentDisplay->invalidateViewport();
+		m_currentDisplay->deprecate3DLayer();
+	}
 
 	//process dependencies
-	for (std::map<ccHObject*,int>::const_iterator it=m_dependencies.begin(); it!=m_dependencies.end(); ++it)
+	for (std::map<ccHObject*, int>::const_iterator it = m_dependencies.begin(); it != m_dependencies.end(); ++it)
 	{
 		assert(it->first);
 		//notify deletion to other object?
@@ -261,12 +266,12 @@ void ccHObject::addDependency(ccHObject* otherObject, int flags, bool additive/*
 	//whenever we add a dependency, we must be sure to be notified
 	//by the other object when its deleted! Otherwise we'll keep
 	//bad pointers in the dependency list...
-	otherObject->addDependency(this,DP_NOTIFY_OTHER_ON_DELETE);
+	otherObject->addDependency(this, DP_NOTIFY_OTHER_ON_DELETE);
 }
 
 int ccHObject::getDependencyFlagsWith(const ccHObject* otherObject)
 {
-	std::map<ccHObject*,int>::const_iterator it = m_dependencies.find(const_cast<ccHObject*>(otherObject)); //DGM: not sure why erase won't accept a const pointer?! We try to modify the map here, not the pointer object!
+	std::map<ccHObject*, int>::const_iterator it = m_dependencies.find(const_cast<ccHObject*>(otherObject)); //DGM: not sure why erase won't accept a const pointer?! We try to modify the map here, not the pointer object!
 
 	return (it != m_dependencies.end() ? it->second : 0);
 }
@@ -275,7 +280,7 @@ void ccHObject::removeDependencyWith(ccHObject* otherObject)
 {
 	m_dependencies.erase(const_cast<ccHObject*>(otherObject)); //DGM: not sure why erase won't accept a const pointer?! We try to modify the map here, not the pointer object!
 	if (!otherObject->m_isDeleting)
-		otherObject->removeDependencyFlag(this,DP_NOTIFY_OTHER_ON_DELETE);
+		otherObject->removeDependencyFlag(this, DP_NOTIFY_OTHER_ON_DELETE);
 }
 
 void ccHObject::removeDependencyFlag(ccHObject* otherObject, DEPENDENCY_FLAGS flag)
@@ -304,7 +309,7 @@ void ccHObject::onDeletionOf(const ccHObject* obj)
 	if (pos >= 0)
 	{
 		//we can't swap children as we want to keep the order!
-		m_children.erase(m_children.begin()+pos);
+		m_children.erase(m_children.begin() + pos);
 	}
 }
 
@@ -315,7 +320,7 @@ bool ccHObject::addChild(ccHObject* child, int dependencyFlags/*=DP_PARENT_OF_OT
 		assert(false);
 		return false;
 	}
-	if (std::find(m_children.begin(),m_children.end(),child) != m_children.end())
+	if (std::find(m_children.begin(), m_children.end(), child) != m_children.end())
 	{
 		ccLog::ErrorDebug("[ccHObject::addChild] Object is already a child!");
 		return false;
@@ -333,7 +338,7 @@ bool ccHObject::addChild(ccHObject* child, int dependencyFlags/*=DP_PARENT_OF_OT
 		if (insertIndex < 0 || static_cast<size_t>(insertIndex) >= m_children.size())
 			m_children.push_back(child);
 		else
-			m_children.insert(m_children.begin()+insertIndex,child);
+			m_children.insert(m_children.begin() + insertIndex, child);
 	}
 	catch (const std::bad_alloc&)
 	{
@@ -342,11 +347,11 @@ bool ccHObject::addChild(ccHObject* child, int dependencyFlags/*=DP_PARENT_OF_OT
 	}
 
 	//we want to be notified whenever this child is deleted!
-	child->addDependency(this,DP_NOTIFY_OTHER_ON_DELETE); //DGM: potentially redundant with calls to 'addDependency' but we can't miss that ;)
+	child->addDependency(this, DP_NOTIFY_OTHER_ON_DELETE); //DGM: potentially redundant with calls to 'addDependency' but we can't miss that ;)
 
 	if (dependencyFlags != 0)
 	{
-		addDependency(child,dependencyFlags);
+		addDependency(child, dependencyFlags);
 	}
 
 	//the strongest link: between a parent and a child ;)
@@ -554,7 +559,12 @@ ccBBox ccHObject::getDisplayBB_recursive(bool relative, const ccGenericGLDisplay
 
 bool ccHObject::isDisplayed() const
 {
-	return isVisible() && (getDisplay() != 0) && isBranchEnabled();
+	return (getDisplay() != 0) && isVisible() && isBranchEnabled();
+}
+
+bool ccHObject::isDisplayedIn(ccGenericGLDisplay* display) const
+{
+	return (getDisplay() == display) && isVisible() && isBranchEnabled();
 }
 
 bool ccHObject::isBranchEnabled() const
@@ -828,7 +838,7 @@ void ccHObject::removeChild(int pos)
 	//we can't swap as we want to keep the order!
 	//(DGM: do this BEFORE deleting the object (otherwise
 	//the dependency mechanism can 'backfire' ;)
-	m_children.erase(m_children.begin()+pos);
+	m_children.erase(m_children.begin() + pos);
 
 	//backup dependency flags
 	int flags = getDependencyFlagsWith(child);
@@ -887,16 +897,16 @@ bool ccHObject::toFile(QFile& out) const
 	if (!toFile_MeOnly(out))
 		return false;
 
-	//(serializable) child count (dataVersion>=20)
+	//(serializable) child count (dataVersion >= 20)
 	uint32_t serializableCount = 0;
-	for (unsigned i=0;i<m_children.size();++i)
+	for (unsigned i = 0; i < m_children.size(); ++i)
 		if (m_children[i]->isSerializable())
 			++serializableCount;
-	if (out.write((const char*)&serializableCount,sizeof(uint32_t)) < 0)
+	if (out.write((const char*)&serializableCount, sizeof(uint32_t)) < 0)
 		return WriteError();
 
 	//write serializable children (if any)
-	for (unsigned i=0;i<m_children.size();++i)
+	for (unsigned i = 0; i < m_children.size(); ++i)
 	{
 		if (m_children[i]->isSerializable())
 		{
@@ -905,9 +915,12 @@ bool ccHObject::toFile(QFile& out) const
 		}
 	}
 
-	//write current selection behavior (dataVersion>=23)
-	if (out.write((const char*)&m_selectionBehavior,sizeof(SelectionBehavior)) < 0)
+	//write current selection behavior (dataVersion >= 23)
+	if (out.write((const char*)&m_selectionBehavior, sizeof(SelectionBehavior)) < 0)
 		return WriteError();
+
+	//write transformation history (dataVersion >= 45)
+	m_glTransHistory.toFile(out);
 
 	return true;
 }
@@ -923,7 +936,7 @@ bool ccHObject::fromFile(QFile& in, short dataVersion, int flags)
 		return ReadError();
 
 	//read serializable children (if any)
-	for (uint32_t i=0; i<serializableCount; ++i)
+	for (uint32_t i = 0; i < serializableCount; ++i)
 	{
 		//read children class ID
 		CC_CLASS_ENUM classID = ReadClassIDFromFile(in, dataVersion);
@@ -993,6 +1006,15 @@ bool ccHObject::fromFile(QFile& in, short dataVersion, int flags)
 	else
 	{
 		m_selectionBehavior = SELECTION_AA_BBOX;
+	}
+
+	//read transformation history (dataVersion >= 45)
+	if (dataVersion >= 45)
+	{
+		if (!m_glTransHistory.fromFile(in, dataVersion, flags))
+		{
+			return false;
+		}
 	}
 
 	return true;

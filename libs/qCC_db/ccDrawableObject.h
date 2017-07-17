@@ -1,14 +1,14 @@
 //##########################################################################
 //#                                                                        #
-//#                            CLOUDCOMPARE                                #
+//#                              CLOUDCOMPARE                              #
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU General Public License as published by  #
-//#  the Free Software Foundation; version 2 of the License.               #
+//#  the Free Software Foundation; version 2 or later of the License.      #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
 //#          COPYRIGHT: EDF R&D / TELECOM ParisTech (ENST-TSI)             #
@@ -21,7 +21,6 @@
 //Local
 #include "ccGLDrawContext.h"
 #include "qCC_db.h"
-#include "ccColorTypes.h"
 
 //CCLib
 #include <CCGeom.h>
@@ -75,7 +74,7 @@ public:  //drawing and drawing options
 	//! Selects/unselects entity
 	inline virtual void setSelected(bool state) { m_selected = state; }
 
-	//! Returns main OpenGL paramters for this entity
+	//! Returns main OpenGL parameters for this entity
 	/** These parameters are deduced from the visiblity states
 		of its different features (points, normals, etc.).
 		\param params a glDrawParams structure
@@ -138,7 +137,7 @@ public: //Name display in 3D
 
 public: //Temporary color
 
-	//! Returns whether colors are currently overriden by a temporary (unique) color
+	//! Returns whether colors are currently overridden by a temporary (unique) color
 	/** See ccDrawableObject::setTempColor.
 	**/
 	inline virtual bool isColorOverriden() const { return m_colorIsOverriden; }
@@ -198,12 +197,12 @@ public: //Transformation matrix management (for display only)
 	//! Enables/disables associated GL transformation
 	/** See ccDrawableObject::setGLTransformation.
 	**/
-	inline virtual void enableGLTransformation(bool state) { m_glTransEnabled = state; }
+	virtual void enableGLTransformation(bool state);
 
 	//! Returns whether a GL transformation is enabled or not
 	inline virtual bool isGLTransEnabled() const { return m_glTransEnabled; }
 
-	//! Retuns associated GL transformation
+	//! Returns associated GL transformation
 	/** See ccDrawableObject::setGLTransformation.
 	**/
 	inline virtual const ccGLMatrix& getGLTransformation() const { return m_glTrans; }

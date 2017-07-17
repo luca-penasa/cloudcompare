@@ -1,14 +1,14 @@
 //##########################################################################
 //#                                                                        #
-//#                            CLOUDCOMPARE                                #
+//#                              CLOUDCOMPARE                              #
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU General Public License as published by  #
-//#  the Free Software Foundation; version 2 of the License.               #
+//#  the Free Software Foundation; version 2 or later of the License.      #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
 //#          COPYRIGHT: EDF R&D / TELECOM ParisTech (ENST-TSI)             #
@@ -35,8 +35,6 @@
 #ifdef CC_GL_WINDOW_USE_QWINDOW
 #include <QWindow>
 #include <QWidget>
-#else
-#include <QOpenGLWidget>
 #endif
 
 //system
@@ -51,6 +49,7 @@ class ccGlFilter;
 class ccFrameBufferObject;
 class ccInteractor;
 class ccPolyline;
+struct HotZone;
 
 #ifdef CC_GL_WINDOW_USE_QWINDOW
 class QOpenGLPaintDevice;
@@ -169,11 +168,14 @@ public:
 	virtual void toBeRefreshed() override;
 	virtual void refresh(bool only2D = false) override;
 	virtual void invalidateViewport() override;
+	virtual void deprecate3DLayer() override;
 	virtual void display3DLabel(const QString& str, const CCVector3& pos3D, const unsigned char* rgbColor = 0, const QFont& font = QFont()) override;
 	virtual void displayText(QString text, int x, int y, unsigned char align = ALIGN_DEFAULT, float bkgAlpha = 0, const unsigned char* rgbColor = 0, const QFont* font = 0) override;
 	virtual QFont getTextDisplayFont() const override; //takes rendering zoom into account!
 	virtual QFont getLabelDisplayFont() const override; //takes rendering zoom into account!
 	virtual const ccViewportParameters& getViewportParameters() const override { return m_viewportParams; }
+	virtual QPointF toCenteredGLCoordinates(int x, int y) const override;
+	virtual QPointF toCornerGLCoordinates(int x, int y) const override;
 	virtual void setupProjectiveViewport(const ccGLMatrixd& cameraMatrix, float fov_deg = 0.0f, float ar = 1.0f, bool viewerBasedPerspective = true, bool bubbleViewMode = false) override;
 #ifdef CC_GL_WINDOW_USE_QWINDOW
 	inline virtual QWidget* asWidget() override { return m_parentWidget; }
@@ -241,7 +243,9 @@ public:
 	//! Sets pivot point
 	/** Emits the 'pivotPointChanged' signal.
 	**/
-	virtual void setPivotPoint(const CCVector3d& P);
+	virtual void setPivotPoint(	const CCVector3d& P,
+								bool autoUpdateCameraPos = false,
+								bool verbose = false);
 
 	//! Sets camera position
 	/** Emits the 'cameraPosChanged' signal.
@@ -372,7 +376,7 @@ public:
 	//! Sets point size
 	/** \param size point size (between MIN_POINT_SIZE and MAX_POINT_SIZE)
 	**/
-	virtual void setPointSize(float size);
+	virtual void setPointSize(float size, bool silent = false);
 
 	//! Sets line width
 	/** \param width lines width (typically between 1 and 10)
@@ -467,7 +471,7 @@ public:
 	CCVector3d getCurrentUpDir() const;
 
 	//! Returns current parameters for this display (const version)
-	/** Warning: may return overriden parameters!
+	/** Warning: may return overridden parameters!
 	**/
 	const ccGui::ParamStruct& getDisplayParameters() const;
 
@@ -524,6 +528,20 @@ public:
 
 	//! Returns unique ID
 	inline int getUniqueID() const { return m_uniqueID; }
+
+	//! Returns the widget width (in pixels)
+	int qtWidth() const { return ccGLWindow::width(); }
+	//! Returns the widget height (in pixels)
+	int qtHeight() const { return ccGLWindow::height(); }
+	//! Returns the widget size (in pixels)
+	QSize qtSize() const { return ccGLWindowParent::size(); }
+
+	//! Returns the OpenGL context width
+	int glWidth() const { return m_glViewport.width(); }
+	//! Returns the OpenGL context height
+	int glHeight() const { return m_glViewport.height(); }
+	//! Returns the OpenGL context size
+	QSize glSize() const { return m_glViewport.size(); }
 
 public: //LOD
 
@@ -588,6 +606,16 @@ public: //stereo mode
 	//! Returns the current stereo mode parameters
 	inline const StereoParams& getStereoParams() const { return m_stereoParams; }
 
+	//! Sets whether to display the coordinates of the point below the cursor position
+	void showCursorCoordinates(bool state) { m_showCursorCoordinates = state; }
+	//! Whether the coordinates of the point below the cursor position are displayed or not
+	bool cursorCoordinatesShown() const { return m_showCursorCoordinates; }
+
+	//! Toggles the automatic setting of the pivot point at the center of the screen
+	void setAutoPickPivotAtCenter(bool state) { m_autoPickPivotAtCenter = state; }
+	//! Whether the pivot point is automatically set at the center of the screen
+	bool autoPickPivotAtCenter() const { return m_autoPickPivotAtCenter; }
+
 public slots:
 
 	//! Applies a 1:1 global zoom
@@ -596,7 +624,7 @@ public slots:
 	//inherited from ccGenericGLDisplay
 	virtual void redraw(bool only2D = false, bool resetLOD = true) override;
 
-	//called when recieving mouse wheel is rotated
+	//called when receiving mouse wheel is rotated
 	void onWheelEvent(float wheelDelta_deg);
 
 	//! Tests frame rate
@@ -681,6 +709,9 @@ signals:
 
 	//! Signal emitted when the f.o.v. changes
 	void fovChanged(float);
+
+	//! Signal emitted when the zNear coef changes
+	void zNearCoefChanged(float);
 
 	//! Signal emitted when the pivot point is changed
 	void pivotPointChanged(const CCVector3d&);
@@ -834,6 +865,12 @@ protected: //rendering
 
 protected: //other methods
 
+	//these methods are now protected to prevent issues with Retina or other high DPI displays
+	//(see glWidth(), glHeight(), qtWidth(), qtHeight(), qtSize(), glSize()
+	int width() const { return ccGLWindowParent::width(); }
+	int height() const { return ccGLWindowParent::height(); }
+	QSize size() const { return ccGLWindowParent::size(); }
+
 	//! Returns the current (OpenGL) view matrix
 	/** Warning: may be different from the 'view' matrix returned by getBaseViewMat.
 		Will call automatically updateModelViewMatrix if necessary.
@@ -856,10 +893,11 @@ protected: //other methods
 	void setFontPointSize(int pixelSize);
 
 	//events handling
-	void mousePressEvent(QMouseEvent *event) override;
-	void mouseMoveEvent(QMouseEvent *event) override;
-	void mouseReleaseEvent(QMouseEvent *event) override;
-	void wheelEvent(QWheelEvent *event) override;
+	void mousePressEvent(QMouseEvent* event) override;
+	void mouseMoveEvent(QMouseEvent* event) override;
+	void mouseDoubleClickEvent(QMouseEvent* event) override;
+	void mouseReleaseEvent(QMouseEvent* event) override;
+	void wheelEvent(QWheelEvent* event) override;
 	bool event(QEvent* evt) override;
 
 	bool initialize();
@@ -1039,6 +1077,14 @@ protected: //other methods
 	//! Toggles auto-refresh mode
 	void toggleAutoRefresh(bool state, int period_ms = 0);
 
+	//! Returns the (relative) depth value at a given pixel position
+	/** \return the (relative) depth or 1.0 if none is defined
+	**/
+	GLfloat getGLDepth(int x, int y, bool extendToNeighbors = false);
+
+	//! Returns the approximate 3D position of the clicked pixel
+	bool getClick3DPos(int x, int y, CCVector3d& P3D);
+
 protected: //members
 
 #ifdef CC_GL_WINDOW_USE_QWINDOW
@@ -1138,7 +1184,7 @@ protected: //members
 		//! Message
 		QString message;
 		//! Message end time (sec)
-		int messageValidity_sec;
+		qint64 messageValidity_sec;
 		//! Message position on screen
 		MessagePosition position;
 		//! Message type
@@ -1171,6 +1217,8 @@ protected: //members
 		enum Role {	NO_ROLE,
 					INCREASE_POINT_SIZE,
 					DECREASE_POINT_SIZE,
+					INCREASE_LINE_WIDTH,
+					DECREASE_LINE_WIDTH,
 					LEAVE_BUBBLE_VIEW_MODE,
 					LEAVE_FULLSCREEN_MODE,
 		};
@@ -1234,7 +1282,7 @@ protected: //members
 	//! Rectangular picking polyline
 	ccPolyline* m_rectPickingPoly;
 
-	//! Overriden display parameter 
+	//! Overridden display parameter 
 	ccGui::ParamStruct m_overridenDisplayParameters;
 
 	//! Whether display parameters are overidden for this window
@@ -1308,6 +1356,18 @@ protected: //members
 	bool m_autoRefresh;
 	//! Auto-refresh timer
 	QTimer m_autoRefreshTimer;
+
+	//! Hot zone
+	HotZone* m_hotZone;
+
+	//! Whether to display the coordinates of the point below the cursor position
+	bool m_showCursorCoordinates;
+
+	//! Whether the pivot point is automatically picked at the center of the screen (when possible)
+	bool m_autoPickPivotAtCenter;
+
+	//! Candidate pivot point (will be used when the mouse is released)
+	CCVector3d m_autoPivotCandidate;
 
 private:
 

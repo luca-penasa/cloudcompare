@@ -1,14 +1,14 @@
 //##########################################################################
 //#                                                                        #
-//#                            CLOUDCOMPARE                                #
+//#                              CLOUDCOMPARE                              #
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU General Public License as published by  #
-//#  the Free Software Foundation; version 2 of the License.               #
+//#  the Free Software Foundation; version 2 or later of the License.      #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
 //#          COPYRIGHT: CloudCompare project                               #
@@ -21,15 +21,14 @@
 
 #include "ui_aboutDlg.h"
 
-
-ccAboutDialog::ccAboutDialog( QWidget *parent )
-	: QDialog( parent )
-	, mUI( new Ui::AboutDialog )
+ccAboutDialog::ccAboutDialog(QWidget *parent)
+	: QDialog(parent)
+	, mUI(new Ui::AboutDialog)
 {
-	setAttribute( Qt::WA_DeleteOnClose );
-	
+	setAttribute(Qt::WA_DeleteOnClose);
+
 	mUI->setupUi(this);
-	
+
 	QString compilationInfo;
 
 	compilationInfo = ccCommon::GetCCVersion();
@@ -41,14 +40,14 @@ ccAboutDialog::ccAboutDialog( QWidget *parent )
 
 	compilationInfo += QString(" Qt %1").arg(QT_VERSION_STR);
 	compilationInfo += QString("</i>");
-	
-	QString htmlText = mUI->textEdit->toHtml();
+
+	QString htmlText = mUI->labelText->text();
 	QString enrichedHtmlText = htmlText.arg(compilationInfo);
-	
-	mUI->textEdit->setHtml(enrichedHtmlText);
+
+	mUI->labelText->setText(enrichedHtmlText);
 }
 
 ccAboutDialog::~ccAboutDialog()
-{	
+{
 	delete mUI;
 }

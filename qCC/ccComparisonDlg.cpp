@@ -1,14 +1,14 @@
 //##########################################################################
 //#                                                                        #
-//#                            CLOUDCOMPARE                                #
+//#                              CLOUDCOMPARE                              #
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU General Public License as published by  #
-//#  the Free Software Foundation; version 2 of the License.               #
+//#  the Free Software Foundation; version 2 or later of the License.      #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
 //#          COPYRIGHT: EDF R&D / TELECOM ParisTech (ENST-TSI)             #
@@ -519,7 +519,8 @@ int ccComparisonDlg::determineBestOctreeLevel(double maxSearchDist)
 	}
 
 	//we skip the lowest subdivision levels (useless + incompatible with below formulas ;)
-	int theBestOctreeLevel = 2;
+	static const int s_minOctreeLevel = 6;
+	int theBestOctreeLevel = s_minOctreeLevel;
 
 	//we don't test the very first and very last level
 	ccProgressDialog progressCb(false, this);
@@ -533,7 +534,7 @@ int ccComparisonDlg::determineBestOctreeLevel(double maxSearchDist)
 	PointCoordinateType maxDistance = static_cast<PointCoordinateType>(maxDistanceDefined ? maxSearchDistSpinBox->value() : 0);
 
 	//for each level
-	for (int level=2; level<MAX_OCTREE_LEVEL; ++level)
+	for (int level = s_minOctreeLevel; level < MAX_OCTREE_LEVEL; ++level)
 	{
 		const unsigned char bitDec = CCLib::DgmOctree::GET_BIT_SHIFT(level);
 		unsigned numberOfPointsInCell = 0;

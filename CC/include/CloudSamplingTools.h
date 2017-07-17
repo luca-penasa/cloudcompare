@@ -4,11 +4,12 @@
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU Library General Public License as       #
-//#  published by the Free Software Foundation; version 2 of the License.  #
+//#  published by the Free Software Foundation; version 2 or later of the  #
+//#  License.                                                              #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
 //#          COPYRIGHT: EDF R&D / TELECOM ParisTech (ENST-TSI)             #
@@ -64,7 +65,7 @@ public:
 														DgmOctree* inputOctree = 0);
 
 	//! Resamples a point cloud (process based on the octree)
-	/** Same as 'resampleCloudWithOctreeAtLevel' method, appart the fact that instead
+	/** Same as 'resampleCloudWithOctreeAtLevel' method, apart the fact that instead
 		of giving a specific octree subdivision level as input parameter, one can specify
 		an approximative number of points for the resulting cloud (algorithm will
 		automatically determine the corresponding octree level).
@@ -100,7 +101,7 @@ public:
 															DgmOctree* inputOctree = 0);
 
 	//! Subsamples a point cloud (process based on the octree)
-	/** Same as 'subsampleCloudWithOctreeAtLevel' method, appart the fact that instead
+	/** Same as 'subsampleCloudWithOctreeAtLevel' method, apart the fact that instead
 		of giving a specific octree subdivision level as input parameter, one can specify
 		an approximative number of points for the resulting cloud (algorithm will
 		automatically determine the corresponding octree level).
@@ -180,7 +181,7 @@ public:
 		\param cloud the point cloud to resample
 		\param kernelRadius neighborhood radius
 		\param nSigma number of sigmas under which the points should be kept
-		\param removeIsolatedPoints whether to remove isolated points (i.e. whith 3 points or less in the neighborhood)
+		\param removeIsolatedPoints whether to remove isolated points (i.e. with 3 points or less in the neighborhood)
 		\param useKnn whether to use a constant number of neighbors instead of a radius
 		\param knn number of neighbors (if useKnn is true)
 		\param useAbsoluteError whether to use an absolute error instead of 'n' sigmas

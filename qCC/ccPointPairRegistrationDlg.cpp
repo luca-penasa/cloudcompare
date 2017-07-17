@@ -1,14 +1,14 @@
 //##########################################################################
 //#                                                                        #
-//#                            CLOUDCOMPARE                                #
+//#                              CLOUDCOMPARE                              #
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU General Public License as published by  #
-//#  the Free Software Foundation; version 2 of the License.               #
+//#  the Free Software Foundation; version 2 or later of the License.      #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
 //#          COPYRIGHT: EDF R&D / TELECOM ParisTech (ENST-TSI)             #
@@ -20,6 +20,7 @@
 //Local
 #include "mainwindow.h"
 #include "ccAskThreeDoubleValuesDlg.h"
+#include "ccPickingHub.h"
 
 //qCC_gl
 #include <ccGLWindow.h>
@@ -55,14 +56,17 @@ static const int DEL_BUTTON_COL_INDEX	= 4;
 //minimum number of pairs to let the user click on the align button
 static const unsigned MIN_PAIRS_COUNT = 3;
 
-ccPointPairRegistrationDlg::ccPointPairRegistrationDlg(QWidget* parent/*=0*/)
+ccPointPairRegistrationDlg::ccPointPairRegistrationDlg(ccPickingHub* pickingHub, QWidget* parent/*=0*/)
 	: ccOverlayDialog(parent)
 	, m_aligned(0)
 	, m_alignedPoints("aligned points")
 	, m_reference(0)
 	, m_refPoints("reference points")
 	, m_paused(false)
+	, m_pickingHub(pickingHub)
 {
+	assert(m_pickingHub);
+
 	setupUi(this);
 
 	//restore from persistent settings
@@ -139,18 +143,18 @@ void ccPointPairRegistrationDlg::clear()
 	validToolButton->setEnabled(false);
 
 	while (alignedPointsTableWidget->rowCount() != 0)
-		alignedPointsTableWidget->removeRow(alignedPointsTableWidget->rowCount()-1);
+		alignedPointsTableWidget->removeRow(alignedPointsTableWidget->rowCount() - 1);
 	while (refPointsTableWidget->rowCount() != 0)
-		refPointsTableWidget->removeRow(refPointsTableWidget->rowCount()-1);
+		refPointsTableWidget->removeRow(refPointsTableWidget->rowCount() - 1);
 
 	m_alignedPoints.removeAllChildren();
 	m_alignedPoints.clear();
-	m_alignedPoints.setGlobalShift(0,0,0);
+	m_alignedPoints.setGlobalShift(0, 0, 0);
 	m_alignedPoints.setGlobalScale(1.0);
 	m_aligned.entity = 0;
 	m_refPoints.removeAllChildren();
 	m_refPoints.clear();
-	m_refPoints.setGlobalShift(0,0,0);
+	m_refPoints.setGlobalShift(0, 0, 0);
 	m_refPoints.setGlobalScale(1.0);
 	m_reference.entity = 0;
 }
@@ -170,8 +174,7 @@ bool ccPointPairRegistrationDlg::linkWith(ccGLWindow* win)
 		oldWin->removeFromOwnDB(&m_refPoints);
 		m_refPoints.setDisplay(0);
 
-		oldWin->lockPickingMode(false);
-		oldWin->setPickingMode(ccGLWindow::DEFAULT_PICKING);
+		m_pickingHub->removeListener(this);
 	}
 
 	if (!ccOverlayDialog::linkWith(win))
@@ -191,10 +194,12 @@ bool ccPointPairRegistrationDlg::linkWith(ccGLWindow* win)
 
 	if (m_associatedWin)
 	{
-		m_associatedWin->setPickingMode(ccGLWindow::POINT_OR_TRIANGLE_PICKING);
-		m_associatedWin->lockPickingMode(true);
-		connect(m_associatedWin, SIGNAL(itemPicked(ccHObject*, unsigned, int, int, const CCVector3&)), this, SLOT(processPickedItem(ccHObject*, unsigned, int, int, const CCVector3&)));
-
+		if (!m_pickingHub->addListener(this, true))
+		{
+			ccLog::Error("Picking mechanism is already in use! Close the other tool first, and then restart this one.");
+			return false;
+		}
+		
 		m_associatedWin->addToOwnDB(&m_alignedPoints);
 		m_associatedWin->addToOwnDB(&m_refPoints);
 
@@ -487,7 +492,7 @@ bool ccPointPairRegistrationDlg::convertToSphereCenter(CCVector3d& P, ccHObject*
 	return success;
 }
 
-void ccPointPairRegistrationDlg::processPickedItem(ccHObject* entity, unsigned itemIndex, int x, int y, const CCVector3& P)
+void ccPointPairRegistrationDlg::onItemPicked(const PickedItem& pi)
 {
 	if (!m_associatedWin)
 		return;
@@ -496,16 +501,16 @@ void ccPointPairRegistrationDlg::processPickedItem(ccHObject* entity, unsigned i
 	if (m_paused)
 		return;
 
-	if (!entity)
+	if (!pi.entity)
 		return;
 
-	CCVector3d pin = CCVector3d::fromArray(P.u);
+	CCVector3d pin = CCVector3d::fromArray(pi.P3D.u);
 
-	if (entity == m_aligned.entity)
+	if (pi.entity == m_aligned.entity)
 	{
 		addAlignedPoint(pin, m_aligned.entity, true); //picked points are always shifted by default
 	}
-	else if (entity == m_reference.entity)
+	else if (pi.entity == m_reference.entity)
 	{
 		addReferencePoint(pin, m_reference.entity, true); //picked points are always shifted by default
 	}
@@ -536,17 +541,22 @@ static QToolButton* CreateDeleteButton()
 	return delButton;
 }
 
-static cc2DLabel* CreateLabel(ccPointCloud* cloud, unsigned pointIndex, QString pointName, ccGenericGLDisplay* display = 0)
+static cc2DLabel* CreateLabel(cc2DLabel* label, ccPointCloud* cloud, unsigned pointIndex, QString pointName, ccGenericGLDisplay* display = 0)
 {
-	cc2DLabel* label = new cc2DLabel();
-	label->addPoint(cloud,pointIndex);
+	assert(label);
+	label->addPoint(cloud, pointIndex);
 	label->setName(pointName);
 	label->setVisible(true);
 	label->setDisplayedIn2D(false);
-	label->setDisplayedIn3D(true);
+	label->displayPointLegend(true);
 	label->setDisplay(display);
 
 	return label;
+}
+
+static cc2DLabel* CreateLabel(ccPointCloud* cloud, unsigned pointIndex, QString pointName, ccGenericGLDisplay* display = 0)
+{
+	return CreateLabel(new cc2DLabel, cloud, pointIndex, pointName, display);
 }
 
 void ccPointPairRegistrationDlg::onDelButtonPushed()
@@ -558,9 +568,9 @@ void ccPointPairRegistrationDlg::onDelButtonPushed()
 	int pointIndex = -1;
 	//test 'aligned' buttons first
 	{
-		for (int i=0; i<alignedPointsTableWidget->rowCount(); ++i)
+		for (int i = 0; i < alignedPointsTableWidget->rowCount(); ++i)
 		{
-			if (alignedPointsTableWidget->cellWidget(i,DEL_BUTTON_COL_INDEX) == senderButton)
+			if (alignedPointsTableWidget->cellWidget(i, DEL_BUTTON_COL_INDEX) == senderButton)
 			{
 				pointIndex = i;
 				break;
@@ -572,9 +582,9 @@ void ccPointPairRegistrationDlg::onDelButtonPushed()
 	{
 		//test reference points if necessary
 		alignedPoint = false;
-		for (int i=0; i<refPointsTableWidget->rowCount(); ++i)
+		for (int i = 0; i < refPointsTableWidget->rowCount(); ++i)
 		{
-			if (refPointsTableWidget->cellWidget(i,DEL_BUTTON_COL_INDEX) == senderButton)
+			if (refPointsTableWidget->cellWidget(i, DEL_BUTTON_COL_INDEX) == senderButton)
 			{
 				pointIndex = i;
 				break;
@@ -651,7 +661,7 @@ bool ccPointPairRegistrationDlg::addAlignedPoint(CCVector3d& Pin, ccHObject* ent
 		Pin = m_alignedPoints.toGlobal3d<double>(Pin);
 
 	//check that we don't duplicate points
-	for (unsigned i=0; i<m_alignedPoints.size(); ++i)
+	for (unsigned i = 0; i < m_alignedPoints.size(); ++i)
 	{
 		CCVector3d Pi = m_alignedPoints.toGlobal3d<PointCoordinateType>(*m_alignedPoints.getPoint(i));
 		if ((Pi-Pin).norm() < ZERO_TOLERANCE)
@@ -675,19 +685,19 @@ bool ccPointPairRegistrationDlg::addAlignedPoint(CCVector3d& Pin, ccHObject* ent
 	QString pointName = QString("A%1").arg(newPointIndex);
 	
 	//add corresponding row in table
-	addPointToTable(alignedPointsTableWidget,newPointIndex,Pin,pointName);
+	addPointToTable(alignedPointsTableWidget, newPointIndex, Pin, pointName);
 
 	//eventually add a label (or a sphere)
 	if (sphereRadius <= 0)
 	{
-		cc2DLabel* label = CreateLabel(&m_alignedPoints,newPointIndex,pointName,m_associatedWin);
+		cc2DLabel* label = CreateLabel(&m_alignedPoints, newPointIndex, pointName, m_associatedWin);
 		m_alignedPoints.addChild(label);
 	}
 	else
 	{
 		ccGLMatrix trans;
-		trans.setTranslation(Pin);
-		ccSphere* sphere = new ccSphere(sphereRadius,&trans,pointName);
+		trans.setTranslation(P);
+		ccSphere* sphere = new ccSphere(sphereRadius, &trans, pointName);
 		sphere->showNameIn3D(true);
 		sphere->setTempColor(ccColor::red,true);
 		m_alignedPoints.addChild(sphere);
@@ -712,9 +722,9 @@ void ccPointPairRegistrationDlg::unstackAligned()
 
 	//remove label
 	assert(m_alignedPoints.getChildrenNumber() == pointCount);
-	m_alignedPoints.removeChild(pointCount-1);
+	m_alignedPoints.removeChild(pointCount - 1);
 	//remove point
-	m_alignedPoints.resize(pointCount-1);
+	m_alignedPoints.resize(pointCount - 1);
 
 	if (m_associatedWin)
 		m_associatedWin->redraw();
@@ -732,30 +742,35 @@ void ccPointPairRegistrationDlg::removeAlignedPoint(int index, bool autoRemoveDu
 	}
 
 	int pointCount = static_cast<int>(m_alignedPoints.size());
-	//remove all labels above this index
-	assert(m_alignedPoints.getChildrenNumber() == pointCount);
-	{
-		for (int i=pointCount-1; i>=index; --i) //downward for more efficiency
-		{
-			assert(m_alignedPoints.getChild(i));
-			m_alignedPoints.removeChild(i);
-		}
-	}
+	//remove the label (or sphere)
+	m_alignedPoints.removeChild(index);
 	//remove array row
 	alignedPointsTableWidget->removeRow(index);
 
 	//shift points & rename labels
-	for (int i=index+1; i<pointCount; ++i)
+	for (int i = index + 1; i < pointCount; ++i)
 	{
-		*const_cast<CCVector3*>(m_alignedPoints.getPoint(i-1)) = *m_alignedPoints.getPoint(i);
+		*const_cast<CCVector3*>(m_alignedPoints.getPoint(i - 1)) = *m_alignedPoints.getPoint(i);
 
 		//new name
-		QString pointName = QString("A%1").arg(i-1);
-		//create new label
-		cc2DLabel* label = CreateLabel(&m_alignedPoints,static_cast<unsigned>(i-1),pointName,m_associatedWin);
-		m_alignedPoints.addChild(label);
+		QString pointName = QString("A%1").arg(i - 1);
+		//update the label (if any)
+		ccHObject* child = m_alignedPoints.getChild(i - 1);
+		if (child)
+		{
+			if (child->isKindOf(CC_TYPES::LABEL_2D))
+			{
+				cc2DLabel* label = static_cast<cc2DLabel*>(child);
+				label->clear();
+				CreateLabel(label, &m_alignedPoints, static_cast<unsigned>(i - 1), pointName, m_associatedWin);
+			}
+			else //probably a sphere
+			{
+				child->setName(pointName);
+			}
+		}
 		//update array
-		alignedPointsTableWidget->setVerticalHeaderItem(i-1,new QTableWidgetItem(pointName));
+		alignedPointsTableWidget->setVerticalHeaderItem(i - 1, new QTableWidgetItem(pointName));
 	}
 	m_alignedPoints.invalidateBoundingBox();
 	
@@ -766,7 +781,7 @@ void ccPointPairRegistrationDlg::removeAlignedPoint(int index, bool autoRemoveDu
 	if (m_alignedPoints.size() == 0)
 	{
 		//reset global shift (if any)
-		m_alignedPoints.setGlobalShift(0,0,0);
+		m_alignedPoints.setGlobalShift(0, 0, 0);
 		m_alignedPoints.setGlobalScale(1.0);
 	}
 
@@ -780,9 +795,9 @@ void ccPointPairRegistrationDlg::removeAlignedPoint(int index, bool autoRemoveDu
 	//auto-remove the other point?
 	if (	autoRemoveDualPoint
 		&&	index < static_cast<int>(m_refPoints.size())
-		&&	QMessageBox::question(0,"Remove dual point","Remove the equivalent reference point as well?",QMessageBox::Yes,QMessageBox::No) == QMessageBox::Yes )
+		&&	QMessageBox::question(0, "Remove dual point", "Remove the equivalent reference point as well?", QMessageBox::Yes, QMessageBox::No) == QMessageBox::Yes)
 	{
-		removeRefPoint(index,false);
+		removeRefPoint(index, false);
 	}
 }
 
@@ -807,13 +822,13 @@ bool ccPointPairRegistrationDlg::addReferencePoint(CCVector3d& Pin, ccHObject* e
 		else //virtual point
 		{
 			m_refPoints.setGlobalScale(1.0);
-			m_refPoints.setGlobalShift(0,0,0);
-			
+			m_refPoints.setGlobalShift(0, 0, 0);
+
 			if (!shifted)
 			{
 				//test that the input point has not too big coordinates
 				bool shiftEnabled = false;
-				CCVector3d Pshift(0,0,0);
+				CCVector3d Pshift(0, 0, 0);
 				double scale = 1.0;
 				//we use the aligned shift by default (if any)
 				ccGenericPointCloud* alignedCloud = m_aligned.entity ? ccHObjectCaster::ToGenericPointCloud(m_aligned.entity) : 0;
@@ -823,7 +838,7 @@ bool ccPointPairRegistrationDlg::addReferencePoint(CCVector3d& Pin, ccHObject* e
 					scale = alignedCloud->getGlobalScale();
 					shiftEnabled = true;
 				}
-				if (ccGlobalShiftManager::Handle(Pin,0,ccGlobalShiftManager::DIALOG_IF_NECESSARY,shiftEnabled,Pshift,&scale))
+				if (ccGlobalShiftManager::Handle(Pin, 0, ccGlobalShiftManager::DIALOG_IF_NECESSARY, shiftEnabled, Pshift, &scale))
 				{
 					m_refPoints.setGlobalShift(Pshift);
 					m_refPoints.setGlobalScale(scale);
@@ -833,7 +848,7 @@ bool ccPointPairRegistrationDlg::addReferencePoint(CCVector3d& Pin, ccHObject* e
 	}
 
 	PointCoordinateType sphereRadius = -PC_ONE;
-	if (!convertToSphereCenter(Pin,entity,sphereRadius))
+	if (!convertToSphereCenter(Pin, entity, sphereRadius))
 		return false;
 
 	//transform the input point in the 'global world' by default
@@ -843,11 +858,11 @@ bool ccPointPairRegistrationDlg::addReferencePoint(CCVector3d& Pin, ccHObject* e
 	}
 
 	//check that we don't duplicate points
-	for (unsigned i=0; i<m_refPoints.size(); ++i)
+	for (unsigned i = 0; i < m_refPoints.size(); ++i)
 	{
 		//express the 'Pi' point in the current global coordinate system
 		CCVector3d Pi = m_refPoints.toGlobal3d<PointCoordinateType>(*m_refPoints.getPoint(i));
-		if ((Pi-Pin).norm() < ZERO_TOLERANCE)
+		if ((Pi - Pin).norm() < ZERO_TOLERANCE)
 		{
 			ccLog::Error("Point already picked or too close to an already selected one!");
 			return false;
@@ -856,7 +871,7 @@ bool ccPointPairRegistrationDlg::addReferencePoint(CCVector3d& Pin, ccHObject* e
 
 	//add point to the 'reference' set
 	unsigned newPointIndex = m_refPoints.size();
-	if (newPointIndex == m_refPoints.capacity() && !m_refPoints.reserve(newPointIndex+1))
+	if (newPointIndex == m_refPoints.capacity() && !m_refPoints.reserve(newPointIndex + 1))
 	{
 		ccLog::Error("Not enough memory?!");
 		return false;
@@ -865,25 +880,25 @@ bool ccPointPairRegistrationDlg::addReferencePoint(CCVector3d& Pin, ccHObject* e
 	//shift point to the local coordinate system before pushing it
 	CCVector3 P = m_refPoints.toLocal3pc<double>(Pin);
 	m_refPoints.addPoint(P);
-	
+
 	QString pointName = QString("R%1").arg(newPointIndex);
-	
+
 	//add corresponding row in table
-	addPointToTable(refPointsTableWidget,newPointIndex,Pin,pointName);
+	addPointToTable(refPointsTableWidget, newPointIndex, Pin, pointName);
 
 	//eventually add a label (or a sphere)
 	if (sphereRadius <= 0)
 	{
-		cc2DLabel* label = CreateLabel(&m_refPoints,newPointIndex,pointName,m_associatedWin);
+		cc2DLabel* label = CreateLabel(&m_refPoints, newPointIndex, pointName, m_associatedWin);
 		m_refPoints.addChild(label);
 	}
 	else
 	{
 		ccGLMatrix trans;
-		trans.setTranslation(Pin);
-		ccSphere* sphere = new ccSphere(sphereRadius,&trans,pointName);
+		trans.setTranslation(P);
+		ccSphere* sphere = new ccSphere(sphereRadius, &trans, pointName);
 		sphere->showNameIn3D(true);
-		sphere->setTempColor(ccColor::yellow,true);
+		sphere->setTempColor(ccColor::yellow, true);
 		m_refPoints.addChild(sphere);
 	}
 
@@ -904,7 +919,7 @@ void ccPointPairRegistrationDlg::unstackRef()
 		return;
 
 	assert(refPointsTableWidget->rowCount() > 0);
-	refPointsTableWidget->removeRow(refPointsTableWidget->rowCount()-1);
+	refPointsTableWidget->removeRow(refPointsTableWidget->rowCount() - 1);
 
 	//remove label
 	assert(m_refPoints.getChildrenNumber() == pointCount);
@@ -916,7 +931,7 @@ void ccPointPairRegistrationDlg::unstackRef()
 	if (pointCount == 0)
 	{
 		//reset global shift (if any)
-		m_refPoints.setGlobalShift(0,0,0);
+		m_refPoints.setGlobalShift(0, 0, 0);
 		m_refPoints.setGlobalScale(1.0);
 	}
 
@@ -936,33 +951,38 @@ void ccPointPairRegistrationDlg::removeRefPoint(int index, bool autoRemoveDualPo
 	}
 
 	int pointCount = static_cast<int>(m_refPoints.size());
-	//remove all labels above this index
-	assert(m_refPoints.getChildrenNumber() == pointCount);
-	{
-		for (int i=pointCount-1; i>=index; --i) //downward for more efficiency
-		{
-			assert(m_refPoints.getChild(i) && m_refPoints.getChild(i)->isA(CC_TYPES::LABEL_2D));
-			m_refPoints.removeChild(i);
-		}
-	}
+	//remove the label (or sphere)
+	m_refPoints.removeChild(index);
 	//remove array row
 	refPointsTableWidget->removeRow(index);
 
 	//shift points & rename labels
-	for (int i=index+1; i<pointCount; ++i)
+	for (int i = index + 1; i < pointCount; ++i)
 	{
-		*const_cast<CCVector3*>(m_refPoints.getPoint(i-1)) = *m_refPoints.getPoint(i);
+		*const_cast<CCVector3*>(m_refPoints.getPoint(i - 1)) = *m_refPoints.getPoint(i);
 
 		//new name
-		QString pointName = QString("R%1").arg(i-1);
-		//create new label
-		cc2DLabel* label = CreateLabel(&m_refPoints,static_cast<unsigned>(i-1),pointName,m_associatedWin);
-		m_refPoints.addChild(label);
+		QString pointName = QString("R%1").arg(i - 1);
+		//update the label (if any)
+		ccHObject* child = m_refPoints.getChild(i - 1);
+		if (child)
+		{
+			if (child->isKindOf(CC_TYPES::LABEL_2D))
+			{
+				cc2DLabel* label = static_cast<cc2DLabel*>(child);
+				label->clear();
+				CreateLabel(label, &m_refPoints, static_cast<unsigned>(i - 1), pointName, m_associatedWin);
+			}
+			else //probably a sphere
+			{
+				child->setName(pointName);
+			}
+		}
 		//update array
-		refPointsTableWidget->setVerticalHeaderItem(i-1,new QTableWidgetItem(pointName));
+		refPointsTableWidget->setVerticalHeaderItem(i - 1, new QTableWidgetItem(pointName));
 	}
 	m_refPoints.invalidateBoundingBox();
-	
+
 	pointCount--;
 	assert(pointCount >= 0);
 	m_refPoints.resize(static_cast<unsigned>(pointCount));
@@ -970,7 +990,7 @@ void ccPointPairRegistrationDlg::removeRefPoint(int index, bool autoRemoveDualPo
 	if (m_refPoints.size() == 0)
 	{
 		//reset global shift (if any)
-		m_refPoints.setGlobalShift(0,0,0);
+		m_refPoints.setGlobalShift(0, 0, 0);
 		m_refPoints.setGlobalScale(1.0);
 	}
 
@@ -984,7 +1004,7 @@ void ccPointPairRegistrationDlg::removeRefPoint(int index, bool autoRemoveDualPo
 	//auto-remove the other point?
 	if (	autoRemoveDualPoint
 		&&	index < static_cast<int>(m_alignedPoints.size())
-		&&	QMessageBox::question(0,"Remove dual point","Remove the equivalent aligned point as well?",QMessageBox::Yes,QMessageBox::No) == QMessageBox::Yes )
+		&&	QMessageBox::question(0, "Remove dual point", "Remove the equivalent aligned point as well?", QMessageBox::Yes, QMessageBox::No) == QMessageBox::Yes)
 	{
 		removeAlignedPoint(index,false);
 	}
@@ -1073,7 +1093,7 @@ bool ccPointPairRegistrationDlg::callHornRegistration(CCLib::PointProjectionTool
 
 		if (filters != 0)
 		{
-			CCLib::RegistrationTools::FilterTransformation(trans,filters,trans);
+			CCLib::RegistrationTools::FilterTransformation(trans, filters, trans);
 		}
 	}
 
@@ -1086,7 +1106,7 @@ bool ccPointPairRegistrationDlg::callHornRegistration(CCLib::PointProjectionTool
 		if (rms >= 0)
 		{
 			assert(m_alignedPoints.size() == m_refPoints.size());
-			for (unsigned i=0; i<m_alignedPoints.size(); ++i)
+			for (unsigned i = 0; i < m_alignedPoints.size(); ++i)
 			{
 				const CCVector3* Ri = m_refPoints.getPoint(i);
 				const CCVector3* Li = m_alignedPoints.getPoint(i);
@@ -1094,10 +1114,10 @@ bool ccPointPairRegistrationDlg::callHornRegistration(CCLib::PointProjectionTool
 				PointCoordinateType dist = (*Ri-Lit).norm();
 
 				QTableWidgetItem* itemA = new QTableWidgetItem();
-				itemA->setData(Qt::EditRole, dist); 
+				itemA->setData(Qt::EditRole, dist);
 				alignedPointsTableWidget->setItem(i, RMS_COL_INDEX, itemA);
 				QTableWidgetItem* itemR = new QTableWidgetItem();
-				itemR->setData(Qt::EditRole, dist); 
+				itemR->setData(Qt::EditRole, dist);
 				refPointsTableWidget->setItem(i, RMS_COL_INDEX, itemR);
 			}
 		}
@@ -1121,8 +1141,8 @@ void ccPointPairRegistrationDlg::clearRMSColumns()
 
 void ccPointPairRegistrationDlg::resetTitle()
 {
-	m_associatedWin->displayNewMessage(QString(),ccGLWindow::UPPER_CENTER_MESSAGE,false);
-	m_associatedWin->displayNewMessage("[Point-pair registration]",ccGLWindow::UPPER_CENTER_MESSAGE,true,3600);
+	m_associatedWin->displayNewMessage(QString(), ccGLWindow::UPPER_CENTER_MESSAGE, false);
+	m_associatedWin->displayNewMessage("[Point-pair registration]", ccGLWindow::UPPER_CENTER_MESSAGE, true, 3600);
 }
 
 void ccPointPairRegistrationDlg::updateAlignInfo()
@@ -1135,10 +1155,10 @@ void ccPointPairRegistrationDlg::updateAlignInfo()
 
 	if (	m_alignedPoints.size() == m_refPoints.size()
 		&&	m_refPoints.size() >= MIN_PAIRS_COUNT
-		&&	callHornRegistration(trans,rms,true) )
+		&&	callHornRegistration(trans, rms, true))
 	{
 		QString rmsString = QString("Achievable RMS: %1").arg(rms);
-		m_associatedWin->displayNewMessage(rmsString,ccGLWindow::UPPER_CENTER_MESSAGE,true,60*60);
+		m_associatedWin->displayNewMessage(rmsString, ccGLWindow::UPPER_CENTER_MESSAGE, true, 60 * 60);
 		resetToolButton->setEnabled(true);
 		validToolButton->setEnabled(true);
 	}
@@ -1160,13 +1180,13 @@ void ccPointPairRegistrationDlg::align()
 	resetTitle();
 	m_associatedWin->refresh(true);
 
-	if (callHornRegistration(trans,rms,true))
+	if (callHornRegistration(trans, rms, true))
 	{
 		if (rms >= 0)
 		{
 			QString rmsString = QString("Current RMS: %1").arg(rms);
-			ccLog::Print(QString("[PointPairRegistration] ")+rmsString);
-			m_associatedWin->displayNewMessage(rmsString,ccGLWindow::UPPER_CENTER_MESSAGE,true,60*60);
+			ccLog::Print(QString("[PointPairRegistration] ") + rmsString);
+			m_associatedWin->displayNewMessage(rmsString, ccGLWindow::UPPER_CENTER_MESSAGE, true, 60 * 60);
 		}
 		else
 		{
@@ -1189,12 +1209,12 @@ void ccPointPairRegistrationDlg::align()
 			ccLog::Print(QString("[PointPairRegistration] Scale: fixed (1.0)"));
 		}
 
-		ccGLMatrix transMat = FromCCLibMatrix<PointCoordinateType,float>(trans.R,trans.T);
+		ccGLMatrix transMat = FromCCLibMatrix<PointCoordinateType, float>(trans.R, trans.T);
 		//...virtually
 		m_aligned.entity->setGLTransformation(transMat);
 		m_alignedPoints.setGLTransformation(transMat);
 		//DGM: we have to 'counter-scale' the markers (otherwise they might appear very big or very small!)
-		for (unsigned i=0; i<m_alignedPoints.getChildrenNumber(); ++i)
+		for (unsigned i = 0; i < m_alignedPoints.getChildrenNumber(); ++i)
 		{
 			ccHObject* child = m_alignedPoints.getChild(i);
 			if (child->isA(CC_TYPES::LABEL_2D))
@@ -1280,7 +1300,6 @@ void ccPointPairRegistrationDlg::apply()
 		m_aligned.entity->applyGLTransformation_recursive();
 		m_alignedPoints.setGLTransformation(transMat);
 
-		QString matString = transMat.toString();
 		summary << QString("Transformation matrix");
 		summary << transMat.toString(3,'\t'); //low precision, just for display
 		summary << "----------------";

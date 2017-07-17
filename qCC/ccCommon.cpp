@@ -1,16 +1,16 @@
 //##########################################################################
 //#                                                                        #
-//#                            CLOUDCOMPARE                                #
+//#                              CLOUDCOMPARE                              #
 //#                                                                        #
 //#  This project has been initiated under funding from ANR/CIFRE          #
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU General Public License as published by  #
-//#  the Free Software Foundation; version 2 of the License.               #
+//#  the Free Software Foundation; version 2 or later of the License.      #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
 //#          COPYRIGHT: EDF R&D / TELECOM ParisTech (ENST-TSI)             #
@@ -23,7 +23,7 @@
 #include <CCPlatform.h>
 
 #define CC_VER_NUM "2"
-#define CC_SUB_VER "7.0" //2016-04-21
+#define CC_SUB_VER "9.beta" //2017-XX-XX
 
 //! Returns current version as a string
 QString ccCommon::GetCCVersion(bool full/*=true*/)
@@ -34,11 +34,11 @@ QString ccCommon::GetCCVersion(bool full/*=true*/)
 #endif
 
 #if defined(CC_ENV_64)
-	QString arch = "64 bits";
+	QString arch = "64-bit";
 #elif defined(CC_ENV_32)
-	QString arch = "32 bits";
+	QString arch = "32-bit";
 #else
-	QString arch = "?? bits";
+	QString arch = "??-bit";
 #endif
 
 	if (full)
@@ -46,7 +46,7 @@ QString ccCommon::GetCCVersion(bool full/*=true*/)
 #if defined(CC_WINDOWS)
 		QString platform = "Windows";
 #elif defined(CC_MAC_OS)
-		QString platform = "Mac OS";
+		QString platform = "macOS";
 #elif defined(CC_LINUX)
 		QString platform = "Linux";
 #else

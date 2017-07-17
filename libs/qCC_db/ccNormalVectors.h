@@ -1,14 +1,14 @@
 //##########################################################################
 //#                                                                        #
-//#                            CLOUDCOMPARE                                #
+//#                              CLOUDCOMPARE                              #
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU General Public License as published by  #
-//#  the Free Software Foundation; version 2 of the License.               #
+//#  the Free Software Foundation; version 2 or later of the License.      #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
 //#          COPYRIGHT: EDF R&D / TELECOM ParisTech (ENST-TSI)             #
@@ -19,13 +19,11 @@
 #define CC_NORMAL_VECTORS_HEADER
 
 //CCLib
-#include <GenericIndexedMesh.h>
 #include <DgmOctree.h>
 #include <GeometricalAnalysisTools.h>
 
 //Local
 #include "ccGenericPointCloud.h"
-
 
 //! Compressed normal vectors handler
 class QCC_DB_LIB_API ccNormalVectors
@@ -121,7 +119,7 @@ public:
 		\param[out] strike_deg strike value (in degrees)
 		\param[out] dip_deg dip value (in degrees)
 	**/
-	static void ConvertNormalToStrikeAndDip(const CCVector3& N, double& strike_deg, double& dip_deg);
+	static void ConvertNormalToStrikeAndDip(const CCVector3& N, PointCoordinateType& strike_deg, PointCoordinateType& dip_deg);
 
 	//! Converts a normal vector to geological 'dip direction & dip' parameters
 	/** See http://en.wikipedia.org/wiki/Strike_and_dip
@@ -132,6 +130,14 @@ public:
 		\param[out] dipDir_deg dip direction value (in degrees)
 	**/
 	static void ConvertNormalToDipAndDipDir(const CCVector3& N, PointCoordinateType& dip_deg, PointCoordinateType& dipDir_deg);
+
+	//! Converts a couple of geological 'dip direction & dip' parameters to a unit normal vector
+	/** \param[in] dip_deg value (in degrees)
+		\param[in] dipDir_deg dip direction value(in degrees)
+		\param[in] upward whether the output normal vector should point towards Z+ (true) or Z- (false)
+		\return unit normal vector
+	**/
+	static CCVector3 ConvertDipAndDipDirToNormal(PointCoordinateType dip_deg, PointCoordinateType dipDir_deg, bool upward = true);
 
 	//! Converts geological 'strike & dip' parameters (N[dip]°E - [strike]°) to a string
 	/** \param[in] strike_deg strike value (in degrees)
@@ -159,7 +165,7 @@ public:
 	//! Converts a normal vector to RGB color space
 	/** Uses 'ConvertNormalToHSV' then converts HSV to RGB.
 		\param[in] N normal (should be normalized!)
-		\return RGB value (components betwen 0 and MAX_COLOR_COMP)
+		\return RGB value (components between 0 and MAX_COLOR_COMP)
 	**/
 	static ccColor::Rgb ConvertNormalToRGB(const CCVector3& N);
 
@@ -200,7 +206,7 @@ protected:
 	ccNormalVectors();
 
 	//! Inits internal structures
-	bool init(unsigned char quantizeLevel);
+	bool init();
 
 	//! Compressed normal vectors
 	std::vector<CCVector3> m_theNormalVectors;

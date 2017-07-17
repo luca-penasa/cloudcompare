@@ -1,14 +1,14 @@
 //##########################################################################
 //#                                                                        #
-//#                            CLOUDCOMPARE                                #
+//#                              CLOUDCOMPARE                              #
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU General Public License as published by  #
-//#  the Free Software Foundation; version 2 of the License.               #
+//#  the Free Software Foundation; version 2 or later of the License.      #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
 //#                    COPYRIGHT: CloudCompare project                     #
@@ -27,6 +27,8 @@
 //! Thread for background computation
 class ccPointCloudLODThread : public QThread
 {
+	Q_OBJECT
+	
 public:
 	
 	//! Default constructor
@@ -210,6 +212,10 @@ protected:
 			m_lod.setState(ccPointCloudLOD::BROKEN);
 			return;
 		}
+
+		//make sure we deprecate the LOD structure when this octree is modified!
+		QObject::connect(m_octree.data(), &ccOctree::updated, [&](){ m_cloud.clearLOD(); });
+
 		m_maxLevel = static_cast<uint8_t>(std::max<size_t>(1, m_lod.m_levels.size())) - 1;
 		assert(m_maxLevel <= CCLib::DgmOctree::MAX_OCTREE_LEVEL);
 
@@ -457,6 +463,7 @@ bool ccPointCloudLOD::initInternal(ccOctree::Shared octree)
 	}
 	
 	m_octree = octree;
+
 	return true;
 }
 
@@ -558,6 +565,7 @@ public:
 		: m_lod(lod)
 		, m_frustum(frustum)
 		, m_maxLevel(maxLevel)
+		, m_hasClipPlanes(false)
 	{}
 
 	void setClipPlanes(const ccClipPlaneSet& clipPlanes)
@@ -628,7 +636,6 @@ public:
 		case Frustum::INTERSECT:
 			//we have to test the children
 			{
-				bool hasChildren = false;
 				if (node.level < m_maxLevel && node.childCount)
 				{
 					for (int i = 0; i < 8; ++i)
@@ -637,7 +644,6 @@ public:
 						{
 							ccPointCloudLOD::Node& childNode = m_lod.node(node.childIndexes[i], node.level + 1);
 							visibleCount += flag(childNode);
-							hasChildren = true;
 						}
 					}
 
@@ -963,3 +969,5 @@ LODIndexSet* ccPointCloudLOD::getIndexMap(unsigned char level, unsigned& maxCoun
 	m_lastIndexMap = m_indexMap;
 	return m_indexMap;
 }
+
+#include "ccPointCloudLOD.moc"

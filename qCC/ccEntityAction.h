@@ -2,15 +2,15 @@
 #define CCENTITYACTION_H
 //##########################################################################
 //#                                                                        #
-//#                            CLOUDCOMPARE                                #
+//#                              CLOUDCOMPARE                              #
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU General Public License as published by  #
-//#  the Free Software Foundation; version 2 of the License.               #
+//#  the Free Software Foundation; version 2 or later of the License.      #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
 //#          COPYRIGHT: CloudCompare project                               #
@@ -22,7 +22,7 @@
 #include "ccMesh.h"
 
 class QWidget;
-
+class ccMainAppInterface;
 
 namespace ccEntityAction
 {
@@ -32,7 +32,8 @@ namespace ccEntityAction
 	bool	setColorGradient(const ccHObject::Container &selectedEntities, QWidget *parent);
 	bool	changeColorLevels(const ccHObject::Container &selectedEntities, QWidget *parent);
 	bool	interpolateColors(const ccHObject::Container &selectedEntities, QWidget *parent);
-	bool	convertTextureToColor(ccHObject::Container selectedEntities, QWidget *parent);
+	bool	convertTextureToColor(const ccHObject::Container& selectedEntities, QWidget *parent);
+	bool	enhanceRGBWithIntensities(const ccHObject::Container &selectedEntities, QWidget *parent);
 	
 	// Scalar Fields
 	bool	sfGaussianFilter(const ccHObject::Container &selectedEntities, QWidget *parent);
@@ -45,7 +46,8 @@ namespace ccEntityAction
 	bool	exportCoordToSF(const ccHObject::Container &selectedEntities, QWidget *parent);
 	bool	sfArithmetic(const ccHObject::Container &selectedEntities, QWidget *parent);
 	bool	sfFromColor(const ccHObject::Container &selectedEntities, QWidget *parent);
-	
+	bool	interpolateSFs(const ccHObject::Container &selectedEntities, ccMainAppInterface *parent);
+
 	bool	processMeshSF(const ccHObject::Container &selectedEntities, ccMesh::MESH_SCALAR_FIELD_PROCESS process, QWidget *parent);
 	
 	// Normals

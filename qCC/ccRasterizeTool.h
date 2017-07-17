@@ -1,14 +1,14 @@
 //##########################################################################
 //#                                                                        #
-//#                            CLOUDCOMPARE                                #
+//#                              CLOUDCOMPARE                              #
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU General Public License as published by  #
-//#  the Free Software Foundation; version 2 of the License.               #
+//#  the Free Software Foundation; version 2 or later of the License.      #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
 //#          COPYRIGHT: EDF R&D / TELECOM ParisTech (ENST-TSI)             #
@@ -26,7 +26,6 @@
 //Qt
 #include <QString>
 
-
 class ccGenericPointCloud;
 class ccPointCloud;
 class ccPolyline;
@@ -42,6 +41,29 @@ public:
 
 	//! Destructor
 	~ccRasterizeTool();
+
+public: //raster export
+
+	//! Bands to be exported
+	struct ExportBands
+	{
+		bool height = true;
+		bool rgb = false;
+		bool density = false;
+		bool visibleSF = false;
+		bool allSFs = false;
+	};
+
+	//! Exports a raster grid as a geotiff file
+	static bool ExportGeoTiff(	QString outputFilename,
+								const ExportBands& exportBands,
+								ccRasterGrid::EmptyCellFillOption fillEmptyCellsStrategy,
+								const ccRasterGrid& grid,
+								const ccBBox& gridBBox,
+								unsigned char Z,
+								double customHeightForEmptyCells = std::numeric_limits<double>::quiet_NaN(),
+								ccGenericPointCloud* originCloud = 0,
+								int visibleSfIndex = -1);
 
 protected slots:
 
@@ -90,7 +112,7 @@ protected slots:
 	void sfProjectionTypeChanged(int);
 
 	//Inherited from cc2Point5DimEditor
-	virtual bool showGridBoxEditor();
+	virtual bool showGridBoxEditor() override;
 
 	//! Called when the empty cell filling strategy changes
 	void fillEmptyCellStrategyChanged(int);
@@ -113,29 +135,29 @@ protected slots:
 protected: //standard methods
 
 	//Inherited from cc2Point5DimEditor
-	virtual double getGridStep() const;
-	virtual unsigned char getProjectionDimension() const;
-	virtual ProjectionType getTypeOfProjection() const;
+	virtual double getGridStep() const override;
+	virtual unsigned char getProjectionDimension() const override;
+	virtual ccRasterGrid::ProjectionType getTypeOfProjection() const override;
 
 	//! Returns user defined height for empty cells
 	double getCustomHeightForEmptyCells() const;
 
 	//! Returns strategy for empty cell filling (extended version)
-	EmptyCellFillOption getFillEmptyCellsStrategyExt(	double& emptyCellsHeight,
-														double& minHeight,
-														double& maxHeight) const;
+	ccRasterGrid::EmptyCellFillOption getFillEmptyCellsStrategyExt(	double& emptyCellsHeight,
+																	double& minHeight,
+																	double& maxHeight) const;
 
 	//! Returns whether a given field count should be exported as SF (only if a cloud is generated!)
-	bool exportAsSF(ExportableFields field) const;
+	bool exportAsSF(ccRasterGrid::ExportableFields field) const;
 
 	//! Returns whether the output cloud should use the original cloud or the grid as 'support'
 	bool resampleOriginalCloud() const;
 
 	//! Returns type of SF interpolation
-	ProjectionType getTypeOfSFInterpolation() const;
+	ccRasterGrid::ProjectionType getTypeOfSFInterpolation() const;
 
 	//Inherited from cc2Point5DimEditor
-	virtual void gridIsUpToDate(bool state);
+	virtual void gridIsUpToDate(bool state) override;
 
 	//! Load persistent settings
 	void loadSettings();
@@ -149,11 +171,12 @@ protected: //standard methods
 protected: //raster grid related stuff
 
 	//! Converts the grid to a cloud with scalar field(s)
-	ccPointCloud* convertGridToCloud(	const std::vector<ExportableFields>& exportedFields,
+	ccPointCloud* convertGridToCloud(	const std::vector<ccRasterGrid::ExportableFields>& exportedFields,
 										bool interpolateSF,
 										bool interpolateColors,
 										bool copyHillshadeSF,
-										QString activeSFName) const;
+										QString activeSFName,
+										bool exportToOriginalCS) const;
 
 protected: //members
 

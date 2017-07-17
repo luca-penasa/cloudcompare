@@ -1,14 +1,14 @@
 //##########################################################################
 //#                                                                        #
-//#                            CLOUDCOMPARE                                #
+//#                              CLOUDCOMPARE                              #
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU General Public License as published by  #
-//#  the Free Software Foundation; version 2 of the License.               #
+//#  the Free Software Foundation; version 2 or later of the License.      #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
 //#          COPYRIGHT: EDF R&D / TELECOM ParisTech (ENST-TSI)             #
@@ -44,8 +44,10 @@ struct dbTreeSelectionInfo
 	size_t normalsCount;
 	size_t octreeCount;
 	size_t cloudCount;
+	size_t gridCound;
 	size_t groupCount;
 	size_t polylineCount;
+	size_t planeCount;
 	size_t meshCount;
 	size_t imageCount;
 	size_t sensorCount;
@@ -55,13 +57,15 @@ struct dbTreeSelectionInfo
 
 	void reset()
 	{
-		memset(this,0,sizeof(dbTreeSelectionInfo));
+		memset(this, 0, sizeof(dbTreeSelectionInfo));
 	}
 };
 
 //! Custom QTreeView widget (for advanced selection behavior)
 class ccCustomQTreeView : public QTreeView
 {
+	Q_OBJECT
+	
 public:
 
 	//! Default constructor
@@ -137,18 +141,18 @@ public:
 	void unloadAll();
 
 	//inherited from QAbstractItemModel
-	virtual QVariant data(const QModelIndex &index, int role) const;
-	virtual QModelIndex index(int row, int column, const QModelIndex &parentIndex = QModelIndex()) const;
-	virtual QModelIndex index(ccHObject* object);
-	virtual QModelIndex parent(const QModelIndex &index) const;
-	virtual int rowCount(const QModelIndex &parent = QModelIndex()) const;
-	virtual int columnCount(const QModelIndex &parent = QModelIndex()) const;
-	virtual Qt::ItemFlags flags(const QModelIndex &index) const;
-	virtual bool setData(const QModelIndex &index, const QVariant &value, int role = Qt::EditRole);
-	virtual Qt::DropActions supportedDropActions() const;
-	virtual bool dropMimeData(const QMimeData* data, Qt::DropAction action, int row, int column, const QModelIndex& parent);
-	virtual QMap<int,QVariant> itemData(const QModelIndex& index) const;
-	virtual Qt::DropActions supportedDragActions() const { return Qt::MoveAction; }
+	virtual QVariant data(const QModelIndex &index, int role) const override;
+	virtual QModelIndex index(int row, int column, const QModelIndex &parentIndex = QModelIndex()) const override;
+	QModelIndex index(ccHObject* object);
+	virtual QModelIndex parent(const QModelIndex &index) const override;
+	virtual int rowCount(const QModelIndex &parent = QModelIndex()) const override;
+	virtual int columnCount(const QModelIndex &parent = QModelIndex()) const override;
+	virtual Qt::ItemFlags flags(const QModelIndex &index) const override;
+	virtual bool setData(const QModelIndex &index, const QVariant &value, int role = Qt::EditRole) override;
+	virtual Qt::DropActions supportedDropActions() const override;
+	virtual bool dropMimeData(const QMimeData* data, Qt::DropAction action, int row, int column, const QModelIndex& parent) override;
+	virtual QMap<int,QVariant> itemData(const QModelIndex& index) const override;
+	virtual Qt::DropActions supportedDragActions() const override { return Qt::MoveAction; }
 
 public slots:
 	void changeSelection(const QItemSelection & selected, const QItemSelection & deselected);

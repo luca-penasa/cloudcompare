@@ -1,14 +1,14 @@
 //##########################################################################
 //#                                                                        #
-//#                            CLOUDCOMPARE                                #
+//#                              CLOUDCOMPARE                              #
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU General Public License as published by  #
-//#  the Free Software Foundation; version 2 of the License.               #
+//#  the Free Software Foundation; version 2 or later of the License.      #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
 //#          COPYRIGHT: EDF R&D / TELECOM ParisTech (ENST-TSI)             #
@@ -86,15 +86,19 @@ CC_FILE_ERROR PVFilter::saveToFile(ccHObject* entity, QString filename, SavePara
 	float val = std::numeric_limits<float>::quiet_NaN();
 
 	//progress dialog
-	ccProgressDialog pdlg(true, parameters.parentWidget); //cancel available
-	CCLib::NormalizedProgress nprogress(&pdlg,numberOfPoints);
-	pdlg.setMethodTitle(QObject::tr("Save PV file"));
-	pdlg.setInfo(QObject::tr("Points: %1").arg(numberOfPoints));
-	pdlg.start();
+	QScopedPointer<ccProgressDialog> pDlg(0);
+	if (parameters.parentWidget)
+	{
+		pDlg.reset(new ccProgressDialog(true, parameters.parentWidget)); //cancel available
+		pDlg->setMethodTitle(QObject::tr("Save PV file"));
+		pDlg->setInfo(QObject::tr("Points: %1").arg(numberOfPoints));
+		pDlg->start();
+	}
+	CCLib::NormalizedProgress nprogress(pDlg.data(), numberOfPoints);
 
 	CC_FILE_ERROR result = CC_FERR_NO_ERROR;
 
-	for (unsigned i=0; i<numberOfPoints; i++)
+	for (unsigned i = 0; i < numberOfPoints; i++)
 	{
 		//write point
 		{
@@ -118,7 +122,7 @@ CC_FILE_ERROR PVFilter::saveToFile(ccHObject* entity, QString filename, SavePara
 			break;
 		}
 
-		if (!nprogress.oneStep())
+		if (pDlg && !nprogress.oneStep())
 		{
 			result = CC_FERR_CANCELED_BY_USER;
 			break;
@@ -148,11 +152,15 @@ CC_FILE_ERROR PVFilter::loadFile(QString filename, ccHObject& container, LoadPar
 	unsigned numberOfPoints = static_cast<unsigned>(fileSize  / singlePointSize);
 
 	//progress dialog
-	ccProgressDialog pdlg(true, parameters.parentWidget); //cancel available
-	CCLib::NormalizedProgress nprogress(&pdlg,numberOfPoints);
-	pdlg.setMethodTitle(QObject::tr("Open PV file"));
-	pdlg.setInfo(QObject::tr("Points: %1").arg(numberOfPoints));
-	pdlg.start();
+	QScopedPointer<ccProgressDialog> pDlg(0);
+	if (parameters.parentWidget)
+	{
+		pDlg.reset(new ccProgressDialog(true, parameters.parentWidget)); //cancel available
+		pDlg->setMethodTitle(QObject::tr("Open PV file"));
+		pDlg->setInfo(QObject::tr("Points: %1").arg(numberOfPoints));
+		pDlg->start();
+	}
+	CCLib::NormalizedProgress nprogress(pDlg.data(), numberOfPoints);
 
 	ccPointCloud* loadedCloud = 0;
 	//if the file is too big, it will be chuncked in multiple parts
@@ -163,7 +171,7 @@ CC_FILE_ERROR PVFilter::loadFile(QString filename, ccHObject& container, LoadPar
 	unsigned pointsRead = 0;
 	CC_FILE_ERROR result = CC_FERR_NO_ERROR;
 
-	for (unsigned i=0;i<numberOfPoints;i++)
+	for (unsigned i = 0; i < numberOfPoints; i++)
 	{
 		//if we reach the max. cloud size limit, we cerate a new chunk
 		if (pointsRead == fileChunkPos+fileChunkSize)
@@ -195,7 +203,7 @@ CC_FILE_ERROR PVFilter::loadFile(QString filename, ccHObject& container, LoadPar
 
 		//we read the 3 coordinates of the point
 		float rBuff[3];
-		if (in.read((char*)rBuff,3*sizeof(float))>=0)
+		if (in.read((char*)rBuff, 3 * sizeof(float)) >= 0)
 		{
 			//conversion to CCVector3
 			CCVector3 P((PointCoordinateType)rBuff[0],
@@ -210,21 +218,21 @@ CC_FILE_ERROR PVFilter::loadFile(QString filename, ccHObject& container, LoadPar
 		}
 
 		//then the scalar value
-		if (in.read((char*)rBuff,sizeof(float))>=0)
+		if (in.read((char*)rBuff, sizeof(float)) >= 0)
 		{
-			loadedCloud->setPointScalarValue(pointsRead,(ScalarType)rBuff[0]);
+			loadedCloud->setPointScalarValue(pointsRead, (ScalarType)rBuff[0]);
 		}
 		else
 		{
 			//add fake scalar value for consistency then break
-			loadedCloud->setPointScalarValue(pointsRead,0);
+			loadedCloud->setPointScalarValue(pointsRead, 0);
 			result = CC_FERR_READING;
 			break;
 		}
 
 		++pointsRead;
 
-		if (!nprogress.oneStep())
+		if (pDlg && !nprogress.oneStep())
 		{
 			result = CC_FERR_CANCELED_BY_USER;
 			break;

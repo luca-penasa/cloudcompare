@@ -1,14 +1,14 @@
 //##########################################################################
 //#                                                                        #
-//#                            CLOUDCOMPARE                                #
+//#                              CLOUDCOMPARE                              #
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU General Public License as published by  #
-//#  the Free Software Foundation; version 2 of the License.               #
+//#  the Free Software Foundation; version 2 or later of the License.      #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
 //#          COPYRIGHT: EDF R&D / TELECOM ParisTech (ENST-TSI)             #
@@ -26,6 +26,7 @@
 #include "ccGenericMesh.h"
 
 class ccProgressDialog;
+class ccPolyline;
 
 //! Triangular mesh
 class QCC_DB_LIB_API ccMesh : public ccGenericMesh
@@ -74,6 +75,9 @@ public:
 								bool updateNormals = false,
 								PointCoordinateType maxEdgeLength = 0,
 								unsigned char dim = 2);
+
+	//! Creates a Delaunay 2.5D mesh from two polylines
+	static ccMesh* TriangulateTwoPolylines(ccPolyline* p1, ccPolyline* p2, CCVector3* projectionDir = 0);
 
 	//! Merges another mesh into this one
 	/** \param mesh mesh to be merged in this one
@@ -348,7 +352,7 @@ public:
 	bool processScalarField(MESH_SCALAR_FIELD_PROCESS process);
 
 	//! Subdivides mesh (so as to ensure that all triangles are falls below 'maxArea')
-	/** \return subdivided mesh (if successfull)
+	/** \return subdivided mesh (if successful)
 	**/
 	ccMesh* subdivide(PointCoordinateType maxArea) const;
 

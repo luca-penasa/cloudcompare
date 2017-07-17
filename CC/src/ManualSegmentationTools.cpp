@@ -4,11 +4,12 @@
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU Library General Public License as       #
-//#  published by the Free Software Foundation; version 2 of the License.  #
+//#  published by the Free Software Foundation; version 2 or later of the  #
+//#  License.                                                              #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
 //#          COPYRIGHT: EDF R&D / TELECOM ParisTech (ENST-TSI)             #
@@ -18,19 +19,15 @@
 #include "ManualSegmentationTools.h"
 
 //local
-#include "SquareMatrix.h"
-#include "CCTypes.h"
 #include "GenericProgressCallback.h"
-#include "GenericIndexedCloudPersist.h"
-#include "ReferenceCloud.h"
-#include "GenericIndexedMesh.h"
 #include "SimpleMesh.h"
 #include "Polyline.h"
 #include "ChunkedPointCloud.h"
 
 //system
-#include <string.h>
-#include <assert.h>
+#include <map>
+#include <stdint.h> //for uint fixed-sized types
+
 
 using namespace CCLib;
 
@@ -44,10 +41,10 @@ ReferenceCloud* ManualSegmentationTools::segment(GenericIndexedCloudPersist* aCl
 
 	//we check for each point if it falls inside the polyline
 	unsigned count = aCloud->size();
-	for (unsigned i=0; i<count; ++i)
+	for (unsigned i = 0; i < count; ++i)
 	{
 		CCVector3 P;
-		aCloud->getPoint(i,P);
+		aCloud->getPoint(i, P);
 
 		//we project the point in screen space first if necessary
 		if (trans)
@@ -55,7 +52,7 @@ ReferenceCloud* ManualSegmentationTools::segment(GenericIndexedCloudPersist* aCl
 			P = (*trans) * P;
 		}
 
-		bool pointInside = isPointInsidePoly(CCVector2(P.x,P.y),poly);
+		bool pointInside = isPointInsidePoly(CCVector2(P.x, P.y), poly);
 		if ((keepInside && pointInside) || (!keepInside && !pointInside))
 		{
 			if (!Y->addPointIndex(i))
@@ -84,19 +81,19 @@ bool ManualSegmentationTools::isPointInsidePoly(const CCVector2& P, const Generi
 	bool inside = false;
 
 	CCVector3 A;
-	polyVertices->getPoint(0,A);
-	for (unsigned i=1; i<=vertCount; ++i)
+	polyVertices->getPoint(0, A);
+	for (unsigned i = 1; i <= vertCount; ++i)
 	{
 		CCVector3 B;
-		polyVertices->getPoint(i%vertCount,B);
+		polyVertices->getPoint(i % vertCount, B);
 
 		//Point Inclusion in Polygon Test (inspired from W. Randolph Franklin - WRF)
 		//The polyline is considered as a 2D polyline here!
-		if ( (B.y<=P.y && P.y<A.y) || (A.y<=P.y && P.y<B.y) )
+		if ((B.y <= P.y && P.y < A.y) || (A.y <= P.y && P.y < B.y))
 		{
-			PointCoordinateType t = (P.x-B.x)*(A.y-B.y) - (A.x-B.x)*(P.y-B.y);
+			PointCoordinateType t = (P.x - B.x)*(A.y - B.y) - (A.x - B.x)*(P.y - B.y);
 			if (A.y < B.y)
-				t=-t;
+				t = -t;
 			if (t < 0)
 				inside = !inside;
 		}
@@ -112,23 +109,23 @@ bool ManualSegmentationTools::isPointInsidePoly(const CCVector2& P,
 {
 	//number of vertices
 	size_t vertCount = polyVertices.size();
-	if (vertCount<2)
+	if (vertCount < 2)
 		return false;
 
 	bool inside = false;
 
-	for (unsigned i=1; i<=vertCount; ++i)
+	for (unsigned i = 1; i <= vertCount; ++i)
 	{
-		const CCVector2& A = polyVertices[i-1];
+		const CCVector2& A = polyVertices[i - 1];
 		const CCVector2& B = polyVertices[i%vertCount];
 
 		//Point Inclusion in Polygon Test (inspired from W. Randolph Franklin - WRF)
 		//The polyline is considered as a 2D polyline here!
-		if ( (B.y<=P.y && P.y<A.y) || (A.y<=P.y && P.y<B.y) )
+		if ((B.y <= P.y && P.y < A.y) || (A.y <= P.y && P.y < B.y))
 		{
-			PointCoordinateType t = (P.x-B.x)*(A.y-B.y) - (A.x-B.x)*(P.y-B.y);
+			PointCoordinateType t = (P.x - B.x)*(A.y - B.y) - (A.x - B.x)*(P.y - B.y);
 			if (A.y < B.y)
-				t=-t;
+				t = -t;
 			if (t < 0)
 				inside = !inside;
 		}
@@ -137,22 +134,25 @@ bool ManualSegmentationTools::isPointInsidePoly(const CCVector2& P,
 	return inside;
 }
 
-ReferenceCloud* ManualSegmentationTools::segment(GenericIndexedCloudPersist* aCloud, ScalarType minDist, ScalarType maxDist)
+ReferenceCloud* ManualSegmentationTools::segment(	GenericIndexedCloudPersist* cloud,
+													ScalarType minDist,
+													ScalarType maxDist,
+													bool outside/*=false*/)
 {
-	if (!aCloud)
+	if (!cloud)
 	{
 		assert(false);
 		return 0;
 	}
 
-	ReferenceCloud* Y = new ReferenceCloud(aCloud);
+	ReferenceCloud* Y = new ReferenceCloud(cloud);
 
 	//for each point
-	for (unsigned i=0; i<aCloud->size(); ++i)
+	for (unsigned i=0; i<cloud->size(); ++i)
 	{
-		const ScalarType dist = aCloud->getPointScalarValue(i);
-		//we test if its assocaited scalar value falls inside the specified intervale
-		if (dist >= minDist && dist <= maxDist)
+		const ScalarType dist = cloud->getPointScalarValue(i);
+		//we test if its associated scalar value falls inside the specified interval
+		if ((dist >= minDist && dist <= maxDist) ^ outside)
 		{
 			if (!Y->addPointIndex(i))
 			{
@@ -182,17 +182,17 @@ GenericIndexedMesh* ManualSegmentationTools::segmentMesh(GenericIndexedMesh* the
 	{
 		try
 		{
-			newPointIndexes.resize(numberOfPoints,0);
+			newPointIndexes.resize(numberOfPoints, 0);
 		}
 		catch (const std::bad_alloc&)
 		{
 			return 0; //not enough memory
 		}
 
-		for (unsigned i=0; i<numberOfIndexes; ++i)
+		for (unsigned i = 0; i < numberOfIndexes; ++i)
 		{
 			assert(pointIndexes->getPointGlobalIndex(i) < numberOfPoints);
-			newPointIndexes[pointIndexes->getPointGlobalIndex(i)] = i+1;
+			newPointIndexes[pointIndexes->getPointGlobalIndex(i)] = i + 1;
 		}
 	}
 
@@ -200,7 +200,7 @@ GenericIndexedMesh* ManualSegmentationTools::segmentMesh(GenericIndexedMesh* the
 	if (!pointsWillBeInside)
 	{
 		unsigned newIndex = 0;
-		for (unsigned i=0;i<numberOfPoints;++i)
+		for (unsigned i = 0; i < numberOfPoints; ++i)
 			newPointIndexes[i] = (newPointIndexes[i] == 0 ? ++newIndex : 0);
 	}
 
@@ -236,7 +236,7 @@ GenericIndexedMesh* ManualSegmentationTools::segmentMesh(GenericIndexedMesh* the
 			int newVertexIndexes[3];
 
 			//VERSION: WE KEEP THE TRIANGLE ONLY IF ITS 3 VERTICES ARE INSIDE
-			for (unsigned char j=0;j <3; ++j)
+			for (unsigned char j = 0; j < 3; ++j)
 			{
 				const unsigned& currentVertexFlag = newPointIndexes[tsi->i[j]];
 
@@ -246,7 +246,7 @@ GenericIndexedMesh* ManualSegmentationTools::segmentMesh(GenericIndexedMesh* the
 					triangleIsOnTheRightSide = false;
 					break;
 				}
-				newVertexIndexes[j] = currentVertexFlag-1;
+				newVertexIndexes[j] = currentVertexFlag - 1;
 			}
 
 			//if we keep the triangle
@@ -295,14 +295,10 @@ const unsigned c_srcIndexFlag  = 0x40000000; //source index flag (bit 30)
 const unsigned c_realIndexMask = 0x3FFFFFFF; //original index mask (bit 0 to 29) --> max allowed index = 1073741823 ;)
 const unsigned c_defaultArrayGrowth = 100;
 
-#include <map>
-#include <stdint.h> //for uint fixed-sized types
-
 struct InsideOutsideIndexes
 {
 	InsideOutsideIndexes() : insideIndex(0), outsideIndex(0) {}
 	InsideOutsideIndexes(unsigned inside, unsigned outside) : insideIndex(inside), outsideIndex(outside) {}
-	InsideOutsideIndexes(const InsideOutsideIndexes& pmi) : insideIndex(pmi.insideIndex), outsideIndex(pmi.outsideIndex){}
 	unsigned insideIndex;
 	unsigned outsideIndex;
 };

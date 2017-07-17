@@ -1,14 +1,14 @@
 //##########################################################################
 //#                                                                        #
-//#                            CLOUDCOMPARE                                #
+//#                              CLOUDCOMPARE                              #
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU General Public License as published by  #
-//#  the Free Software Foundation; version 2 of the License.               #
+//#  the Free Software Foundation; version 2 or later of the License.      #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
 //#          COPYRIGHT: EDF R&D / TELECOM ParisTech (ENST-TSI)             #
@@ -57,7 +57,7 @@ struct edge
 
 void ReleaseEdgeList(edge**& theEdges, unsigned numberOfVertexes, CCLib::NormalizedProgress* nprogress = 0)
 {
-	for (unsigned i=0; i<numberOfVertexes; ++i)
+	for (unsigned i = 0; i < numberOfVertexes; ++i)
 	{
 		if (theEdges[i])
 		{
@@ -72,7 +72,9 @@ void ReleaseEdgeList(edge**& theEdges, unsigned numberOfVertexes, CCLib::Normali
 		}
 
 		if (nprogress)
+		{
 			nprogress->oneStep();
+		}
 	}
 	delete[] theEdges;
 	theEdges = 0;
@@ -127,12 +129,16 @@ CC_FILE_ERROR MAFilter::saveToFile(ccHObject* entity, QString filename, SavePara
 		return CC_FERR_WRITING;
 
 	//progress dialog
-	ccProgressDialog pdlg(true, parameters.parentWidget); //cancel available
+	QScopedPointer<ccProgressDialog> pDlg(0);
 	const int coloursAdjustment = (hasColors ? 1 : 0);
-	CCLib::NormalizedProgress nprogress(&pdlg, ((2 + coloursAdjustment) * numberOfTriangles + (3 + coloursAdjustment) * numberOfVertexes));
-	pdlg.setMethodTitle(QObject::tr("Save MA file"));
-	pdlg.setInfo(QObject::tr("Triangles = %1").arg(numberOfTriangles));
-	pdlg.start();
+	if (parameters.parentWidget)
+	{
+		pDlg.reset(new ccProgressDialog(true, parameters.parentWidget)); //cancel available
+		pDlg->setMethodTitle(QObject::tr("Save MA file"));
+		pDlg->setInfo(QObject::tr("Triangles = %1").arg(numberOfTriangles));
+		pDlg->start();
+	}
+	CCLib::NormalizedProgress nprogress(pDlg.data(), ((2 + coloursAdjustment) * numberOfTriangles + (3 + coloursAdjustment) * numberOfVertexes));
 
 	//we extract the (short) filename from the whole path
 	QString baseFilename = QFileInfo(filename).fileName();
@@ -214,11 +220,11 @@ CC_FILE_ERROR MAFilter::saveToFile(ccHObject* entity, QString filename, SavePara
 		return CC_FERR_WRITING;
 	}
 	{
-		for (unsigned i=0; i<numberOfVertexes; ++i)
+		for (unsigned i = 0; i < numberOfVertexes; ++i)
 		{
 			const CCVector3* P = theCloud->getPoint(i);
 			CCVector3d Pglobal = theCloud->toGlobal3d<PointCoordinateType>(*P);
-			if (fprintf(fp,(i+1==numberOfVertexes ? "\t\t%f %f %f;\n" : "\t\t%f %f %f\n"),
+			if (fprintf(fp, (i + 1 == numberOfVertexes ? "\t\t%f %f %f;\n" : "\t\t%f %f %f\n"),
 							Pglobal.x,
 							Pglobal.y,
 							Pglobal.z) < 0)
@@ -227,21 +233,24 @@ CC_FILE_ERROR MAFilter::saveToFile(ccHObject* entity, QString filename, SavePara
 				return CC_FERR_WRITING;
 			}
 
-			nprogress.oneStep();
+			if (pDlg)
+			{
+				nprogress.oneStep();
+			}
 		}
 	}
 
 	//save "edges"
 	edge** theEdges = new edge*[numberOfVertexes];
 	memset(theEdges,0,sizeof(edge*)*numberOfVertexes);
-	unsigned ind[3],a,b;
+	unsigned ind[3], a, b;
 	int lastEdgeIndexPushed = -1;
 
 	int hard = 0; //Maya edges cab be "hard" or "soft" ...
 	{
 
 		theMesh->placeIteratorAtBegining();
-		for (unsigned i=0; i<numberOfTriangles; ++i)
+		for (unsigned i = 0; i < numberOfTriangles; ++i)
 		{
 			const CCLib::VerticesIndexes* tsi = theMesh->getNextTriangleVertIndexes(); //DGM: getNextTriangleVertIndexes is faster for mesh groups!
 
@@ -272,7 +281,7 @@ CC_FILE_ERROR MAFilter::saveToFile(ccHObject* entity, QString filename, SavePara
 					edge* newEdge = new edge;
 					newEdge->nextEdge = NULL;
 					newEdge->theOtherPoint = b;
-					newEdge->positif = (a==ind[k]);
+					newEdge->positif = (a == ind[k]);
 					//newEdge->edgeIndex = ++lastEdgeIndexPushed; //don't write the edge right now
 					newEdge->edgeIndex = 0;
 					++lastEdgeIndexPushed;
@@ -296,7 +305,10 @@ CC_FILE_ERROR MAFilter::saveToFile(ccHObject* entity, QString filename, SavePara
 				}
 			}
 
-			nprogress.oneStep();
+			if (pDlg)
+			{
+				nprogress.oneStep();
+			}
 		}
 	}
 
@@ -326,7 +338,10 @@ CC_FILE_ERROR MAFilter::saveToFile(ccHObject* entity, QString filename, SavePara
 				e = e->nextEdge;
 			}
 
-			nprogress.oneStep();
+			if (pDlg)
+			{
+				nprogress.oneStep();
+			}
 		}
 	}
 
@@ -386,13 +401,16 @@ CC_FILE_ERROR MAFilter::saveToFile(ccHObject* entity, QString filename, SavePara
 				return CC_FERR_WRITING;
 			}
 
-			nprogress.oneStep();
+			if (pDlg)
+			{
+				nprogress.oneStep();
+			}
 		}
 	}
 
 	//free memory
 	{
-		ReleaseEdgeList(theEdges, numberOfVertexes, &nprogress);
+		ReleaseEdgeList(theEdges, numberOfVertexes, pDlg ? &nprogress : 0);
 	}
 
 	//bonus track
@@ -451,13 +469,16 @@ CC_FILE_ERROR MAFilter::saveToFile(ccHObject* entity, QString filename, SavePara
 					}
 				}
 
-				nprogress.oneStep();
+				if (pDlg)
+				{
+					nprogress.oneStep();
+				}
 			}
 		}
 
 		//for each vertex
 		{
-			for (unsigned i=0; i<numberOfVertexes; ++i)
+			for (unsigned i = 0; i < numberOfVertexes; ++i)
 			{
 				const ColorCompType* c = pc->getPointColor(i);
 				ccColor::Rgbf col(	static_cast<float>(c[0])/ccColor::MAX,
@@ -478,7 +499,7 @@ CC_FILE_ERROR MAFilter::saveToFile(ccHObject* entity, QString filename, SavePara
 					if (fprintf(fp,"\tsetAttr -s %i \".vclr[%u].vfcl\";\n",nf,i) < 0)
 					{
 						fclose(fp);
-						delete[] theFacesIndexes; //DGM: we are missing soem faces here, aren't we?
+						delete[] theFacesIndexes; //DGM: we are missing some faces here, aren't we?
 						return CC_FERR_WRITING;
 					}
 
@@ -488,7 +509,7 @@ CC_FILE_ERROR MAFilter::saveToFile(ccHObject* entity, QString filename, SavePara
 						if (fprintf(fp,"\tsetAttr \".vclr[%u].vfcl[%i].frgb\" -type \"float3\" %f %f %f;\n",i,f->faceIndex,col.r,col.g,col.b) < 0)
 						{
 							fclose(fp);
-							delete[] theFacesIndexes; //DGM: we are missing soem faces here, aren't we?
+							delete[] theFacesIndexes; //DGM: we are missing some faces here, aren't we?
 							return CC_FERR_WRITING;
 						}
 
@@ -499,7 +520,10 @@ CC_FILE_ERROR MAFilter::saveToFile(ccHObject* entity, QString filename, SavePara
 					theFacesIndexes[i] = NULL;
 				}
 
-				nprogress.oneStep();
+				if (pDlg)
+				{
+					nprogress.oneStep();
+				}
 			}
 		}
 		delete[] theFacesIndexes;

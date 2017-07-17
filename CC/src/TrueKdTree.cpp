@@ -4,11 +4,12 @@
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU Library General Public License as       #
-//#  published by the Free Software Foundation; version 2 of the License.  #
+//#  published by the Free Software Foundation; version 2 or later of the  #
+//#  License.                                                              #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
 //#          COPYRIGHT: EDF R&D / TELECOM ParisTech (ENST-TSI)             #
@@ -19,13 +20,9 @@
 
 //local
 #include "GenericProgressCallback.h"
-#include "GenericIndexedCloudPersist.h"
 #include "Neighbourhood.h"
 #include "SortAlgo.h"
 
-//system
-#include <algorithm>
-#include <assert.h>
 
 //Qt
 #ifdef USE_QT
@@ -81,9 +78,6 @@ static void InitProgress(GenericProgressCallback* progressCb, unsigned totalCoun
 			s_progressCb->setInfo(info);
 		}
 		s_progressCb->start();
-#ifdef USE_QT
-		QCoreApplication::processEvents();
-#endif
 	}
 }
 
@@ -99,9 +93,6 @@ static inline void UpdateProgress(unsigned increment)
 		{
 			s_progressCb->update(fPercent);
 			s_lastProgress = uiPercent;
-#ifdef USE_QT
-			QCoreApplication::processEvents();
-#endif
 		}
 	}
 }

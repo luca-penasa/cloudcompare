@@ -1,14 +1,14 @@
 //##########################################################################
 //#                                                                        #
-//#                            CLOUDCOMPARE                                #
+//#                              CLOUDCOMPARE                              #
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU General Public License as published by  #
-//#  the Free Software Foundation; version 2 of the License.               #
+//#  the Free Software Foundation; version 2 or later of the License.      #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
 //#          COPYRIGHT: EDF R&D / TELECOM ParisTech (ENST-TSI)             #
@@ -349,9 +349,10 @@ public:
 
 		QTextStream stream(&fp);
 		stream.setRealNumberPrecision(precision);
-		for (unsigned i=0; i<4; ++i)
+		stream.setRealNumberNotation(QTextStream::FixedNotation);
+		for (unsigned i = 0; i < 4; ++i)
 		{
-			stream << m_mat[i] << " " << m_mat[i+4] << " " << m_mat[i+8] << " " << m_mat[i+12] << endl;
+			stream << m_mat[i] << " " << m_mat[i + 4] << " " << m_mat[i + 8] << " " << m_mat[i + 12] << endl;
 		}
 
 		return (fp.error() == QFile::NoError);
@@ -647,13 +648,13 @@ public:
 	inline const T* data() const { return m_mat; }
 
 	//! Retruns a pointer to internal translation
-	/** Translation corresponds to the begining of the
+	/** Translation corresponds to the beginning of the
 		third column of the matrix.
 	**/
 	inline T* getTranslation() { return m_mat+12; }
 
 	//! Retruns a const pointer to internal translation
-	/** Translation corresponds to the begining of the
+	/** Translation corresponds to the beginning of the
 		third column of the matrix.
 	**/
 	inline const T* getTranslation() const { return m_mat+12; }

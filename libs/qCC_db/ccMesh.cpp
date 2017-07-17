@@ -1,14 +1,14 @@
 //##########################################################################
 //#                                                                        #
-//#                            CLOUDCOMPARE                                #
+//#                              CLOUDCOMPARE                              #
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU General Public License as published by  #
-//#  the Free Software Foundation; version 2 of the License.               #
+//#  the Free Software Foundation; version 2 or later of the License.      #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
 //#          COPYRIGHT: EDF R&D / TELECOM ParisTech (ENST-TSI)             #
@@ -24,6 +24,7 @@
 #include "ccGenericPointCloud.h"
 #include "ccNormalVectors.h"
 #include "ccPointCloud.h"
+#include "ccPolyline.h"
 #include "ccNormalVectors.h"
 #include "ccMaterialSet.h"
 #include "ccSubMesh.h"
@@ -34,12 +35,15 @@
 
 //CCLib
 #include <ManualSegmentationTools.h>
+#include <PointProjectionTools.h>
 #include <ReferenceCloud.h>
+#include <Neighbourhood.h>
+#include <Delaunay2dMesh.h>
 
 //System
 #include <string.h>
 #include <assert.h>
-#include <math.h> //for modf
+#include <cmath> //for std::modf
 
 static CCVector3 s_blankNorm(0,0,0);
 
@@ -197,7 +201,7 @@ bool ccMesh::computePerVertexNormals()
 	std::vector<CCVector3> theNorms;
 	try
 	{
-		theNorms.resize(vertCount,s_blankNorm);
+		theNorms.resize(vertCount, s_blankNorm);
 	}
 	catch (const std::bad_alloc&)
 	{
@@ -216,11 +220,11 @@ bool ccMesh::computePerVertexNormals()
 	//for each triangle
 	placeIteratorAtBegining();
 	{
-		for (unsigned i=0; i<triCount; ++i)
+		for (unsigned i = 0; i < triCount; ++i)
 		{
 			CCLib::VerticesIndexes* tsi = getNextTriangleVertIndexes();
 
-			assert(tsi->i1<vertCount && tsi->i2<vertCount && tsi->i3<vertCount);
+			assert(tsi->i1 < vertCount && tsi->i2 < vertCount && tsi->i3 < vertCount);
 			const CCVector3 *A = cloud->getPoint(tsi->i1);
 			const CCVector3 *B = cloud->getPoint(tsi->i2);
 			const CCVector3 *C = cloud->getPoint(tsi->i3);
@@ -238,12 +242,12 @@ bool ccMesh::computePerVertexNormals()
 
 	//for each vertex
 	{
-		for (unsigned i=0; i<vertCount; i++)
+		for (unsigned i = 0; i < vertCount; i++)
 		{
 			CCVector3& N = theNorms[i];
 			//normalize the 'mean' normal
 			N.normalize();
-			cloud->setPointNormal(i,N);
+			cloud->setPointNormal(i, N);
 		}
 	}
 
@@ -886,6 +890,212 @@ ccMesh* ccMesh::cloneMesh(	ccGenericPointCloud* vertices/*=0*/,
 	return cloneMesh;
 }
 
+ccMesh* ccMesh::TriangulateTwoPolylines(ccPolyline* p1, ccPolyline* p2, CCVector3* projectionDir/*=0*/)
+{
+	if (!p1 || p1->size() == 0 || !p2 || p2->size() == 0)
+	{
+		assert(false);
+		return 0;
+	}
+
+	ccPointCloud* vertices = new ccPointCloud("vertices");
+	if (!vertices->reserve(p1->size() + p2->size()))
+	{
+		ccLog::Warning("[ccMesh::TriangulateTwoPolylines] Not enough memory");
+		delete vertices;
+		return 0;
+	}
+
+	//merge the two sets of vertices
+	{
+		for (unsigned i = 0; i < p1->size(); ++i)
+			vertices->addPoint(*p1->getPoint(i));
+		for (unsigned j = 0; j < p2->size(); ++j)
+			vertices->addPoint(*p2->getPoint(j));
+	}
+	assert(vertices->size() != 0);
+
+	CCLib::Neighbourhood N(vertices);
+
+	//get plane coordinate system
+	CCVector3 O = *N.getGravityCenter();
+	CCVector3 X(1, 0, 0), Y(0, 1, 0);
+	if (projectionDir)
+	{
+		//use the input projection dir.
+		X = projectionDir->orthogonal();
+		Y = projectionDir->cross(X);
+	}
+	else
+	{
+		//use the best fit plane (normal)
+		if (!N.getLSPlane())
+		{
+			ccLog::Warning("[ccMesh::TriangulateTwoPolylines] Failed to fit a plane through both polylines");
+			delete vertices;
+			return 0;
+		}
+
+		X = *N.getLSPlaneX();
+		Y = *N.getLSPlaneY();
+	}
+
+	std::vector<CCVector2> points2D;
+	std::vector<int> segments2D;
+	try
+	{
+		points2D.reserve(p1->size() + p2->size());
+		segments2D.reserve(p1->segmentCount() + p2->segmentCount());
+	}
+	catch (const std::bad_alloc&)
+	{
+		//not enough memory
+		ccLog::Warning("[ccMesh::TriangulateTwoPolylines] Not enough memory");
+		delete vertices;
+		return 0;
+	}
+
+	//project the polylines on the best fitting plane
+	{
+		ccPolyline* polylines[2] = { p1, p2 };
+		for (size_t i = 0; i < 2; ++i)
+		{
+			ccPolyline* poly = polylines[i];
+			unsigned vertCount = poly->size();
+			int vertIndex0 = static_cast<int>(points2D.size());
+			bool closed = poly->isClosed();
+			for (unsigned v = 0; v < vertCount; ++v)
+			{
+				const CCVector3* P = poly->getPoint(v);
+				int vertIndex = static_cast<int>(points2D.size());
+				
+				CCVector3 OP = *P - O;
+				CCVector2 P2D(OP.dot(X), OP.dot(Y));
+				points2D.push_back(P2D);
+
+				if (v + 1 < vertCount)
+				{
+					segments2D.push_back(vertIndex);
+					segments2D.push_back(vertIndex + 1);
+				}
+				else if (closed)
+				{
+					segments2D.push_back(vertIndex);
+					segments2D.push_back(vertIndex0);
+				}
+			}
+		}
+		assert(points2D.size() == p1->size() + p2->size());
+		assert(segments2D.size() == (p1->segmentCount() + p2->segmentCount()) * 2);
+	}
+
+	CCLib::Delaunay2dMesh* delaunayMesh = new CCLib::Delaunay2dMesh;
+	char errorStr[1024];
+	if (!delaunayMesh->buildMesh(points2D, segments2D, errorStr))
+	{
+		ccLog::Warning(QString("Third party library error: %1").arg(errorStr));
+		delete delaunayMesh;
+		delete vertices;
+		return 0;
+	}
+
+	delaunayMesh->linkMeshWith(vertices, false);
+
+	//remove the points oustide of the 'concave' hull
+	{
+		//first compute the Convex hull
+		std::vector<CCLib::PointProjectionTools::IndexedCCVector2> indexedPoints2D;
+		try
+		{
+			indexedPoints2D.resize(points2D.size());
+			for (size_t i = 0; i < points2D.size(); ++i)
+			{
+				indexedPoints2D[i] = points2D[i];
+				indexedPoints2D[i].index = static_cast<unsigned>(i);
+			}
+			
+			std::list<CCLib::PointProjectionTools::IndexedCCVector2*> hullPoints;
+			if (CCLib::PointProjectionTools::extractConvexHull2D(indexedPoints2D, hullPoints))
+			{
+				std::list<CCLib::PointProjectionTools::IndexedCCVector2*>::iterator A = hullPoints.begin();
+				for (; A != hullPoints.end(); ++A)
+				{
+					//current hull segment
+					std::list<CCLib::PointProjectionTools::IndexedCCVector2*>::iterator B = A; B++;
+					if (B == hullPoints.end())
+					{
+						B = hullPoints.begin();
+					}
+
+					unsigned Aindex = (*A)->index;
+					unsigned Bindex = (*B)->index;
+					int Apoly = (Aindex < p1->size() ? 0 : 1);
+					int Bpoly = (Bindex < p1->size() ? 0 : 1);
+					//both vertices belong to the same polyline
+					if (Apoly == Bpoly)
+					{
+						//if it creates an outer loop
+						if (abs(static_cast<int>(Bindex) - static_cast<int>(Aindex)) > 1)
+						{
+							//create the corresponding contour
+							unsigned iStart = std::min(Aindex, Bindex);
+							unsigned iStop = std::max(Aindex, Bindex);
+							std::vector<CCVector2> contour;
+							contour.reserve(iStop - iStart + 1);
+							for (unsigned j = iStart; j <= iStop; ++j)
+							{
+								contour.push_back(points2D[j]);
+							}
+							delaunayMesh->removeOuterTriangles(points2D, contour, /*remove inside = */false);
+						}
+					}
+				}
+			}
+			else
+			{
+				ccLog::Warning("[ccMesh::TriangulateTwoPolylines] Failed to compute the convex hull (can't clean the mesh borders)");
+			}
+		}
+		catch (const std::bad_alloc&)
+		{
+			ccLog::Warning("[ccMesh::TriangulateTwoPolylines] Not enough memory to clean the mesh borders");
+		}
+
+	}
+
+	ccMesh* mesh = new ccMesh(delaunayMesh, vertices);
+	if (mesh->size() != delaunayMesh->size())
+	{
+		//not enough memory (error will be issued later)
+		delete mesh;
+		mesh = 0;
+	}
+
+	//don't need this anymore
+	delete delaunayMesh;
+	delaunayMesh = 0;
+
+	if (mesh)
+	{
+		mesh->addChild(vertices);
+		mesh->setVisible(true);
+		vertices->setEnabled(false);
+
+		//global shift & scale (we copy it from the first polyline by default)
+		vertices->setGlobalShift(p1->getGlobalShift());
+		vertices->setGlobalScale(p1->getGlobalScale());
+		//same thing for the display
+		mesh->setDisplay(p1->getDisplay());
+	}
+	else
+	{
+		ccLog::Warning("[ccMesh::TriangulateTwoPolylines] Not enough memory");
+		delete vertices;
+		vertices = 0;
+	}
+
+	return mesh;
+}
 
 ccMesh* ccMesh::Triangulate(ccGenericPointCloud* cloud,
 							CC_TRIANGULATION_TYPES type,
@@ -935,7 +1145,9 @@ ccMesh* ccMesh::Triangulate(ccGenericPointCloud* cloud,
 	bool cloudHadNormals = cloud->hasNormals();
 	//compute per-vertex normals if necessary
 	if (!cloudHadNormals || updateNormals)
+	{
 		mesh->computeNormals(true);
+	}
 	mesh->showNormals(cloudHadNormals || !cloud->hasColors());
 	if (mesh->getAssociatedCloud() && mesh->getAssociatedCloud() != cloud)
 	{
@@ -954,8 +1166,10 @@ bool ccMesh::merge(const ccMesh* mesh)
 		ccLog::Warning("[ccMesh::merge] Internal error: invalid input!");
 		return false;
 	}
-	if (	!mesh->getAssociatedCloud() || !mesh->getAssociatedCloud()->isA(CC_TYPES::POINT_CLOUD)
-		||	!m_associatedCloud || !m_associatedCloud->isA(CC_TYPES::POINT_CLOUD))
+	if (	!mesh->getAssociatedCloud()
+		||	!mesh->getAssociatedCloud()->isA(CC_TYPES::POINT_CLOUD)
+		||	!m_associatedCloud
+		||	!m_associatedCloud->isA(CC_TYPES::POINT_CLOUD))
 	{
 		assert(false);
 		ccLog::Warning("[ccMesh::merge] Requires meshes with standard vertices!");
@@ -1019,10 +1233,10 @@ bool ccMesh::merge(const ccMesh* mesh)
 				break;
 			}
 
-			for (unsigned i=0; i<triAdded; ++i)
+			for (unsigned i = 0; i < triAdded; ++i)
 			{
 				const CCLib::VerticesIndexes* tsi = mesh->getTriangleVertIndexes(i);
-				addTriangle(vertIndexShift+tsi->i1, vertIndexShift+tsi->i2, vertIndexShift+tsi->i3);
+				addTriangle(vertIndexShift + tsi->i1, vertIndexShift + tsi->i2, vertIndexShift + tsi->i3);
 			}
 		}
 
@@ -1051,7 +1265,7 @@ bool ccMesh::merge(const ccMesh* mesh)
 					}
 					//copy the values
 					{
-						for (unsigned i=0; i<mesh->m_triNormals->currentSize(); ++i)
+						for (unsigned i = 0; i < mesh->m_triNormals->currentSize(); ++i)
 							m_triNormals->addElement(mesh->m_triNormals->getValue(i));
 					}
 					triIndexShift = triNormalsCountBefore;
@@ -1061,7 +1275,7 @@ bool ccMesh::merge(const ccMesh* mesh)
 				assert(m_triNormalIndexes->capacity() >= triNumBefore + triAdded);
 				//copy the values
 				{
-					for (unsigned i=0; i<mesh->m_triNormalIndexes->currentSize(); ++i)
+					for (unsigned i = 0; i < mesh->m_triNormalIndexes->currentSize(); ++i)
 					{
 						const int* indexes = mesh->m_triNormalIndexes->getValue(i);
 						int newIndexes[3] = {	indexes[0] < 0 ? -1 : indexes[0] + static_cast<int>(triIndexShift),
@@ -1078,7 +1292,7 @@ bool ccMesh::merge(const ccMesh* mesh)
 				//fill the indexes table with default values
 				{
 					int defaultElement[3] = {-1,-1,-1};
-					for (unsigned i=0; i<mesh->m_triNormalIndexes->currentSize(); ++i)
+					for (unsigned i = 0; i < mesh->m_triNormalIndexes->currentSize(); ++i)
 						m_triNormalIndexes->addElement(defaultElement);
 				}
 			}
@@ -2066,16 +2280,16 @@ ccMesh* ccMesh::createNewMeshFromSelection(bool removeSelectedFaces)
 	}
 
 	//we create a new mesh with the current selection
-	CCLib::GenericIndexedMesh* result = CCLib::ManualSegmentationTools::segmentMesh(this,rc,true,NULL,newVertices);
+	CCLib::GenericIndexedMesh* result = CCLib::ManualSegmentationTools::segmentMesh(this, rc, true, NULL, newVertices);
 
 	//don't use this anymore
 	delete rc;
 	rc = 0;
 
-	ccMesh* newMesh = NULL;
+	ccMesh* newMesh = nullptr;
 	if (result)
 	{
-		newMesh = new ccMesh(result,newVertices);
+		newMesh = new ccMesh(result, newVertices);
 		if (!newMesh)
 		{
 			delete newVertices;
@@ -2084,7 +2298,7 @@ ccMesh* ccMesh::createNewMeshFromSelection(bool removeSelectedFaces)
 		}
 		else
 		{
-			newMesh->setName(getName()+QString(".part"));
+			newMesh->setName(getName() + QString(".part"));
 
 			//shall we add any advanced features?
 			bool addFeatures = false;
@@ -2108,7 +2322,7 @@ ccMesh* ccMesh::createNewMeshFromSelection(bool removeSelectedFaces)
 					newTriNormals->link();
 					try
 					{
-						newNormIndexes.resize(m_triNormals->currentSize(),-1);
+						newNormIndexes.resize(m_triNormals->currentSize(), -1);
 					}
 					catch (const std::bad_alloc&)
 					{
@@ -2130,7 +2344,7 @@ ccMesh* ccMesh::createNewMeshFromSelection(bool removeSelectedFaces)
 					newTriTexIndexes->link();
 					try
 					{
-						newTexIndexes.resize(m_texCoords->currentSize(),-1);
+						newTexIndexes.resize(m_texCoords->currentSize(), -1);
 					}
 					catch (const std::bad_alloc&)
 					{
@@ -2152,7 +2366,7 @@ ccMesh* ccMesh::createNewMeshFromSelection(bool removeSelectedFaces)
 					newMaterials->link();
 					try
 					{
-						newMatIndexes.resize(m_materials->size(),-1);
+						newMatIndexes.resize(m_materials->size(), -1);
 					}
 					catch (const std::bad_alloc&)
 					{
@@ -2172,7 +2386,7 @@ ccMesh* ccMesh::createNewMeshFromSelection(bool removeSelectedFaces)
 
 				unsigned triNum = m_triVertIndexes->currentSize();
 				m_triVertIndexes->placeIteratorAtBegining();
-				for (unsigned i=0; i<triNum; ++i)
+				for (unsigned i = 0; i < triNum; ++i)
 				{
 					const CCLib::VerticesIndexes* tsi = (CCLib::VerticesIndexes*)m_triVertIndexes->getCurrentValue();
 					m_triVertIndexes->forwardIterator();
@@ -2192,7 +2406,7 @@ ccMesh* ccMesh::createNewMeshFromSelection(bool removeSelectedFaces)
 
 							//for each triangle of this mesh, try to determine if its normals are already in use
 							//(otherwise add them to the new container and increase its index)
-							for (unsigned j=0; j<3; ++j)
+							for (unsigned j = 0; j < 3; ++j)
 							{
 								if (triNormIndexes[j] >= 0 && newNormIndexes[triNormIndexes[j]] < 0)
 								{
@@ -2342,7 +2556,10 @@ ccMesh* ccMesh::createNewMeshFromSelection(bool removeSelectedFaces)
 		if (!indexMap->reserve(triNum))
 		{
 			ccLog::Error("Not enough memory! Sub-meshes will be lost...");
-			newMesh->setVisible(true); //force parent mesh visibility in this case!
+			if (newMesh)
+			{
+				newMesh->setVisible(true); //force parent mesh visibility in this case!
+			}
 
 			for (size_t i=0; i<subMeshes.size(); ++i)
 				removeChild(subMeshes[i]);
@@ -2385,7 +2602,7 @@ ccMesh* ccMesh::createNewMeshFromSelection(bool removeSelectedFaces)
 					subMesh = 0;
 				}
 
-				if (subMesh2)
+				if (subMesh2 && newMesh)
 				{
 					subMesh2->setAssociatedMesh(newMesh);
 					newMesh->addChild(subMesh2);
@@ -2489,7 +2706,7 @@ void ccMesh::setTriangleNormalIndexes(unsigned triangleIndex, int i1, int i2, in
 {
 	assert(m_triNormalIndexes && m_triNormalIndexes->currentSize() > triangleIndex);
 	int indexes[3] = { i1, i2, i3 };
-	m_triNormalIndexes->setValue(triangleIndex,indexes);
+	m_triNormalIndexes->setValue(triangleIndex, indexes);
 }
 
 void ccMesh::getTriangleNormalIndexes(unsigned triangleIndex, int& i1, int& i2, int& i3) const
@@ -2515,15 +2732,15 @@ bool ccMesh::getTriangleNormals(unsigned triangleIndex, CCVector3& Na, CCVector3
 		if (indexes[0] >= 0)
 			Na = ccNormalVectors::GetUniqueInstance()->getNormal(m_triNormals->getValue(indexes[0]));
 		else
-			Na = CCVector3(0,0,0);
+			Na = CCVector3(0, 0, 0);
 		if (indexes[1] >= 0)
 			Nb = ccNormalVectors::GetUniqueInstance()->getNormal(m_triNormals->getValue(indexes[1]));
 		else
-			Nb = CCVector3(0,0,0);
+			Nb = CCVector3(0, 0, 0);
 		if (indexes[2] >= 0)
 			Nc = ccNormalVectors::GetUniqueInstance()->getNormal(m_triNormals->getValue(indexes[2]));
 		else
-			Nc = CCVector3(0,0,0);
+			Nc = CCVector3(0, 0, 0);
 
 		return true;
 	}
@@ -2710,7 +2927,7 @@ bool ccMesh::toFile_MeOnly(QFile& out) const
 	//so instead we save it's unique ID (dataVersion>=20)
 	//WARNING: the cloud must be saved in the same BIN file! (responsibility of the caller)
 	uint32_t vertUniqueID = (m_associatedCloud ? static_cast<uint32_t>(m_associatedCloud->getUniqueID()) : 0);
-	if (out.write((const char*)&vertUniqueID,4) < 0)
+	if (out.write((const char*)&vertUniqueID, 4) < 0)
 		return WriteError();
 
 	//per-triangle normals array (dataVersion>=20)
@@ -2719,7 +2936,7 @@ bool ccMesh::toFile_MeOnly(QFile& out) const
 		//so instead we save it's unique ID (dataVersion>=20)
 		//WARNING: the normals array must be saved in the same BIN file! (responsibility of the caller)
 		uint32_t normArrayID = (m_triNormals && m_triNormals->isAllocated() ? static_cast<uint32_t>(m_triNormals->getUniqueID()) : 0);
-		if (out.write((const char*)&normArrayID,4) < 0)
+		if (out.write((const char*)&normArrayID, 4) < 0)
 			return WriteError();
 	}
 
@@ -2729,7 +2946,7 @@ bool ccMesh::toFile_MeOnly(QFile& out) const
 		//so instead we save it's unique ID (dataVersion>=20)
 		//WARNING: the texture coordinates array must be saved in the same BIN file! (responsibility of the caller)
 		uint32_t texCoordArrayID = (m_texCoords && m_texCoords->isAllocated() ? static_cast<uint32_t>(m_texCoords->getUniqueID()) : 0);
-		if (out.write((const char*)&texCoordArrayID,4) < 0)
+		if (out.write((const char*)&texCoordArrayID, 4) < 0)
 			return WriteError();
 	}
 
@@ -2739,46 +2956,46 @@ bool ccMesh::toFile_MeOnly(QFile& out) const
 		//so instead we save it's unique ID (dataVersion>=20)
 		//WARNING: the material set must be saved in the same BIN file! (responsibility of the caller)
 		uint32_t matSetID = (m_materials ? static_cast<uint32_t>(m_materials->getUniqueID()) : 0);
-		if (out.write((const char*)&matSetID,4) < 0)
+		if (out.write((const char*)&matSetID, 4) < 0)
 			return WriteError();
 	}
 
 	//triangles indexes (dataVersion>=20)
 	if (!m_triVertIndexes)
 		return ccLog::Error("Internal error: mesh has no triangles array! (not enough memory?)");
-	if (!ccSerializationHelper::GenericArrayToFile(*m_triVertIndexes,out))
+	if (!ccSerializationHelper::GenericArrayToFile(*m_triVertIndexes, out))
 		return false;
 
 	//per-triangle materials (dataVersion>=20))
 	bool hasTriMtlIndexes = hasPerTriangleMtlIndexes();
-	if (out.write((const char*)&hasTriMtlIndexes,sizeof(bool)) < 0)
+	if (out.write((const char*)&hasTriMtlIndexes, sizeof(bool)) < 0)
 		return WriteError();
 	if (hasTriMtlIndexes)
 	{
 		assert(m_triMtlIndexes);
-		if (!ccSerializationHelper::GenericArrayToFile(*m_triMtlIndexes,out))
+		if (!ccSerializationHelper::GenericArrayToFile(*m_triMtlIndexes, out))
 			return false;
 	}
 
 	//per-triangle texture coordinates indexes (dataVersion>=20))
 	bool hasTexCoordIndexes = hasPerTriangleTexCoordIndexes();
-	if (out.write((const char*)&hasTexCoordIndexes,sizeof(bool)) < 0)
+	if (out.write((const char*)&hasTexCoordIndexes, sizeof(bool)) < 0)
 		return WriteError();
 	if (hasTexCoordIndexes)
 	{
 		assert(m_texCoordIndexes);
-		if (!ccSerializationHelper::GenericArrayToFile(*m_texCoordIndexes,out))
+		if (!ccSerializationHelper::GenericArrayToFile(*m_texCoordIndexes, out))
 			return false;
 	}
 
 	//per-triangle normals  indexes (dataVersion>=20))
 	bool hasTriNormalIndexes = (m_triNormalIndexes && m_triNormalIndexes->isAllocated());
-	if (out.write((const char*)&hasTriNormalIndexes,sizeof(bool)) < 0)
+	if (out.write((const char*)&hasTriNormalIndexes, sizeof(bool)) < 0)
 		return WriteError();
 	if (hasTriNormalIndexes)
 	{
 		assert(m_triNormalIndexes);
-		if (!ccSerializationHelper::GenericArrayToFile(*m_triNormalIndexes,out))
+		if (!ccSerializationHelper::GenericArrayToFile(*m_triNormalIndexes, out))
 			return false;
 	}
 
@@ -2794,7 +3011,7 @@ bool ccMesh::fromFile_MeOnly(QFile& in, short dataVersion, int flags)
 	//we only store its unique ID (dataVersion>=20) --> we hope we will find it at loading time (i.e. this
 	//is the responsibility of the caller to make sure that all dependencies are saved together)
 	uint32_t vertUniqueID = 0;
-	if (in.read((char*)&vertUniqueID,4) < 0)
+	if (in.read((char*)&vertUniqueID, 4) < 0)
 		return ReadError();
 	//[DIRTY] WARNING: temporarily, we set the vertices unique ID in the 'm_associatedCloud' pointer!!!
 	*(uint32_t*)(&m_associatedCloud) = vertUniqueID;
@@ -2805,7 +3022,7 @@ bool ccMesh::fromFile_MeOnly(QFile& in, short dataVersion, int flags)
 		//we only store its unique ID (dataVersion>=20) --> we hope we will find it at loading time (i.e. this
 		//is the responsibility of the caller to make sure that all dependencies are saved together)
 		uint32_t normArrayID = 0;
-		if (in.read((char*)&normArrayID,4) < 0)
+		if (in.read((char*)&normArrayID, 4) < 0)
 			return ReadError();
 		//[DIRTY] WARNING: temporarily, we set the array unique ID in the 'm_triNormals' pointer!!!
 		*(uint32_t*)(&m_triNormals) = normArrayID;
@@ -2817,7 +3034,7 @@ bool ccMesh::fromFile_MeOnly(QFile& in, short dataVersion, int flags)
 		//we only store its unique ID (dataVersion>=20) --> we hope we will find it at loading time (i.e. this
 		//is the responsibility of the caller to make sure that all dependencies are saved together)
 		uint32_t texCoordArrayID = 0;
-		if (in.read((char*)&texCoordArrayID,4) < 0)
+		if (in.read((char*)&texCoordArrayID, 4) < 0)
 			return ReadError();
 		//[DIRTY] WARNING: temporarily, we set the array unique ID in the 'm_texCoords' pointer!!!
 		*(uint32_t*)(&m_texCoords) = texCoordArrayID;
@@ -2829,7 +3046,7 @@ bool ccMesh::fromFile_MeOnly(QFile& in, short dataVersion, int flags)
 		//we only store its unique ID (dataVersion>=20) --> we hope we will find it at loading time (i.e. this
 		//is the responsibility of the caller to make sure that all dependencies are saved together)
 		uint32_t matSetID = 0;
-		if (in.read((char*)&matSetID,4) < 0)
+		if (in.read((char*)&matSetID, 4) < 0)
 			return ReadError();
 		//[DIRTY] WARNING: temporarily, we set the array unique ID in the 'm_materials' pointer!!!
 		*(uint32_t*)(&m_materials) = matSetID;
@@ -2838,12 +3055,12 @@ bool ccMesh::fromFile_MeOnly(QFile& in, short dataVersion, int flags)
 	//triangles indexes (dataVersion>=20)
 	if (!m_triVertIndexes)
 		return false;
-	if (!ccSerializationHelper::GenericArrayFromFile(*m_triVertIndexes,in,dataVersion))
+	if (!ccSerializationHelper::GenericArrayFromFile(*m_triVertIndexes, in, dataVersion))
 		return false;
 
 	//per-triangle materials (dataVersion>=20))
 	bool hasTriMtlIndexes = false;
-	if (in.read((char*)&hasTriMtlIndexes,sizeof(bool)) < 0)
+	if (in.read((char*)&hasTriMtlIndexes, sizeof(bool)) < 0)
 		return ReadError();
 	if (hasTriMtlIndexes)
 	{
@@ -2852,7 +3069,7 @@ bool ccMesh::fromFile_MeOnly(QFile& in, short dataVersion, int flags)
 			m_triMtlIndexes = new triangleMaterialIndexesSet();
 			m_triMtlIndexes->link();
 		}
-		if (!ccSerializationHelper::GenericArrayFromFile(*m_triMtlIndexes,in,dataVersion))
+		if (!ccSerializationHelper::GenericArrayFromFile(*m_triMtlIndexes, in, dataVersion))
 		{
 			m_triMtlIndexes->release();
 			m_triMtlIndexes = 0;
@@ -2862,7 +3079,7 @@ bool ccMesh::fromFile_MeOnly(QFile& in, short dataVersion, int flags)
 
 	//per-triangle texture coordinates indexes (dataVersion>=20))
 	bool hasTexCoordIndexes = false;
-	if (in.read((char*)&hasTexCoordIndexes,sizeof(bool)) < 0)
+	if (in.read((char*)&hasTexCoordIndexes, sizeof(bool)) < 0)
 		return ReadError();
 	if (hasTexCoordIndexes)
 	{
@@ -2871,7 +3088,7 @@ bool ccMesh::fromFile_MeOnly(QFile& in, short dataVersion, int flags)
 			m_texCoordIndexes = new triangleTexCoordIndexesSet();
 			m_texCoordIndexes->link();
 		}
-		if (!ccSerializationHelper::GenericArrayFromFile(*m_texCoordIndexes,in,dataVersion))
+		if (!ccSerializationHelper::GenericArrayFromFile(*m_texCoordIndexes, in, dataVersion))
 		{
 			m_texCoordIndexes->release();
 			m_texCoordIndexes = 0;
@@ -2880,17 +3097,17 @@ bool ccMesh::fromFile_MeOnly(QFile& in, short dataVersion, int flags)
 	}
 
 	//'materials shown' state (dataVersion>=20 && dataVersion<29))
-	if (dataVersion<29)
+	if (dataVersion < 29)
 	{
 		bool materialsShown = false;
-		if (in.read((char*)&materialsShown,sizeof(bool)) < 0)
+		if (in.read((char*)&materialsShown, sizeof(bool)) < 0)
 			return ReadError();
 		showMaterials(materialsShown);
 	}
 
 	//per-triangle normals  indexes (dataVersion>=20))
 	bool hasTriNormalIndexes = false;
-	if (in.read((char*)&hasTriNormalIndexes,sizeof(bool)) < 0)
+	if (in.read((char*)&hasTriNormalIndexes, sizeof(bool)) < 0)
 		return ReadError();
 	if (hasTriNormalIndexes)
 	{
@@ -2900,24 +3117,24 @@ bool ccMesh::fromFile_MeOnly(QFile& in, short dataVersion, int flags)
 			m_triNormalIndexes->link();
 		}
 		assert(m_triNormalIndexes);
-		if (!ccSerializationHelper::GenericArrayFromFile(*m_triNormalIndexes,in,dataVersion))
+		if (!ccSerializationHelper::GenericArrayFromFile(*m_triNormalIndexes, in, dataVersion))
 		{
 			removePerTriangleNormalIndexes();
 			return false;
 		}
 	}
 
-	if (dataVersion<29)
+	if (dataVersion < 29)
 	{
 		//'per-triangle normals shown' state (dataVersion>=20 && dataVersion<29))
 		bool triNormsShown = false;
-		if (in.read((char*)&triNormsShown,sizeof(bool)) < 0)
+		if (in.read((char*)&triNormsShown, sizeof(bool)) < 0)
 			return ReadError();
 		showTriNorms(triNormsShown);
 
 		//'polygon stippling' state (dataVersion>=20 && dataVersion<29))
 		bool stippling = false;
-		if (in.read((char*)&stippling,sizeof(bool)) < 0)
+		if (in.read((char*)&stippling, sizeof(bool)) < 0)
 			return ReadError();
 		enableStippling(stippling);
 	}
@@ -2932,7 +3149,7 @@ void ccMesh::computeInterpolationWeights(unsigned triIndex, const CCVector3& P, 
 	assert(triIndex < m_triVertIndexes->currentSize());
 
 	const unsigned* tri = m_triVertIndexes->getValue(triIndex);
-	return computeInterpolationWeights(tri[0],tri[1],tri[2],P,weights);
+	return computeInterpolationWeights(tri[0], tri[1], tri[2], P, weights);
 }
 
 void ccMesh::computeInterpolationWeights(unsigned i1, unsigned i2, unsigned i3, const CCVector3& P, CCVector3d& weights) const
@@ -2942,9 +3159,9 @@ void ccMesh::computeInterpolationWeights(unsigned i1, unsigned i2, unsigned i3, 
 	const CCVector3 *C = m_associatedCloud->getPoint(i3);
 
 	//barcyentric intepolation weights
-	weights.x = sqrt(((P-*B).cross(*C-*B)).norm2d())/*/2*/;
-	weights.y = sqrt(((P-*C).cross(*A-*C)).norm2d())/*/2*/;
-	weights.z = sqrt(((P-*A).cross(*B-*A)).norm2d())/*/2*/;
+	weights.x = sqrt(((P - *B).cross(*C - *B)).norm2d())/*/2*/;
+	weights.y = sqrt(((P - *C).cross(*A - *C)).norm2d())/*/2*/;
+	weights.z = sqrt(((P - *A).cross(*B - *A)).norm2d())/*/2*/;
 
 	//normalize weights
 	double sum = weights.x + weights.y + weights.z;
@@ -2960,33 +3177,33 @@ bool ccMesh::interpolateNormals(unsigned triIndex, const CCVector3& P, CCVector3
 
 	const unsigned* tri = m_triVertIndexes->getValue(triIndex);
 
-	return interpolateNormals(tri[0],tri[1],tri[2],P,N, hasTriNormals() ? m_triNormalIndexes->getValue(triIndex) : 0);
+	return interpolateNormals(tri[0], tri[1], tri[2], P, N, hasTriNormals() ? m_triNormalIndexes->getValue(triIndex) : 0);
 }
 
 bool ccMesh::interpolateNormals(unsigned i1, unsigned i2, unsigned i3, const CCVector3& P, CCVector3& N, const int* triNormIndexes/*=0*/)
 {
 	//intepolation weights
 	CCVector3d w;
-	computeInterpolationWeights(i1,i2,i3,P,w);
+	computeInterpolationWeights(i1, i2, i3, P, w);
 
-	CCVector3d Nd(0,0,0);
+	CCVector3d Nd(0, 0, 0);
 	{
 		if (!triNormIndexes || triNormIndexes[0] >= 0)
 		{
 			const CCVector3& N1 = triNormIndexes ? ccNormalVectors::GetNormal(m_triNormals->getValue(triNormIndexes[0])) : m_associatedCloud->getPointNormal(i1);
-			Nd += CCVector3d(N1.x,N1.y,N1.z) * w.u[0];
+			Nd += CCVector3d(N1.x, N1.y, N1.z) * w.u[0];
 		}
 
 		if (!triNormIndexes || triNormIndexes[1] >= 0)
 		{
 			const CCVector3& N2 = triNormIndexes ? ccNormalVectors::GetNormal(m_triNormals->getValue(triNormIndexes[1])) : m_associatedCloud->getPointNormal(i2);
-			Nd += CCVector3d(N2.x,N2.y,N2.z) * w.u[1];
+			Nd += CCVector3d(N2.x, N2.y, N2.z) * w.u[1];
 		}
 
 		if (!triNormIndexes || triNormIndexes[2] >= 0)
 		{
 			const CCVector3& N3 = triNormIndexes ? ccNormalVectors::GetNormal(m_triNormals->getValue(triNormIndexes[2])) : m_associatedCloud->getPointNormal(i3);
-			Nd += CCVector3d(N3.x,N3.y,N3.z) * w.u[2];
+			Nd += CCVector3d(N3.x, N3.y, N3.z) * w.u[2];
 		}
 		Nd.normalize();
 	}
@@ -3005,22 +3222,22 @@ bool ccMesh::interpolateColors(unsigned triIndex, const CCVector3& P, ccColor::R
 
 	const unsigned* tri = m_triVertIndexes->getValue(triIndex);
 
-	return interpolateColors(tri[0],tri[1],tri[2],P,C);
+	return interpolateColors(tri[0], tri[1], tri[2], P, C);
 }
 
 bool ccMesh::interpolateColors(unsigned i1, unsigned i2, unsigned i3, const CCVector3& P, ccColor::Rgb& rgb)
 {
 	//intepolation weights
 	CCVector3d w;
-	computeInterpolationWeights(i1,i2,i3,P,w);
+	computeInterpolationWeights(i1, i2, i3, P, w);
 
 	const ColorCompType* C1 = m_associatedCloud->getPointColor(i1);
 	const ColorCompType* C2 = m_associatedCloud->getPointColor(i2);
 	const ColorCompType* C3 = m_associatedCloud->getPointColor(i3);
 
-	rgb.r = static_cast<ColorCompType>(floor(C1[0]*w.u[0] + C2[0]*w.u[1] + C3[0]*w.u[2]));
-	rgb.g = static_cast<ColorCompType>(floor(C1[1]*w.u[0] + C2[1]*w.u[1] + C3[1]*w.u[2]));
-	rgb.b = static_cast<ColorCompType>(floor(C1[2]*w.u[0] + C2[2]*w.u[1] + C3[2]*w.u[2]));
+	rgb.r = static_cast<ColorCompType>(floor(C1[0] * w.u[0] + C2[0] * w.u[1] + C3[0] * w.u[2]));
+	rgb.g = static_cast<ColorCompType>(floor(C1[1] * w.u[0] + C2[1] * w.u[1] + C3[1] * w.u[2]));
+	rgb.b = static_cast<ColorCompType>(floor(C1[2] * w.u[0] + C2[2] * w.u[1] + C3[2] * w.u[2]));
 
 	return true;
 }
@@ -3060,21 +3277,27 @@ bool ccMesh::getVertexColorFromMaterial(unsigned triIndex, unsigned char vertInd
 			const float* Tx = (txInd[vertIndex] >= 0 ? m_texCoords->getValue(txInd[vertIndex]) : 0);
 			if (Tx)
 			{
-				if (Tx[0] >= 0 && Tx[0] <= 1.0f && Tx[1] >= 0 && Tx[1] <= 1.0f)
-				{
-					//get color from texture image
-					const QImage texture = material->getTexture();
-					int xPix = std::min(static_cast<int>(floor(Tx[0]*texture.width())),texture.width()-1);
-					int yPix = std::min(static_cast<int>(floor(Tx[1]*texture.height())),texture.height()-1);
+				//get the texture coordinates between 0 and 1
+				float temp;
+				float tx = std::modf(Tx[0], &temp);
+				if (tx < 0)
+					tx = 1.0f + tx;
+				float ty = std::modf(Tx[1], &temp);
+				if (ty < 0)
+					ty = 1.0f + ty;
 
-					QRgb pixel = texture.pixel(xPix,yPix);
+				//get color from texture image
+				const QImage texture = material->getTexture();
+				int xPix = std::min(static_cast<int>(floor(tx * texture.width())), texture.width() - 1);
+				int yPix = std::min(static_cast<int>(floor(ty * texture.height())), texture.height() - 1);
 
-					rgb.r = static_cast<ColorCompType>(qRed(pixel));
-					rgb.g = static_cast<ColorCompType>(qGreen(pixel));
-					rgb.b = static_cast<ColorCompType>(qBlue(pixel));
+				QRgb pixel = texture.pixel(xPix, yPix);
 
-					foundMaterial = true;
-				}
+				rgb.r = static_cast<ColorCompType>(qRed(pixel));
+				rgb.g = static_cast<ColorCompType>(qGreen(pixel));
+				rgb.b = static_cast<ColorCompType>(qBlue(pixel));
+
+				foundMaterial = true;
 			}
 		}
 		else
@@ -3156,28 +3379,28 @@ bool ccMesh::getColorFromMaterial(unsigned triIndex, const CCVector3& P, ccColor
 	//if (x < 0 || x > 1.0 || y < 0 || y > 1.0)
 	if (x > 1.0)
 	{
-		double xFrac,xInt;
-		xFrac = modf(x,&xInt);
+		double xFrac, xInt;
+		xFrac = std::modf(x, &xInt);
 		x = xFrac;
 	}
 	else if (x < 0.0)
 	{
-		double xFrac,xInt;
-		xFrac = modf(x,&xInt);
+		double xFrac, xInt;
+		xFrac = std::modf(x, &xInt);
 		x = 1.0 + xFrac;
 	}
 
 	//same thing for y
 	if (y > 1.0)
 	{
-		double yFrac,yInt;
-		yFrac = modf(y,&yInt);
+		double yFrac, yInt;
+		yFrac = std::modf(y, &yInt);
 		y = yFrac;
 	}
 	else if (y < 0.0)
 	{
-		double yFrac,yInt;
-		yFrac = modf(y,&yInt);
+		double yFrac, yInt;
+		yFrac = std::modf(y, &yInt);
 		y = 1.0 + yFrac;
 	}
 
@@ -3231,14 +3454,14 @@ bool ccMesh::pushSubdivide(/*PointCoordinateType maxArea, */unsigned indexA, uns
 	const CCVector3* C = vertices->getPoint(indexC);
 
 	//do we need to sudivide this triangle?
-	PointCoordinateType area = ((*B-*A)*(*C-*A)).norm()/2;
+	PointCoordinateType area = ((*B - *A)*(*C - *A)).norm() / 2;
 	if (area > s_maxSubdivideArea/*maxArea*/)
 	{
 		//we will add 3 new vertices, so we must be sure to have enough memory
-		if (vertices->size()+2 >= vertices->capacity())
+		if (vertices->size() + 2 >= vertices->capacity())
 		{
-			assert(s_defaultSubdivideGrowRate>2);
-			if (!vertices->reserve(vertices->size()+s_defaultSubdivideGrowRate))
+			assert(s_defaultSubdivideGrowRate > 2);
+			if (!vertices->reserve(vertices->size() + s_defaultSubdivideGrowRate))
 			{
 				ccLog::Error("[ccMesh::pushSubdivide] Not enough memory!");
 				return false;
@@ -3252,13 +3475,13 @@ bool ccMesh::pushSubdivide(/*PointCoordinateType maxArea, */unsigned indexA, uns
 		//add new vertices
 		unsigned indexG1 = 0;
 		{
-			qint64 key = GenerateKey(indexA,indexB);
-			QMap<qint64,unsigned>::const_iterator it = s_alreadyCreatedVertices.find(key);
-			if (it == s_alreadyCreatedVertices.end())
+			qint64 key = GenerateKey(indexA, indexB);
+			QMap<qint64, unsigned>::const_iterator it = s_alreadyCreatedVertices.constFind(key);
+			if (it == s_alreadyCreatedVertices.constEnd())
 			{
 				//generate new vertex
 				indexG1 = vertices->size();
-				CCVector3 G1 = (*A+*B)/(PointCoordinateType)2.0;
+				CCVector3 G1 = (*A + *B) / (PointCoordinateType)2.0;
 				vertices->addPoint(G1);
 				//interpolate other features?
 				//if (vertices->hasNormals())
@@ -3271,11 +3494,11 @@ bool ccMesh::pushSubdivide(/*PointCoordinateType maxArea, */unsigned indexA, uns
 				if (vertices->hasColors())
 				{
 					ccColor::Rgb C;
-					interpolateColors(indexA,indexB,indexC,G1,C);
+					interpolateColors(indexA, indexB, indexC, G1, C);
 					vertices->addRGBColor(C.rgb);
 				}
 				//and add it to the map
-				s_alreadyCreatedVertices.insert(key,indexG1);
+				s_alreadyCreatedVertices.insert(key, indexG1);
 			}
 			else
 			{
@@ -3284,13 +3507,13 @@ bool ccMesh::pushSubdivide(/*PointCoordinateType maxArea, */unsigned indexA, uns
 		}
 		unsigned indexG2 = 0;
 		{
-			qint64 key = GenerateKey(indexB,indexC);
-			QMap<qint64,unsigned>::const_iterator it = s_alreadyCreatedVertices.find(key);
-			if (it == s_alreadyCreatedVertices.end())
+			qint64 key = GenerateKey(indexB, indexC);
+			QMap<qint64, unsigned>::const_iterator it = s_alreadyCreatedVertices.constFind(key);
+			if (it == s_alreadyCreatedVertices.constEnd())
 			{
 				//generate new vertex
 				indexG2 = vertices->size();
-				CCVector3 G2 = (*B+*C)/(PointCoordinateType)2.0;
+				CCVector3 G2 = (*B + *C) / (PointCoordinateType)2.0;
 				vertices->addPoint(G2);
 				//interpolate other features?
 				//if (vertices->hasNormals())
@@ -3303,11 +3526,11 @@ bool ccMesh::pushSubdivide(/*PointCoordinateType maxArea, */unsigned indexA, uns
 				if (vertices->hasColors())
 				{
 					ccColor::Rgb C;
-					interpolateColors(indexA,indexB,indexC,G2,C);
+					interpolateColors(indexA, indexB, indexC, G2, C);
 					vertices->addRGBColor(C.rgb);
 				}
 				//and add it to the map
-				s_alreadyCreatedVertices.insert(key,indexG2);
+				s_alreadyCreatedVertices.insert(key, indexG2);
 			}
 			else
 			{
@@ -3316,13 +3539,13 @@ bool ccMesh::pushSubdivide(/*PointCoordinateType maxArea, */unsigned indexA, uns
 		}
 		unsigned indexG3 = vertices->size();
 		{
-			qint64 key = GenerateKey(indexC,indexA);
-			QMap<qint64,unsigned>::const_iterator it = s_alreadyCreatedVertices.find(key);
-			if (it == s_alreadyCreatedVertices.end())
+			qint64 key = GenerateKey(indexC, indexA);
+			QMap<qint64, unsigned>::const_iterator it = s_alreadyCreatedVertices.constFind(key);
+			if (it == s_alreadyCreatedVertices.constEnd())
 			{
 				//generate new vertex
 				indexG3 = vertices->size();
-				CCVector3 G3 = (*C+*A)/(PointCoordinateType)2.0;
+				CCVector3 G3 = (*C + *A) / (PointCoordinateType)2.0;
 				vertices->addPoint(G3);
 				//interpolate other features?
 				//if (vertices->hasNormals())
@@ -3335,11 +3558,11 @@ bool ccMesh::pushSubdivide(/*PointCoordinateType maxArea, */unsigned indexA, uns
 				if (vertices->hasColors())
 				{
 					ccColor::Rgb C;
-					interpolateColors(indexA,indexB,indexC,G3,C);
+					interpolateColors(indexA, indexB, indexC, G3, C);
 					vertices->addRGBColor(C.rgb);
 				}
 				//and add it to the map
-				s_alreadyCreatedVertices.insert(key,indexG3);
+				s_alreadyCreatedVertices.insert(key, indexG3);
 			}
 			else
 			{
@@ -3362,7 +3585,7 @@ bool ccMesh::pushSubdivide(/*PointCoordinateType maxArea, */unsigned indexA, uns
 		//we will add one triangle, so we must be sure to have enough memory
 		if (size() == capacity())
 		{
-			if (!reserve(size() + 3*s_defaultSubdivideGrowRate))
+			if (!reserve(size() + 3 * s_defaultSubdivideGrowRate))
 			{
 				ccLog::Error("[ccMesh::pushSubdivide] Not enough memory!");
 				return false;
@@ -3370,7 +3593,7 @@ bool ccMesh::pushSubdivide(/*PointCoordinateType maxArea, */unsigned indexA, uns
 		}
 
 		//we keep this triangle as is
-		addTriangle(indexA,indexB,indexC);
+		addTriangle(indexA, indexB, indexC);
 	}
 
 	return true;
@@ -3414,11 +3637,11 @@ ccMesh* ccMesh::subdivide(PointCoordinateType maxArea) const
 	s_alreadyCreatedVertices.clear();
 
 	try
-	{		
-		for (unsigned i=0; i<triCount; ++i)
+	{
+		for (unsigned i = 0; i < triCount; ++i)
 		{
 			const unsigned* tri = m_triVertIndexes->getValue(i);
-			if (!resultMesh->pushSubdivide(/*maxArea,*/tri[0],tri[1],tri[2]))
+			if (!resultMesh->pushSubdivide(/*maxArea,*/tri[0], tri[1], tri[2]))
 			{
 				ccLog::Error("[ccMesh::subdivide] Not enough memory!");
 				delete resultMesh;
@@ -3437,7 +3660,7 @@ ccMesh* ccMesh::subdivide(PointCoordinateType maxArea) const
 	try
 	{
 		unsigned newTriCount = resultMesh->size();
-		for (unsigned i=0; i<newTriCount; ++i)
+		for (unsigned i = 0; i < newTriCount; ++i)
 		{
 			unsigned* _face = resultMesh->m_triVertIndexes->getValue(i); //warning: array might change at each call to reallocate!
 			unsigned indexA = _face[0];
@@ -3447,20 +3670,20 @@ ccMesh* ccMesh::subdivide(PointCoordinateType maxArea) const
 			//test all edges
 			int indexG1 = -1;
 			{
-				QMap<qint64,unsigned>::const_iterator it = s_alreadyCreatedVertices.find(GenerateKey(indexA,indexB));
-				if (it != s_alreadyCreatedVertices.end())
+				QMap<qint64, unsigned>::const_iterator it = s_alreadyCreatedVertices.constFind(GenerateKey(indexA, indexB));
+				if (it != s_alreadyCreatedVertices.constEnd())
 					indexG1 = (int)it.value();
 			}
 			int indexG2 = -1;
 			{
-				QMap<qint64,unsigned>::const_iterator it = s_alreadyCreatedVertices.find(GenerateKey(indexB,indexC));
-				if (it != s_alreadyCreatedVertices.end())
+				QMap<qint64, unsigned>::const_iterator it = s_alreadyCreatedVertices.constFind(GenerateKey(indexB, indexC));
+				if (it != s_alreadyCreatedVertices.constEnd())
 					indexG2 = (int)it.value();
 			}
 			int indexG3 = -1;
 			{
-				QMap<qint64,unsigned>::const_iterator it = s_alreadyCreatedVertices.find(GenerateKey(indexC,indexA));
-				if (it != s_alreadyCreatedVertices.end())
+				QMap<qint64, unsigned>::const_iterator it = s_alreadyCreatedVertices.constFind(GenerateKey(indexC, indexA));
+				if (it != s_alreadyCreatedVertices.constEnd())
 					indexG3 = (int)it.value();
 			}
 
@@ -3491,9 +3714,9 @@ ccMesh* ccMesh::subdivide(PointCoordinateType maxArea) const
 				//replace current triangle by one half
 				_face[0] = indexes[i1];
 				_face[1] = indexG;
-				_face[2] = indexes[(i1+2)%3];
+				_face[2] = indexes[(i1 + 2) % 3];
 				//and add the other half (we can use pushSubdivide as the area should alredy be ok!)
-				if (!resultMesh->pushSubdivide(/*maxArea,*/indexes[i1],indexes[(i1+1)%3],indexG))
+				if (!resultMesh->pushSubdivide(/*maxArea,*/indexes[i1], indexes[(i1 + 1) % 3], indexG))
 				{
 					ccLog::Error("[ccMesh::subdivide] Not enough memory!");
 					delete resultMesh;
@@ -3619,16 +3842,16 @@ bool ccMesh::convertMaterialsToVertexColors()
 	unsigned faceCount = size();
 
 	placeIteratorAtBegining();
-	for (unsigned i=0; i<faceCount; ++i)
+	for (unsigned i = 0; i < faceCount; ++i)
 	{
 		const CCLib::VerticesIndexes* tsi = getNextTriangleVertIndexes();
-		for (unsigned char j=0; j<3; ++j)
+		for (unsigned char j = 0; j < 3; ++j)
 		{
 			ccColor::Rgb C;
-			if (getVertexColorFromMaterial(i,j,C,true))
+			if (getVertexColorFromMaterial(i, j, C, true))
 			{
 				//FIXME: could we be smarter? (we process each point several times! And we assume the color is always the same...)
-				cloud->setPointColor(tsi->i[j],C.rgb);
+				cloud->setPointColor(tsi->i[j], C.rgb);
 			}
 		}
 	}

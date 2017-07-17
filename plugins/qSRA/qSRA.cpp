@@ -4,11 +4,11 @@
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU General Public License as published by  #
-//#  the Free Software Foundation; version 2 of the License.               #
+//#  the Free Software Foundation; version 2 or later of the License.      #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
 //#                           COPYRIGHT: EDF                               #
@@ -32,6 +32,7 @@
 #include <QMainWindow>
 
 //qCC_db
+#include <ccFileUtils.h>
 #include <ccHObjectCaster.h>
 #include <ccPointCloud.h>
 #include <ccProgressDialog.h>
@@ -154,7 +155,7 @@ void qSRA::loadProfile() const
 	//persistent settings (default import path)
 	QSettings settings;
 	settings.beginGroup("qSRA");
-	QString path = settings.value("importPath",QApplication::applicationDirPath()).toString();
+	QString path = settings.value("importPath", ccFileUtils::defaultDocPath()).toString();
 
 	ProfileImportDlg piDlg(m_app->getMainWindow());
 	piDlg.setDefaultFilename(path);
@@ -185,15 +186,17 @@ void qSRA::loadProfile() const
 
 	//DGM: the following works only because the axis is colinear with X, Y or Z!
 	PointCoordinateType heightShift = 0;
-	if (!piDlg.absoluteHeightValues())
-		heightShift = origin.u[axisDim]; //the profile height values are relative to the origin!
-	else
-		origin.u[axisDim] = 0;
+	if (piDlg.absoluteHeightValues())
+	{
+		heightShift = -origin.u[axisDim];
+	}
 	
 	//apply a visual transformation to see the polyline in the right place
 	{
 		ccGLMatrix trans;
-		trans.setTranslation(origin);
+		CCVector3 T = origin;
+		T.u[axisDim] += heightShift;
+		trans.setTranslation(T);
 		float* mat = trans.data();
 		switch (axisDim)
 		{
@@ -230,7 +233,7 @@ void qSRA::loadProfile() const
 
 	m_app->addToDB(polyline,true,false,true);
 
-	m_app->dispToConsole(QString("[qSRA] File '%1' succesfully loaded").arg(filename),ccMainAppInterface::STD_CONSOLE_MESSAGE);
+	m_app->dispToConsole(QString("[qSRA] File '%1' successfully loaded").arg(filename),ccMainAppInterface::STD_CONSOLE_MESSAGE);
 }
 
 //helper
@@ -409,7 +412,7 @@ bool qSRA::doComputeRadialDists(ccPointCloud* cloud, ccPolyline* polyline) const
 	else
 	{
 		if (m_app)
-			m_app->dispToConsole("An error ocurred while computing radial distances!",ccMainAppInterface::WRN_CONSOLE_MESSAGE);
+			m_app->dispToConsole("An error occurred while computing radial distances!",ccMainAppInterface::WRN_CONSOLE_MESSAGE);
 		return false;
 	}
 }

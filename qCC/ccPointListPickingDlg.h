@@ -1,14 +1,14 @@
 //##########################################################################
 //#                                                                        #
-//#                            CLOUDCOMPARE                                #
+//#                              CLOUDCOMPARE                              #
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU General Public License as published by  #
-//#  the Free Software Foundation; version 2 of the License.               #
+//#  the Free Software Foundation; version 2 or later of the License.      #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
 //#          COPYRIGHT: EDF R&D / TELECOM ParisTech (ENST-TSI)             #
@@ -40,7 +40,7 @@ class ccPointListPickingDlg : public ccPointPickingGenericInterface, public Ui::
 public:
 
 	//! Default constructor
-	explicit ccPointListPickingDlg(QWidget* parent);
+	explicit ccPointListPickingDlg(ccPickingHub* pickingHub, QWidget* parent);
 
 	//! Associates dialog with cloud
 	void linkWithCloud(ccPointCloud* cloud);
@@ -61,6 +61,8 @@ protected slots:
 	inline void exportToASCII_xyz() { return exportToASCII(PLP_ASCII_EXPORT_XYZ); }
 	//! Exports list to an 'ixyz' ASCII file
 	inline void exportToASCII_ixyz() { return exportToASCII(PLP_ASCII_EXPORT_IXYZ); }
+	//! Exports list to an 'gxyz' ASCII file
+	inline void exportToASCII_gxyz() { return exportToASCII(PLP_ASCII_EXPORT_GXYZ); }
 	//! Exports list to an 'lxyz' ASCII file
 	inline void exportToASCII_lxyz() { return exportToASCII(PLP_ASCII_EXPORT_LXYZ); }
 
@@ -84,6 +86,7 @@ protected:
 	**/
 	enum ExportFormat {	PLP_ASCII_EXPORT_XYZ,
 						PLP_ASCII_EXPORT_IXYZ,
+						PLP_ASCII_EXPORT_GXYZ,
 						PLP_ASCII_EXPORT_LXYZ
 	};
 

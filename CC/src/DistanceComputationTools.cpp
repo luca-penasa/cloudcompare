@@ -4,11 +4,12 @@
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU Library General Public License as       #
-//#  published by the Free Software Foundation; version 2 of the License.  #
+//#  published by the Free Software Foundation; version 2 or later of the  #
+//#  License.                                                              #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
 //#          COPYRIGHT: EDF R&D / TELECOM ParisTech (ENST-TSI)             #
@@ -18,29 +19,19 @@
 #include "DistanceComputationTools.h"
 
 //local
-#include "GenericCloud.h"
-#include "GenericIndexedCloudPersist.h"
 #include "ChunkedPointCloud.h"
 #include "DgmOctreeReferenceCloud.h"
 #include "ReferenceCloud.h"
-#include "Neighbourhood.h"
-#include "GenericTriangle.h"
-#include "GenericIndexedMesh.h"
-#include "GenericProgressCallback.h"
 #include "SaitoSquaredDistanceTransform.h"
 #include "FastMarchingForPropagation.h"
 #include "ScalarFieldTools.h"
-#include "CCConst.h"
-#include "CCMiscTools.h"
 #include "LocalModel.h"
 #include "SimpleTriangle.h"
 #include "ScalarField.h"
 
 //system
 #include <assert.h>
-#include <string.h>
-#include <stdlib.h>
-#include <limits>
+
 
 #ifdef USE_QT
 #ifndef QT_DEBUG
@@ -506,7 +497,7 @@ bool DistanceComputationTools::computeCellHausdorffDistanceWithLocalModel(	const
 
 	assert(params && params->localModel != NO_MODEL);
 
-	//structure for the nearest neighbor seach
+	//structure for the nearest neighbor search
 	DgmOctree::NearestNeighboursSearchStruct nNSS;
 	nNSS.level								= cell.level;
 	nNSS.alreadyVisitedNeighbourhoodSize	= 0;
@@ -1113,14 +1104,10 @@ void cloudMeshDistCellFunc_MT(const DgmOctree::IndexAndCode& desc)
 		return;
 	}
 
-	if (s_normProgressCb_MT)
+	if (s_normProgressCb_MT && !s_normProgressCb_MT->oneStep())
 	{
-		QApplication::processEvents(); //let the application breath!
-		if (!s_normProgressCb_MT->oneStep())
-		{
-			s_cellFunc_MT_success = false;
-			return;
-		}
+		s_cellFunc_MT_success = false;
+		return;
 	}
 
 	ReferenceCloud Yk(s_octree_MT->associatedCloud());
@@ -1719,7 +1706,7 @@ int DistanceComputationTools::computeCloud2MeshDistanceWithOctree(	OctreeAndMesh
 		DgmOctree::cellsContainer cellsDescs;
 		octree->getCellCodesAndIndexes(params.octreeLevel,cellsDescs,true);
 
-		unsigned numberOfCells = (unsigned)cellsDescs.size();
+		unsigned numberOfCells = static_cast<unsigned>(cellsDescs.size());
 
 		//Progress callback
 		NormalizedProgress nProgress(progressCb,numberOfCells);
@@ -1799,7 +1786,7 @@ int DistanceComputationTools::computeCloud2MeshDistance(	GenericIndexedCloudPers
 	}
 	if (params.CPSet)
 	{
-		//Closest Point Set determination is incompatible with distance map approximation and max seach distance
+		//Closest Point Set determination is incompatible with distance map approximation and max search distance
 		params.useDistanceMap = false;
 		params.maxSearchDist = 0;
 	}

@@ -1,14 +1,14 @@
 //##########################################################################
 //#                                                                        #
-//#                            CLOUDCOMPARE                                #
+//#                              CLOUDCOMPARE                              #
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU General Public License as published by  #
-//#  the Free Software Foundation; version 2 of the License.               #
+//#  the Free Software Foundation; version 2 or later of the License.      #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
 //#          COPYRIGHT: EDF R&D / TELECOM ParisTech (ENST-TSI)             #
@@ -25,6 +25,7 @@
 
 //qCC_db
 #include <ccColorScalesManager.h>
+#include <ccFileUtils.h>
 #include <ccScalarField.h>
 #include <ccPointCloud.h>
 
@@ -135,7 +136,7 @@ void ccColorScaleEditorDialog::updateMainComboBox()
 
 	//populate combo box with scale names (and UUID)
 	assert(m_manager);
-	for (ccColorScalesManager::ScalesMap::const_iterator it = m_manager->map().begin(); it != m_manager->map().end(); ++it)
+	for (ccColorScalesManager::ScalesMap::const_iterator it = m_manager->map().constBegin(); it != m_manager->map().constEnd(); ++it)
 		rampComboBox->addItem((*it)->getName(),(*it)->getUuid());
 
 	//find the currently selected scale in the new 'list'
@@ -792,7 +793,7 @@ void ccColorScaleEditorDialog::exportCurrentScale()
 	//persistent settings
 	QSettings settings;
 	settings.beginGroup(ccPS::SaveFile());
-	QString currentPath = settings.value(ccPS::CurrentPath(),QApplication::applicationDirPath()).toString();
+	QString currentPath = settings.value(ccPS::CurrentPath(), ccFileUtils::defaultDocPath()).toString();
 
 	//ask for a filename
 	QString filename = QFileDialog::getSaveFileName(this,"Select output file",currentPath,"*.xml");
@@ -809,7 +810,7 @@ void ccColorScaleEditorDialog::exportCurrentScale()
 	//try to save the file
 	if (m_colorScale->saveAsXML(filename))
 	{
-		ccLog::Print(QString("[ColorScale] Scale '%1' sucessfully exported in '%2'").arg(m_colorScale->getName()).arg(filename));
+		ccLog::Print(QString("[ColorScale] Scale '%1' successfully exported in '%2'").arg(m_colorScale->getName(),filename));
 	}
 }
 
@@ -818,7 +819,7 @@ void ccColorScaleEditorDialog::importScale()
 	//persistent settings
 	QSettings settings;
 	settings.beginGroup(ccPS::LoadFile());
-	QString currentPath = settings.value(ccPS::CurrentPath(),QApplication::applicationDirPath()).toString();
+	QString currentPath = settings.value(ccPS::CurrentPath(), ccFileUtils::defaultDocPath()).toString();
 
 	//ask for a filename
 	QString filename = QFileDialog::getOpenFileName(this,"Select color scale file",currentPath,"*.xml");

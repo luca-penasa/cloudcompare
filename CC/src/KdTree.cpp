@@ -4,11 +4,12 @@
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU Library General Public License as       #
-//#  published by the Free Software Foundation; version 2 of the License.  #
+//#  published by the Free Software Foundation; version 2 or later of the  #
+//#  License.                                                              #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
 //#          COPYRIGHT: EDF R&D / TELECOM ParisTech (ENST-TSI)             #
@@ -149,7 +150,7 @@ KDTree::KdCell* KDTree::buildSubTree(unsigned first, unsigned last, KdCell* fath
     cell->cuttingDim = dim;
     updateOutsideBoundingBox(cell);
     if (progressCb)
-        progressCb->update((float)m_cellCount*100.0f/(float)(m_indexes.size()*2-1));
+        progressCb->update(m_cellCount*100.0f/(m_indexes.size()*2.0f-1.0f));
 
     //If there is only one point to insert, build a leaf
     if (first == last)
@@ -533,7 +534,7 @@ void KDTree::distanceScanTree(
     {
         if ((cell->leSon!=0) && (cell->gSon!=0))
         {
-            //This case shall allways happen (the other case is for leaves that contain more than one point - bucket KDtree)
+            //This case shall always happen (the other case is for leaves that contain more than one point - bucket KDtree)
             if (cell->nbPoints == 1)
             {
                 localArray.push_back(m_indexes[cell->startingPointIndex]);

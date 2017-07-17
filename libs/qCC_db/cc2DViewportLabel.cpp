@@ -1,14 +1,14 @@
 //##########################################################################
 //#                                                                        #
-//#                            CLOUDCOMPARE                                #
+//#                              CLOUDCOMPARE                              #
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU General Public License as published by  #
-//#  the Free Software Foundation; version 2 of the License.               #
+//#  the Free Software Foundation; version 2 or later of the License.      #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
 //#          COPYRIGHT: EDF R&D / TELECOM ParisTech (ENST-TSI)             #
@@ -60,7 +60,7 @@ bool cc2DViewportLabel::fromFile_MeOnly(QFile& in, short dataVersion, int flags)
 	if (!cc2DViewportObject::fromFile_MeOnly(in, dataVersion, flags))
 		return false;
 
-	if (dataVersion<21)
+	if (dataVersion < 21)
 		return false;
 
 	//ROI (dataVersion>=21)
@@ -164,8 +164,8 @@ void cc2DViewportLabel::drawMeOnly(CC_DRAW_CONTEXT& context)
 		QFontMetrics titleFontMetrics(titleFont);
 		int titleHeight = titleFontMetrics.height();
 
-		int xStart = (int)(dx + 0.5f*(float)context.glW + std::min<float>(m_roi[0], m_roi[2])*relativeZoom);
-		int yStart = (int)(dy + 0.5f*(float)context.glH + std::min<float>(m_roi[1], m_roi[3])*relativeZoom);
+		int xStart = static_cast<int>(dx + 0.5f * context.glW + std::min<float>(m_roi[0], m_roi[2]) * relativeZoom);
+		int yStart = static_cast<int>(dy + 0.5f * context.glH + std::min<float>(m_roi[1], m_roi[3]) * relativeZoom);
 
 		context.display->displayText(title, xStart, yStart - 5 - titleHeight, ccGenericGLDisplay::ALIGN_DEFAULT, 0, defaultColor, &titleFont);
 	}

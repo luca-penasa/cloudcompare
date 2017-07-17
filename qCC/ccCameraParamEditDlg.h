@@ -1,14 +1,14 @@
 //##########################################################################
 //#                                                                        #
-//#                            CLOUDCOMPARE                                #
+//#                              CLOUDCOMPARE                              #
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU General Public License as published by  #
-//#  the Free Software Foundation; version 2 of the License.               #
+//#  the Free Software Foundation; version 2 or later of the License.      #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
 //#          COPYRIGHT: EDF R&D / TELECOM ParisTech (ENST-TSI)             #
@@ -20,25 +20,31 @@
 
 //Local
 #include "ccOverlayDialog.h"
-#include "ccGLWindow.h"
-
+#include "ccPickingListener.h"
 #include <ui_cameraParamDlg.h>
+
+//qCC_db
+#include <ccGLMatrix.h>
+//qCC_gl
+#include <ccGLUtils.h>
 
 //system
 #include <map>
 
 class QMdiSubWindow;
 class ccGLWindow;
+class ccHObject;
+class ccPickingHub;
 
 //! Dialog to interactively edit the camera pose parameters
-class ccCameraParamEditDlg : public ccOverlayDialog, public Ui::CameraParamDlg
+class ccCameraParamEditDlg : public ccOverlayDialog, public Ui::CameraParamDlg, public ccPickingListener
 {
 	Q_OBJECT
 
 public:
 
 	//! Default constructor
-	explicit ccCameraParamEditDlg(QWidget* parent);
+	explicit ccCameraParamEditDlg(QWidget* parent, ccPickingHub* pickingHub);
 
 	//! Destructor
 	virtual ~ccCameraParamEditDlg();
@@ -52,6 +58,9 @@ public:
 	//inherited from ccOverlayDialog
 	virtual bool start();
 	virtual bool linkWith(ccGLWindow* win);
+
+	//inherited from ccPickingListener
+	virtual void onItemPicked(const PickedItem& pi);
 
 public slots:
 
@@ -69,6 +78,8 @@ public slots:
 	void updateViewMode();
 	//! Updates view f.o.v.
 	void updateWinFov(float fov_deg);
+	//! Update the zNear coef.
+	void updateZNearCoef(float zNearCoef);
 
 	void setFrontView();
 	void setBottomView();
@@ -92,7 +103,7 @@ public slots:
 	void cameraCenterChanged();
 	void fovChanged(double);
 
-	void pickPointAsPivot();
+	void pickPointAsPivot(bool);
 	void processPickedItem(ccHObject*, unsigned, int, int, const CCVector3&);
 
 protected slots:
@@ -121,6 +132,9 @@ protected:
 
 	//! Pushed camera matrices (per window)
 	PushedMatricesMapType pushedMatrices;
+
+	//! Picking hub
+	ccPickingHub* m_pickingHub;
 };
 
-#endif
+#endif //CC_CAMERA_PARAM_EDIT_DLG_HEADER

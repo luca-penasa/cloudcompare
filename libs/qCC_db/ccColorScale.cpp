@@ -1,14 +1,14 @@
 //##########################################################################
 //#                                                                        #
-//#                            CLOUDCOMPARE                                #
+//#                              CLOUDCOMPARE                              #
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU General Public License as published by  #
-//#  the Free Software Foundation; version 2 of the License.               #
+//#  the Free Software Foundation; version 2 or later of the License.      #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
 //#          COPYRIGHT: EDF R&D / TELECOM ParisTech (ENST-TSI)             #
@@ -98,7 +98,7 @@ void ccColorScale::remove(int index, bool autoUpdate/*=true*/)
 
 void ccColorScale::sort()
 {
-	qSort(m_steps.begin(), m_steps.end(), ccColorScaleElement::IsSmaller);
+	std::sort(m_steps.begin(), m_steps.end(), ccColorScaleElement::IsSmaller);
 }
 
 void ccColorScale::update()
@@ -109,7 +109,7 @@ void ccColorScale::update()
 	{
 		sort();
 
-		unsigned stepCount = static_cast<unsigned>(m_steps.size());
+		const unsigned stepCount = static_cast<unsigned>(m_steps.size());
 		assert(stepCount >= 2);
 		assert(m_steps.front().getRelativePos() == 0.0);
 		assert(m_steps.back().getRelativePos() == 1.0);
@@ -119,27 +119,27 @@ void ccColorScale::update()
 		}
 		else
 		{
-			unsigned j = 0; //current intervale
+			unsigned j = 0; //current interval
 			for (unsigned i=0; i<MAX_STEPS; ++i)
 			{
-				double relativePos = static_cast<double>(i)/(MAX_STEPS-1);
+				const double relativePos = static_cast<double>(i)/(MAX_STEPS-1);
 
 				//forward to the right intervale
 				while (j+2 < stepCount && m_steps[j+1].getRelativePos() < relativePos)
 					++j;
 
 				// linear interpolation
-				CCVector3d colBefore (	m_steps[j].getColor().redF(),
+				const CCVector3d colBefore (	m_steps[j].getColor().redF(),
 										m_steps[j].getColor().greenF(),
 										m_steps[j].getColor().blueF() );
-				CCVector3d colNext (	m_steps[j+1].getColor().redF(),
+				const CCVector3d colNext (	m_steps[j+1].getColor().redF(),
 										m_steps[j+1].getColor().greenF(),
 										m_steps[j+1].getColor().blueF() );
 
 				//interpolation coef
-				double alpha = (relativePos - m_steps[j].getRelativePos()) / (m_steps[j+1].getRelativePos() - m_steps[j].getRelativePos());
+				const double alpha = (relativePos - m_steps[j].getRelativePos()) / (m_steps[j+1].getRelativePos() - m_steps[j].getRelativePos());
 
-				CCVector3d interpCol = colBefore + (colNext-colBefore) * alpha;
+				const CCVector3d interpCol = colBefore + (colNext-colBefore) * alpha;
 
 				m_rgbaScale[i] = ccColor::Rgba(	static_cast<ColorCompType>(interpCol.x * ccColor::MAX),
 												static_cast<ColorCompType>(interpCol.y * ccColor::MAX),
@@ -469,7 +469,7 @@ ccColorScale::Shared ccColorScale::LoadFromXML(QString filename)
 			stream.readNextStartElement();
 			QStringRef itemName = stream.name();
 			QString itemValue = stream.readElementText();
-			ccLog::Print(QString("[XML] Item '%1': '%2'").arg(itemName.toString()).arg(itemValue));
+			ccLog::Print(QString("[XML] Item '%1': '%2'").arg(itemName.toString(),itemValue));
 
 			if (itemName == "name")
 			{

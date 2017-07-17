@@ -4,11 +4,12 @@
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU Library General Public License as       #
-//#  published by the Free Software Foundation; version 2 of the License.  #
+//#  published by the Free Software Foundation; version 2 or later of the  #
+//#  License.                                                              #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
 //#          COPYRIGHT: EDF R&D / TELECOM ParisTech (ENST-TSI)             #
@@ -24,14 +25,9 @@
 
 //local
 #include "GenericCloud.h"
-#include "CCConst.h"
 #include "ScalarFieldTools.h"
 #include "ScalarField.h"
 
-//system
-#include <math.h>
-#include <string.h>
-#include <assert.h>
 
 using namespace CCLib;
 
@@ -153,8 +149,8 @@ bool WeibullDistribution::setParameters(ScalarType _a, ScalarType _b, ScalarType
 	if (a > 0.0 && b >= 0.0)
 	{
 		//moyenne et ecart type
-		mu = (ScalarType)(gamma_cc(1.0+1.0/a) * b);
-		sigma2 =(ScalarType)(gamma_cc(1.0+2.0/a) * (b*b) - (mu*mu));
+		mu = static_cast<ScalarType>(gamma_cc(1.0+1.0/a) * b);
+		sigma2 = static_cast<ScalarType>(gamma_cc(1.0+2.0/a) * (b*b) - (mu*mu));
 
 		setValid(true);
 	}
@@ -252,7 +248,7 @@ ScalarType WeibullDistribution::computeG(const GenericCloud* cloud, ScalarType r
 {
 	unsigned n = cloud->size();
 
-	//a & n sould be strictly positive!
+	//a & n should be strictly positive!
 	if (r <= 0 || n == 0)
 		return static_cast<ScalarType>(1.0); //a positive value means that computeG failed
 

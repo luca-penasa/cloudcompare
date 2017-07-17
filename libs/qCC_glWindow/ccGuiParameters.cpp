@@ -1,14 +1,14 @@
 //##########################################################################
 //#                                                                        #
-//#                            CLOUDCOMPARE                                #
+//#                              CLOUDCOMPARE                              #
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU General Public License as published by  #
-//#  the Free Software Foundation; version 2 of the License.               #
+//#  the Free Software Foundation; version 2 or later of the License.      #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
 //#          COPYRIGHT: EDF R&D / TELECOM ParisTech (ENST-TSI)             #
@@ -77,7 +77,9 @@ void ccGui::ParamStruct::reset()
 	labelMarkerCol		= ccColor::defaultLabelMarkerColor;
 	bbDefaultCol		= ccColor::yellow;
 
+	lightDoubleSided			= true;
 	drawBackgroundGradient		= true;
+	drawRoundedPoints			= false;
 	decimateMeshOnMove			= true;
 	minLoDMeshSize				= 2500000;
 	decimateCloudOnMove			= true;
@@ -92,8 +94,14 @@ void ccGui::ParamStruct::reset()
 	colorScaleShaderSupported	= false;
 	colorScaleRampWidth			= 50;
 
+#ifdef Q_OS_MAC
+	defaultFontSize				= 12;
+	labelFontSize				= 10;
+#else
 	defaultFontSize				= 10;
 	labelFontSize				= 8;
+#endif
+	
 	displayedNumPrecision		= 6;
 	labelOpacity				= 75;
 
@@ -109,20 +117,22 @@ void ccGui::ParamStruct::fromPersistentSettings()
 {
 	QSettings settings;
 	settings.beginGroup("OpenGL");
-	lightAmbientColor	= ccColor::Rgbaf (reinterpret_cast<float*>        (settings.value("lightAmbientColor",		QByteArray((const char*)ccColor::darkest.rgba,					c_fColorArraySize )).toByteArray().data()));
-	lightSpecularColor	= ccColor::Rgbaf (reinterpret_cast<float*>        (settings.value("lightSpecularColor",		QByteArray((const char*)ccColor::darker.rgba,					c_fColorArraySize )).toByteArray().data()));
-	lightDiffuseColor	= ccColor::Rgbaf (reinterpret_cast<float*>        (settings.value("lightDiffuseColor",		QByteArray((const char*)ccColor::bright.rgba,					c_fColorArraySize )).toByteArray().data()));
-	meshFrontDiff		= ccColor::Rgbaf (reinterpret_cast<float*>        (settings.value("meshFrontDiff",			QByteArray((const char*)ccColor::defaultMeshFrontDiff.rgba,		c_fColorArraySize )).toByteArray().data()));
-	meshBackDiff		= ccColor::Rgbaf (reinterpret_cast<float*>        (settings.value("meshBackDiff",			QByteArray((const char*)ccColor::defaultMeshBackDiff.rgba,		c_fColorArraySize )).toByteArray().data()));
-	meshSpecular		= ccColor::Rgbaf (reinterpret_cast<float*>        (settings.value("meshSpecular",			QByteArray((const char*)ccColor::middle.rgba,					c_fColorArraySize )).toByteArray().data()));
-	pointsDefaultCol	= ccColor::Rgbaub(reinterpret_cast<unsigned char*>(settings.value("pointsDefaultColor",		QByteArray((const char*)ccColor::defaultColor.rgb,				c_ubColorArraySize)).toByteArray().data()));
-	textDefaultCol		= ccColor::Rgbaub(reinterpret_cast<unsigned char*>(settings.value("textDefaultColor",		QByteArray((const char*)ccColor::defaultColor.rgb,				c_ubColorArraySize)).toByteArray().data()));
-	backgroundCol		= ccColor::Rgbaub(reinterpret_cast<unsigned char*>(settings.value("backgroundColor",		QByteArray((const char*)ccColor::defaultBkgColor.rgb,			c_ubColorArraySize)).toByteArray().data()));
-	labelBackgroundCol	= ccColor::Rgbaub(reinterpret_cast<unsigned char*>(settings.value("labelBackgroundColor",	QByteArray((const char*)ccColor::defaultLabelBkgColor.rgb,		c_ubColorArraySize)).toByteArray().data()));
-	labelMarkerCol		= ccColor::Rgbaub(reinterpret_cast<unsigned char*>(settings.value("labelMarkerColor",		QByteArray((const char*)ccColor::defaultLabelMarkerColor.rgb,	c_ubColorArraySize)).toByteArray().data()));
-	bbDefaultCol		= ccColor::Rgbaub(reinterpret_cast<unsigned char*>(settings.value("bbDefaultColor",			QByteArray((const char*)ccColor::yellow.rgba,					c_ubColorArraySize)).toByteArray().data()));
+	lightAmbientColor	= ccColor::Rgbaf (reinterpret_cast<float*>        (settings.value("lightAmbientColor",		QByteArray::fromRawData((const char*)ccColor::darkest.rgba,					c_fColorArraySize )).toByteArray().data()));
+	lightSpecularColor	= ccColor::Rgbaf (reinterpret_cast<float*>        (settings.value("lightSpecularColor",		QByteArray::fromRawData((const char*)ccColor::darker.rgba,					c_fColorArraySize )).toByteArray().data()));
+	lightDiffuseColor	= ccColor::Rgbaf (reinterpret_cast<float*>        (settings.value("lightDiffuseColor",		QByteArray::fromRawData((const char*)ccColor::bright.rgba,					c_fColorArraySize )).toByteArray().data()));
+	meshFrontDiff		= ccColor::Rgbaf (reinterpret_cast<float*>        (settings.value("meshFrontDiff",			QByteArray::fromRawData((const char*)ccColor::defaultMeshFrontDiff.rgba,		c_fColorArraySize )).toByteArray().data()));
+	meshBackDiff		= ccColor::Rgbaf (reinterpret_cast<float*>        (settings.value("meshBackDiff",			QByteArray::fromRawData((const char*)ccColor::defaultMeshBackDiff.rgba,		c_fColorArraySize )).toByteArray().data()));
+	meshSpecular		= ccColor::Rgbaf (reinterpret_cast<float*>        (settings.value("meshSpecular",			QByteArray::fromRawData((const char*)ccColor::middle.rgba,					c_fColorArraySize )).toByteArray().data()));
+	pointsDefaultCol	= ccColor::Rgbaub(reinterpret_cast<unsigned char*>(settings.value("pointsDefaultColor",		QByteArray::fromRawData((const char*)ccColor::defaultColor.rgb,				c_ubColorArraySize)).toByteArray().data()));
+	textDefaultCol		= ccColor::Rgbaub(reinterpret_cast<unsigned char*>(settings.value("textDefaultColor",		QByteArray::fromRawData((const char*)ccColor::defaultColor.rgb,				c_ubColorArraySize)).toByteArray().data()));
+	backgroundCol		= ccColor::Rgbaub(reinterpret_cast<unsigned char*>(settings.value("backgroundColor",		QByteArray::fromRawData((const char*)ccColor::defaultBkgColor.rgb,			c_ubColorArraySize)).toByteArray().data()));
+	labelBackgroundCol	= ccColor::Rgbaub(reinterpret_cast<unsigned char*>(settings.value("labelBackgroundColor",	QByteArray::fromRawData((const char*)ccColor::defaultLabelBkgColor.rgb,		c_ubColorArraySize)).toByteArray().data()));
+	labelMarkerCol		= ccColor::Rgbaub(reinterpret_cast<unsigned char*>(settings.value("labelMarkerColor",		QByteArray::fromRawData((const char*)ccColor::defaultLabelMarkerColor.rgb,	c_ubColorArraySize)).toByteArray().data()));
+	bbDefaultCol		= ccColor::Rgbaub(reinterpret_cast<unsigned char*>(settings.value("bbDefaultColor",			QByteArray::fromRawData((const char*)ccColor::yellow.rgba,					c_ubColorArraySize)).toByteArray().data()));
 
+	lightDoubleSided			=                                      settings.value("lightDoubleSided",        true ).toBool();
 	drawBackgroundGradient		=                                      settings.value("backgroundGradient",      true ).toBool();
+	drawRoundedPoints			=                                      settings.value("drawRoundedPoints",       false).toBool();
 	decimateMeshOnMove			=                                      settings.value("meshDecimation",          true ).toBool();
 	minLoDMeshSize				=                                      settings.value("minLoDMeshSize",       2500000 ).toUInt();
 	decimateCloudOnMove			=                                      settings.value("cloudDecimation",         true ).toBool();
@@ -162,6 +172,7 @@ void ccGui::ParamStruct::toPersistentSettings() const
 	settings.setValue("labelMarkerColor",         QByteArray((const char*)labelMarkerCol.rgb,      c_ubColorArraySize));
 	settings.setValue("bbDefaultColor",           QByteArray((const char*)bbDefaultCol.rgb,        c_ubColorArraySize));
 	settings.setValue("backgroundGradient",       drawBackgroundGradient);
+	settings.setValue("drawRoundedPoints",        drawRoundedPoints);
 	settings.setValue("meshDecimation",           decimateMeshOnMove);
 	settings.setValue("minLoDMeshSize",	          minLoDMeshSize);
 	settings.setValue("cloudDecimation",          decimateCloudOnMove);

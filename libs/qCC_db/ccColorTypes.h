@@ -1,14 +1,14 @@
 //##########################################################################
 //#                                                                        #
-//#                            CLOUDCOMPARE                                #
+//#                              CLOUDCOMPARE                              #
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU General Public License as published by  #
-//#  the Free Software Foundation; version 2 of the License.               #
+//#  the Free Software Foundation; version 2 or later of the License.      #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
 //#          COPYRIGHT: EDF R&D / TELECOM ParisTech (ENST-TSI)             #
@@ -17,6 +17,9 @@
 
 #ifndef CC_COLOR_TYPES_HEADER
 #define CC_COLOR_TYPES_HEADER
+
+//Local
+#include "qCC_db.h"
 
 //system
 #include <stdlib.h>
@@ -57,9 +60,6 @@ namespace ccColor
 
 		//! Constructor from an array of 3 values
 		explicit inline RgbTpl(const Type col[3]) : r(col[0]), g(col[1]), b(col[2]) {}
-	
-		//! Copy constructor
-		inline RgbTpl(const RgbTpl& c) : r(c.r), g(c.g), b(c.b) {}
 
 		//! Comparison operator
 		inline bool operator != (const RgbTpl<Type>& t) const { return (r != t.r || g != t.g || b != t.b); }
@@ -101,8 +101,6 @@ namespace ccColor
 		explicit inline RgbaTpl(const Type col[3], Type alpha) : r(col[0]), g(col[1]), b(col[2]), a(alpha) {}
 	
 		//! Copy constructor
-		inline RgbaTpl(const RgbaTpl<Type>& c) : r(c.r), g(c.g), b(c.b), a(c.a) {}
-		//! Copy constructor
 		inline RgbaTpl(const RgbTpl<Type>& c, Type alpha) : r(c.r), g(c.g), b(c.b), a(alpha) {}
 
 		//! Cast operator
@@ -122,36 +120,36 @@ namespace ccColor
 	typedef RgbaTpl<ColorCompType> Rgba;
 
 	// Predefined colors (default type)
-	static const Rgba white						(MAX,MAX,MAX,MAX);
-	static const Rgba lightGrey					(static_cast<ColorCompType>(MAX*0.8),static_cast<ColorCompType>(MAX*0.8),static_cast<ColorCompType>(MAX*0.8),MAX);
-	static const Rgba darkGrey					(MAX/2,MAX/2,MAX/2,MAX);
-	static const Rgba red						(MAX,0,0,MAX);
-	static const Rgba green						(0,MAX,0,MAX);
-	static const Rgba blue						(0,0,MAX,MAX);
-	static const Rgba darkBlue					(0,0,MAX/2,MAX);
-	static const Rgba magenta					(MAX,0,MAX,MAX);
-	static const Rgba cyan						(0,MAX,MAX,MAX);
-	static const Rgba orange					(MAX,MAX/2,0,MAX);
-	static const Rgba black						(0,0,0,MAX);
-	static const Rgba yellow					(MAX,MAX,0,MAX);
+	QCC_DB_LIB_API extern const Rgba white;
+	QCC_DB_LIB_API extern const Rgba lightGrey;
+	QCC_DB_LIB_API extern const Rgba darkGrey;
+	QCC_DB_LIB_API extern const Rgba red;
+	QCC_DB_LIB_API extern const Rgba green;
+	QCC_DB_LIB_API extern const Rgba blue;
+	QCC_DB_LIB_API extern const Rgba darkBlue;
+	QCC_DB_LIB_API extern const Rgba magenta;
+	QCC_DB_LIB_API extern const Rgba cyan;
+	QCC_DB_LIB_API extern const Rgba orange;
+	QCC_DB_LIB_API extern const Rgba black;
+	QCC_DB_LIB_API extern const Rgba yellow;
 
 	// Predefined materials (float)
-	static const Rgbaf bright					(1.00f, 1.00f, 1.00f, 1.00f);
-	static const Rgbaf lighter					(0.83f, 0.83f, 0.83f, 1.00f);
-	static const Rgbaf light					(0.66f, 0.66f, 0.66f, 1.00f);
-	static const Rgbaf middle					(0.50f, 0.50f, 0.50f, 1.00f);
-	static const Rgbaf dark						(0.34f, 0.34f, 0.34f, 1.00f);
-	static const Rgbaf darker					(0.17f, 0.17f, 0.17f, 1.00f);
-	static const Rgbaf darkest					(0.08f, 0.08f, 0.08f, 1.00f);
-	static const Rgbaf night					(0.00f, 0.00f, 0.00f, 1.00F);
-	static const Rgbaf defaultMeshFrontDiff		(0.00f, 0.90f, 0.27f, 1.00f);
-	static const Rgbaf defaultMeshBackDiff		(0.27f, 0.90f, 0.90f, 1.00f);
+	QCC_DB_LIB_API extern const Rgbaf bright;
+	QCC_DB_LIB_API extern const Rgbaf lighter;
+	QCC_DB_LIB_API extern const Rgbaf light;
+	QCC_DB_LIB_API extern const Rgbaf middle;
+	QCC_DB_LIB_API extern const Rgbaf dark;
+	QCC_DB_LIB_API extern const Rgbaf darker;
+	QCC_DB_LIB_API extern const Rgbaf darkest;
+	QCC_DB_LIB_API extern const Rgbaf night;
+	QCC_DB_LIB_API extern const Rgbaf defaultMeshFrontDiff;
+	QCC_DB_LIB_API extern const Rgbaf defaultMeshBackDiff;
 
 	// Default foreground color (unsigned byte)
-	static const Rgbub defaultColor				(255, 255, 255); //white
-	static const Rgbub defaultBkgColor			( 10, 102, 151); //dark blue
-	static const Rgbub defaultLabelBkgColor		(255, 255, 255); //white
-	static const Rgbub defaultLabelMarkerColor	(255,   0, 255); //magenta
+	QCC_DB_LIB_API extern const Rgbub defaultColor;				//white
+	QCC_DB_LIB_API extern const Rgbub defaultBkgColor;			//dark blue
+	QCC_DB_LIB_API extern const Rgbub defaultLabelBkgColor;		//white
+	QCC_DB_LIB_API extern const Rgbub defaultLabelMarkerColor;	//magenta
 
 	//! Colors generator
 	class Generator

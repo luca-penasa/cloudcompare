@@ -4,11 +4,12 @@
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU Library General Public License as       #
-//#  published by the Free Software Foundation; version 2 of the License.  #
+//#  published by the Free Software Foundation; version 2 or later of the  #
+//#  License.                                                              #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
 //#          COPYRIGHT: EDF R&D / TELECOM ParisTech (ENST-TSI)             #
@@ -44,7 +45,7 @@ public:
 	static const uint8_t LEAF_TYPE = 1;
 
 	//! Tree base node
-	struct BaseNode
+	class BaseNode
 	{
 	public:
 		explicit BaseNode(uint8_t nodeType) : parent(0), type(nodeType) {}
@@ -65,7 +66,7 @@ public:
 	};
 
 	//! Tree node
-	struct Node : public BaseNode
+	class Node : public BaseNode
 	{
 	public:
 
@@ -93,7 +94,7 @@ public:
 	};
 
 	//! Tree leaf
-	struct Leaf : public BaseNode
+	class Leaf : public BaseNode
 	{
 	public:
 

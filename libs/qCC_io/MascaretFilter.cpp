@@ -1,14 +1,14 @@
 //##########################################################################
 //#                                                                        #
-//#                            CLOUDCOMPARE                                #
+//#                              CLOUDCOMPARE                              #
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU General Public License as published by  #
-//#  the Free Software Foundation; version 2 of the License.               #
+//#  the Free Software Foundation; version 2 or later of the License.      #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
 //#          COPYRIGHT: EDF R&D / TELECOM ParisTech (ENST-TSI)             #
@@ -35,6 +35,8 @@
 //! Mascaret File Save dialog
 class SaveMascaretFileDlg : public QDialog, public Ui::SaveMascaretFileDlg
 {
+	Q_OBJECT
+	
 public:
 	//! Default constructor
 	SaveMascaretFileDlg(QWidget* parent = 0)
@@ -131,6 +133,7 @@ CC_FILE_ERROR MascaretFilter::saveToFile(ccHObject* entity, QString filename, Sa
 		return CC_FERR_WRITING;
 
 	QTextStream outFile(&file);
+	outFile.setRealNumberNotation(QTextStream::FixedNotation);
 	outFile.setRealNumberPrecision(12);
 
 	//ask some parameters
@@ -189,7 +192,8 @@ CC_FILE_ERROR MascaretFilter::saveToFile(ccHObject* entity, QString filename, Sa
 		if (vertCount < 2)
 		{
 			//invalid size
-			ccLog::Warning(QString("[Mascaret] Polyline '%1' does not have enough vertices").arg(poly->getName()));
+			ccLog::Warning(QString("[Mascaret] Polyline '%1' does not have enough vertices")
+						   .arg(poly ? poly->getName() : QStringLiteral("unnamed")));
 			continue;
 		}
 		
@@ -306,3 +310,5 @@ CC_FILE_ERROR MascaretFilter::saveToFile(ccHObject* entity, QString filename, Sa
 
 	return result;
 }
+
+#include "MascaretFilter.moc"

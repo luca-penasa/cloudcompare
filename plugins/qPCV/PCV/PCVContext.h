@@ -4,11 +4,11 @@
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU Library General Public License as       #
-//#  published by the Free Software Foundation; version 2 of the License.  #
+//#  published by the Free Software Foundation; version 2 or later of the License.  #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
 //#          COPYRIGHT: EDF R&D / TELECOM ParisTech (ENST-TSI)             #
@@ -41,11 +41,11 @@ class PCVContext
 		virtual ~PCVContext();
 
 		//! Initialization
-		/** \param OpenGL render context width (pixels)
-			\param OpenGL render context height (pixels)
-			\param associated cloud (or mesh vertices)
-			\param associated mesh (if any)
-			\param whether mesh is closed (faster) or not (need more memory)
+		/** \param W OpenGL render context width (pixels)
+			\param H OpenGL render context height (pixels)
+			\param cloud associated cloud (or mesh vertices)
+			\param mesh associated mesh (if any)
+			\param closedMesh whether mesh is closed (faster) or not (need more memory)
 			\return initialization success
 		**/
 		bool init(	unsigned W,

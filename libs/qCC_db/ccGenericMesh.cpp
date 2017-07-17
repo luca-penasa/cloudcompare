@@ -1,14 +1,14 @@
 //##########################################################################
 //#                                                                        #
-//#                            CLOUDCOMPARE                                #
+//#                              CLOUDCOMPARE                              #
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU General Public License as published by  #
-//#  the Free Software Foundation; version 2 of the License.               #
+//#  the Free Software Foundation; version 2 or later of the License.      #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
 //#          COPYRIGHT: EDF R&D / TELECOM ParisTech (ENST-TSI)             #
@@ -31,8 +31,10 @@
 #include "ccGenericGLDisplay.h"
 
 //CCLib
+#include <GenericProgressCallback.h>
 #include <GenericTriangle.h>
 #include <MeshSamplingTools.h>
+#include <ReferenceCloud.h>
 #include <SimpleCloud.h>
 
 //system
@@ -113,23 +115,23 @@ void ccGenericMesh::EnableGLStippleMask(const QOpenGLContext* context, bool stat
 }
 
 //Vertex buffer
-PointCoordinateType s_xyzBuffer[MAX_NUMBER_OF_ELEMENTS_PER_CHUNK*3*3];
 PointCoordinateType* ccGenericMesh::GetVertexBuffer()
 {
+	static PointCoordinateType s_xyzBuffer[MAX_NUMBER_OF_ELEMENTS_PER_CHUNK*3*3];
 	return s_xyzBuffer;
 }
 
 //Normals buffer
-PointCoordinateType s_normBuffer[MAX_NUMBER_OF_ELEMENTS_PER_CHUNK*3*3];
 PointCoordinateType* ccGenericMesh::GetNormalsBuffer()
 {
+	static PointCoordinateType s_normBuffer[MAX_NUMBER_OF_ELEMENTS_PER_CHUNK*3*3];
 	return s_normBuffer;
 }
 
 //Colors buffer
-ColorCompType s_rgbBuffer[MAX_NUMBER_OF_ELEMENTS_PER_CHUNK*3*3];
 ColorCompType* ccGenericMesh::GetColorsBuffer()
 {
+	static ColorCompType s_rgbBuffer[MAX_NUMBER_OF_ELEMENTS_PER_CHUNK*3*3];
 	return s_rgbBuffer;
 }
 
@@ -911,7 +913,7 @@ bool ccGenericMesh::trianglePicking(const CCVector2d& clickPos,
 
 	//back project the clicked point in 3D
 	CCVector3d clickPosd(clickPos.x, clickPos.y, 0);
-	CCVector3d X(0,0,0);
+	CCVector3d X(0, 0, 0);
 	if (!camera.unproject(clickPosd, X))
 	{
 		return false;
@@ -922,12 +924,16 @@ bool ccGenericMesh::trianglePicking(const CCVector2d& clickPos,
 	nearestPoint = CCVector3d(0, 0, 0);
 
 	ccGenericPointCloud* vertices = getAssociatedCloud();
-	assert(vertices);
+	if (!vertices)
+	{
+		assert(false);
+		return false;
+	}
 
 #if defined(_OPENMP)
 	#pragma omp parallel for
 #endif
-	for (int i=0; i<static_cast<int>(size()); ++i)
+	for (int i = 0; i < static_cast<int>(size()); ++i)
 	{
 		CCLib::VerticesIndexes* tsi = getTriangleVertIndexes(i);
 		const CCVector3* A3D = vertices->getPoint(tsi->i1);
@@ -969,6 +975,7 @@ bool ccGenericMesh::trianglePicking(const CCVector2d& clickPos,
 				l1 /= l1l2;
 				l2 /= l1l2;
 			}
+
 			GLdouble l3 = 1.0 - l1 - l2;
 			assert(l3 >= -1.0e-12);
 

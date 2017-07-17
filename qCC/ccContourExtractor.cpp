@@ -1,14 +1,14 @@
 //##########################################################################
 //#                                                                        #
-//#                            CLOUDCOMPARE                                #
+//#                              CLOUDCOMPARE                              #
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU General Public License as published by  #
-//#  the Free Software Foundation; version 2 of the License.               #
+//#  the Free Software Foundation; version 2 or later of the License.      #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
 //#          COPYRIGHT: EDF R&D / TELECOM ParisTech (ENST-TSI)             #
@@ -660,22 +660,22 @@ ccPolyline* ccContourExtractor::ExtractFlatContour(	CCLib::GenericIndexedCloudPe
 		return 0;
 
 	CCLib::Neighbourhood Yk(points);
-	CCVector3 O,X,Y; //local base
+	CCVector3 O, X, Y; //local base
 	bool useOXYasBase = false;
 
 	//we project the input points on a plane
 	std::vector<Vertex2D> points2D;
 	PointCoordinateType* planeEq = 0;
 	//if the user has specified a default direction, we'll use it as 'projecting plane'
-	PointCoordinateType preferredPlaneEq[4] = {0, 0, 0, 0};
+	PointCoordinateType preferredPlaneEq[4] = {0, 0, 1, 0};
 	if (preferredNormDim != 0)
 	{
-		const CCVector3* G = points->getPoint(0); //any point through which the point passes is ok
+		const CCVector3* G = points->getPoint(0); //any point through which the plane passes is ok
 		preferredPlaneEq[0] = preferredNormDim[0];
 		preferredPlaneEq[1] = preferredNormDim[1];
 		preferredPlaneEq[2] = preferredNormDim[2];
 		CCVector3::vnormalize(preferredPlaneEq);
-		preferredPlaneEq[3] = CCVector3::vdot(G->u,preferredPlaneEq);
+		preferredPlaneEq[3] = CCVector3::vdot(G->u, preferredPlaneEq);
 		planeEq = preferredPlaneEq;
 
 		if (preferredUpDir != 0)
@@ -687,7 +687,7 @@ ccPolyline* ccContourExtractor::ExtractFlatContour(	CCLib::GenericIndexedCloudPe
 		}
 	}
 
-	if (!Yk.projectPointsOn2DPlane<Vertex2D>(points2D,planeEq,&O,&X,&Y,useOXYasBase))
+	if (!Yk.projectPointsOn2DPlane<Vertex2D>(points2D, planeEq, &O, &X, &Y, useOXYasBase))
 	{
 		ccLog::Warning("[ExtractFlatContour] Failed to project the points on the LS plane (not enough memory?)!");
 		return 0;
@@ -695,7 +695,7 @@ ccPolyline* ccContourExtractor::ExtractFlatContour(	CCLib::GenericIndexedCloudPe
 
 	//update the points indexes (not done by Neighbourhood::projectPointsOn2DPlane)
 	{
-		for (unsigned i=0; i<ptsCount; ++i)
+		for (unsigned i = 0; i < ptsCount; ++i)
 			points2D[i].index = i;
 	}
 
@@ -717,7 +717,7 @@ ccPolyline* ccContourExtractor::ExtractFlatContour(	CCLib::GenericIndexedCloudPe
 	{
 		try
 		{
-			originalPointIndexes->resize(hullPoints.size(),0);
+			originalPointIndexes->resize(hullPoints.size(), 0);
 		}
 		catch (const std::bad_alloc&)
 		{
@@ -755,7 +755,7 @@ ccPolyline* ccContourExtractor::ExtractFlatContour(	CCLib::GenericIndexedCloudPe
 	ccPolyline* contourPolyline = new ccPolyline(contourVertices);
 	if (contourPolyline->reserve(hullPtsCount))
 	{
-		contourPolyline->addPointIndex(0,hullPtsCount);
+		contourPolyline->addPointIndex(0, hullPtsCount);
 		contourPolyline->setClosed(contourType == FULL);
 		contourPolyline->setVisible(true);
 		contourPolyline->setName("contour");
@@ -782,7 +782,7 @@ bool ccContourExtractor::ExtractFlatContour(CCLib::GenericIndexedCloudPersist* p
 	parts.clear();
 
 	//extract whole contour
-	ccPolyline* basePoly = ExtractFlatContour(points,allowMultiPass,maxEdgeLength,preferredDim,0,FULL,0,enableVisualDebugMode);
+	ccPolyline* basePoly = ExtractFlatContour(points, allowMultiPass, maxEdgeLength, preferredDim, 0, FULL, 0, enableVisualDebugMode);
 	if (!basePoly)
 	{
 		return false;
@@ -794,7 +794,7 @@ bool ccContourExtractor::ExtractFlatContour(CCLib::GenericIndexedCloudPersist* p
 	}
 
 	//and split it if necessary
-	bool success = basePoly->split(maxEdgeLength,parts);
+	bool success = basePoly->split(maxEdgeLength, parts);
 
 	delete basePoly;
 	basePoly = 0;

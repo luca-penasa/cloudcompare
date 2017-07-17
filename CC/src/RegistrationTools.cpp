@@ -4,11 +4,12 @@
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU Library General Public License as       #
-//#  published by the Free Software Foundation; version 2 of the License.  #
+//#  published by the Free Software Foundation; version 2 or later of the  #
+//#  License.                                                              #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
 //#          COPYRIGHT: EDF R&D / TELECOM ParisTech (ENST-TSI)             #
@@ -18,14 +19,9 @@
 #include "RegistrationTools.h"
 
 //local
-#include "SquareMatrix.h"
 #include "GenericProgressCallback.h"
-#include "GenericCloud.h"
-#include "GenericIndexedCloudPersist.h"
 #include "ReferenceCloud.h"
-#include "DgmOctree.h"
 #include "DistanceComputationTools.h"
-#include "CCConst.h"
 #include "CloudSamplingTools.h"
 #include "ScalarFieldTools.h"
 #include "NormalDistribution.h"
@@ -40,8 +36,6 @@
 
 //system
 #include <time.h>
-#include <algorithm>
-#include <assert.h>
 
 using namespace CCLib;
 
@@ -144,7 +138,7 @@ struct ModelCloud
 struct DataCloud
 {
 	DataCloud() : cloud(0), rotatedCloud(0), weights(0), CPSetRef(0), CPSetPlain(0) {}
-	DataCloud(const DataCloud& d) : cloud(d.cloud), rotatedCloud(d.rotatedCloud), weights(d.weights), CPSetRef(d.CPSetRef), CPSetPlain(d.CPSetPlain) {}
+	
 	ReferenceCloud* cloud;
 	SimpleCloud* rotatedCloud;
 	ScalarField* weights;
@@ -1070,7 +1064,7 @@ bool RegistrationTools::RegistrationProcedure(	GenericCloud* P, //data
 		//we compute its eigenvalues and eigenvectors
 		CCLib::SquareMatrixd eigVectors;
 		std::vector<double> eigValues;
-		if (!Jacobi<double>::ComputeEigenValuesAndVectors(QSigma, eigVectors, eigValues))
+		if (!Jacobi<double>::ComputeEigenValuesAndVectors(QSigma, eigVectors, eigValues, false))
 		{
 			//failure
 			return false;
@@ -1449,7 +1443,7 @@ int FPCSRegistrationTools::FindCongruentBases(KDTree* tree,
 	//Find all pairs which are d1-appart and d2-appart
 	std::vector<IndexPair> pairs1, pairs2;
 	{
-		unsigned count = (unsigned)cloud->size();
+		unsigned count = static_cast<unsigned>(cloud->size());
 		std::vector<unsigned> pointsIndexes;
 		try
 		{
@@ -1501,7 +1495,7 @@ int FPCSRegistrationTools::FindCongruentBases(KDTree* tree,
 	{
 		SimpleCloud tmpCloud1,tmpCloud2;
 		{
-			unsigned count = (unsigned)pairs1.size();
+			unsigned count = static_cast<unsigned>(pairs1.size());
 			if (!tmpCloud1.reserve(count*2)) //not enough memory
 				return -2;
 			for(unsigned i=0; i<count; i++)
@@ -1517,7 +1511,7 @@ int FPCSRegistrationTools::FindCongruentBases(KDTree* tree,
 		}
 	
 		{
-			unsigned count = (unsigned)pairs2.size();
+			unsigned count = static_cast<unsigned>(pairs2.size());
 			if (!tmpCloud2.reserve(count*2)) //not enough memory
 				return -3;
 			for(unsigned i=0; i<count; i++)
@@ -1539,7 +1533,7 @@ int FPCSRegistrationTools::FindCongruentBases(KDTree* tree,
 
 		//Find matching (up to delta) intermediate points in tmpCloud1 and tmpCloud2
 		{
-			unsigned count = (unsigned)tmpCloud2.size();
+			unsigned count = static_cast<unsigned>(tmpCloud2.size());
 			match.reserve(count);
 			if (match.capacity() < count)	//not enough memory
 				return -5;

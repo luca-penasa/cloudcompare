@@ -1,14 +1,14 @@
 //##########################################################################
 //#                                                                        #
-//#                            CLOUDCOMPARE                                #
+//#                              CLOUDCOMPARE                              #
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU General Public License as published by  #
-//#  the Free Software Foundation; version 2 of the License.               #
+//#  the Free Software Foundation; version 2 or later of the License.      #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
 //#          COPYRIGHT: EDF R&D / TELECOM ParisTech (ENST-TSI)             #
@@ -50,7 +50,9 @@
 ccPointCloud* ccHObjectCaster::ToPointCloud(ccHObject* obj, bool* lockedVertices /*= 0*/)
 {
 	if (lockedVertices)
+	{
 		*lockedVertices = false;
+	}
 
 	if (obj)
 	{
@@ -63,8 +65,10 @@ ccPointCloud* ccHObjectCaster::ToPointCloud(ccHObject* obj, bool* lockedVertices
 			ccGenericPointCloud* vertices = static_cast<ccGenericMesh*>(obj)->getAssociatedCloud();
 			if (vertices)
 			{
-				if (lockedVertices)
+				if (!obj->isA(CC_TYPES::MESH) && lockedVertices) //no need to 'lock' the vertices if the user works on the parent mesh
+				{
 					*lockedVertices = vertices->isLocked();
+				}
 				return ccHObjectCaster::ToPointCloud(vertices);
 			}
 		}
@@ -76,7 +80,9 @@ ccPointCloud* ccHObjectCaster::ToPointCloud(ccHObject* obj, bool* lockedVertices
 ccGenericPointCloud* ccHObjectCaster::ToGenericPointCloud(ccHObject* obj, bool* lockedVertices /*= 0*/)
 {
 	if (lockedVertices)
+	{
 		*lockedVertices = false;
+	}
 
 	if (obj)
 	{
@@ -89,8 +95,10 @@ ccGenericPointCloud* ccHObjectCaster::ToGenericPointCloud(ccHObject* obj, bool* 
 			ccGenericPointCloud* vertices = static_cast<ccGenericMesh*>(obj)->getAssociatedCloud();
 			if (vertices)
 			{
-				if (lockedVertices)
+				if (!obj->isA(CC_TYPES::MESH) && lockedVertices) //no need to 'lock' the vertices if the user works on the parent mesh
+				{
 					*lockedVertices = vertices->isLocked();
+				}
 				return vertices;
 			}
 		}
@@ -108,7 +116,9 @@ ccShiftedObject* ccHObjectCaster::ToShifted(ccHObject* obj, bool* lockedVertices
 	if (obj && obj->isKindOf(CC_TYPES::POLY_LINE))
 	{
 		if (lockedVertices)
+		{
 			*lockedVertices = false;
+		}
 		return static_cast<ccPolyline*>(obj);
 	}
 
@@ -138,6 +148,22 @@ ccPolyline* ccHObjectCaster::ToPolyline(ccHObject* obj)
 ccFacet* ccHObjectCaster::ToFacet(ccHObject* obj)
 {
 	return obj && obj->isA(CC_TYPES::FACET) ? static_cast<ccFacet*>(obj) : 0;
+}
+
+ccPlanarEntityInterface* ccHObjectCaster::ToPlanarEntity(ccHObject* obj)
+{
+	if (obj)
+	{
+		if (obj->isA(CC_TYPES::FACET))
+		{
+			return static_cast<ccFacet*>(obj);
+		}
+		else if (obj->isA(CC_TYPES::PLANE))
+		{
+			return static_cast<ccPlane*>(obj);
+		}
+	}
+	return 0;
 }
 
 ccGenericPrimitive* ccHObjectCaster::ToPrimitive(ccHObject* obj)

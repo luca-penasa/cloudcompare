@@ -4,11 +4,12 @@
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU Library General Public License as       #
-//#  published by the Free Software Foundation; version 2 of the License.  #
+//#  published by the Free Software Foundation; version 2 or later of the  #
+//#  License.                                                              #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
 //#          COPYRIGHT: EDF R&D / TELECOM ParisTech (ENST-TSI)             #
@@ -44,8 +45,8 @@ public:
 	WeibullDistribution(ScalarType _a, ScalarType _b, ScalarType _valueShift = 0);
 
 	//! Returns the distribution parameters
-	/** \param _a a field to transmit the Weibull a paramter
-		\param _b a field to transmit the Weibull b paramter
+	/** \param _a a field to transmit the Weibull a parameter
+		\param _b a field to transmit the Weibull b parameter
 		return the parameters validity
 	**/
 	bool getParameters(ScalarType &_a, ScalarType &_b) const;

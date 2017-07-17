@@ -1,14 +1,14 @@
 //##########################################################################
 //#                                                                        #
-//#                            CLOUDCOMPARE                                #
+//#                              CLOUDCOMPARE                              #
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU General Public License as published by  #
-//#  the Free Software Foundation; version 2 of the License.               #
+//#  the Free Software Foundation; version 2 or later of the License.      #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
 //#          COPYRIGHT: EDF R&D / TELECOM ParisTech (ENST-TSI)             #
@@ -18,16 +18,17 @@
 #ifndef CC_GENERIC_POINT_CLOUD_HEADER
 #define CC_GENERIC_POINT_CLOUD_HEADER
 
-//CCLib
-#include <GenericProgressCallback.h>
-#include <ReferenceCloud.h>
-
 //Local
-#include "ccGenericGLDisplay.h"
 #include "ccShiftedObject.h"
 #include "ccAdvancedTypes.h"
 #include "ccOctree.h"
 
+namespace CCLib
+{
+	class GenericProgressCallback;
+	class ReferenceCloud;
+}
+	
 class ccOctreeProxy;
 
 /***************************************************
@@ -139,17 +140,17 @@ public:
 	virtual ScalarType getPointDisplayedDistance(unsigned pointIndex) const = 0;
 
 	//! Returns color corresponding to a given point
-	/** WARNING: color array must be enabled! (see ccDrawableObject::hasDisplayedScalarField)
+	/** WARNING: color array must be enabled! (see ccDrawableObject::hasColors)
 	**/
 	virtual const ColorCompType* getPointColor(unsigned pointIndex) const = 0;
 
 	//! Returns compressed normal corresponding to a given point
-	/** WARNING: normals array must be enabled! (see ccDrawableObject::hasDisplayedScalarField)
+	/** WARNING: normals array must be enabled! (see ccDrawableObject::hasNormals)
 	**/
 	virtual const CompressedNormType& getPointNormalIndex(unsigned pointIndex) const = 0;
 
 	//! Returns normal corresponding to a given point
-	/** WARNING: normals array must be enabled! (see ccDrawableObject::hasDisplayedScalarField)
+	/** WARNING: normals array must be enabled! (see ccDrawableObject::hasNormals)
 	**/
 	virtual const CCVector3& getPointNormal(unsigned pointIndex) const = 0;
 
@@ -180,8 +181,12 @@ public:
 	**/
 	virtual bool resetVisibilityArray();
 
+	//! Inverts the visiblity array
+	virtual void invertVisibilityArray();
+
 	//! Erases the points visibility information
 	virtual void unallocateVisibilityArray();
+
 
 	/***************************************************
 					Other methods
@@ -217,11 +222,11 @@ public:
 	//! Multiplies all coordinates by constant factors (one per dimension)
 	/** WARNING: attached octree may be deleted.
 		\param fx multiplication factor along the X dimension
-        \param fy multiplication factor along the Y dimension
-        \param fz multiplication factor along the Z dimension
+		\param fy multiplication factor along the Y dimension
+		\param fz multiplication factor along the Z dimension
 		\param center scaling center (0,0,0) by default
-    **/
-	virtual void scale(PointCoordinateType fx, PointCoordinateType fy, PointCoordinateType fz, CCVector3 center = CCVector3(0,0,0)) = 0;
+	**/
+	virtual void scale(PointCoordinateType fx, PointCoordinateType fy, PointCoordinateType fz, CCVector3 center = CCVector3(0, 0, 0)) = 0;
 
 	//inherited from ccSerializableObject
 	virtual bool isSerializable() const override { return true; }

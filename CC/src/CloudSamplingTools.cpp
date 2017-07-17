@@ -4,11 +4,12 @@
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU Library General Public License as       #
-//#  published by the Free Software Foundation; version 2 of the License.  #
+//#  published by the Free Software Foundation; version 2 or later of the  #
+//#  License.                                                              #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
 //#          COPYRIGHT: EDF R&D / TELECOM ParisTech (ENST-TSI)             #
@@ -18,8 +19,6 @@
 #include "CloudSamplingTools.h"
 
 //local
-#include "GenericIndexedCloudPersist.h"
-#include "GenericIndexedMesh.h"
 #include "SimpleCloud.h"
 #include "ReferenceCloud.h"
 #include "Neighbourhood.h"
@@ -31,7 +30,6 @@
 #include "ScalarFieldTools.h"
 
 //system
-#include <assert.h>
 #include <random>
 
 using namespace CCLib;
@@ -178,11 +176,11 @@ ReferenceCloud* CloudSamplingTools::subsampleCloudWithOctreeAtLevel(GenericIndex
 										reinterpret_cast<void*>(&subsamplingMethod) };
 
 	if (octree->executeFunctionForAllCellsAtLevel(	octreeLevel,
-														&subsampleCellAtLevel,
-														additionalParameters,
-														false, //the process is so simple that MT is slower!
-														progressCb,
-														"Cloud Subsampling") == 0)
+													&subsampleCellAtLevel,
+													additionalParameters,
+													false, //the process is so simple that MT is slower!
+													progressCb,
+													"Cloud Subsampling") == 0)
 	{
 		//something went wrong
 		delete cloud;
@@ -498,14 +496,14 @@ ReferenceCloud* CloudSamplingTools::sorFilter(	GenericIndexedCloudPersist* input
 	//output
 	ReferenceCloud* filteredCloud = 0;
 
-	for (unsigned step=0; step<1; ++step) //fake loop for easy break
+	for (unsigned step = 0; step < 1; ++step) //fake loop for easy break
 	{
 		unsigned pointCount = inputCloud->size();
 
 		std::vector<PointCoordinateType> meanDistances;
 		try
 		{
-			meanDistances.resize(pointCount,0);
+			meanDistances.resize(pointCount, 0);
 		}
 		catch (const std::bad_alloc&)
 		{
@@ -537,10 +535,10 @@ ReferenceCloud* CloudSamplingTools::sorFilter(	GenericIndexedCloudPersist* input
 			//deduce the average distance and std. dev.
 			double sumDist = 0;
 			double sumSquareDist = 0;
-			for (unsigned i=0; i<pointCount; ++i)
+			for (unsigned i = 0; i < pointCount; ++i)
 			{
 				sumDist += meanDistances[i];
-				sumSquareDist += meanDistances[i]*meanDistances[i];
+				sumSquareDist += meanDistances[i] * meanDistances[i];
 			}
 			avgDist = sumDist / pointCount;
 			stdDev = sqrt(fabs(sumSquareDist / pointCount - avgDist*avgDist));
@@ -560,7 +558,7 @@ ReferenceCloud* CloudSamplingTools::sorFilter(	GenericIndexedCloudPersist* input
 				break;
 			}
 
-			for (unsigned i=0; i<pointCount; ++i)
+			for (unsigned i = 0; i < pointCount; ++i)
 			{
 				if (meanDistances[i] <= maxDist)
 				{
@@ -755,20 +753,20 @@ bool CloudSamplingTools::applyNoiseFilterAtLevel(	const DgmOctree::octreeCell& c
 	//structure for nearest neighbors search
 	DgmOctree::NearestNeighboursSphericalSearchStruct nNSS;
 	nNSS.level = cell.level;
-	nNSS.prepare(kernelRadius,cell.parentOctree->getCellSize(nNSS.level));
+	nNSS.prepare(kernelRadius, cell.parentOctree->getCellSize(nNSS.level));
 	if (useKnn)
 	{
 		nNSS.minNumberOfNeighbors = knn;
 	}
-	cell.parentOctree->getCellPos(cell.truncatedCode,cell.level,nNSS.cellPos,true);
-	cell.parentOctree->computeCellCenter(nNSS.cellPos,cell.level,nNSS.cellCenter);
+	cell.parentOctree->getCellPos(cell.truncatedCode, cell.level, nNSS.cellPos, true);
+	cell.parentOctree->computeCellCenter(nNSS.cellPos, cell.level, nNSS.cellCenter);
 
 	unsigned n = cell.points->size(); //number of points in the current cell
 
 	//for each point in the cell
-	for (unsigned i=0; i<n; ++i)
+	for (unsigned i = 0; i < n; ++i)
 	{
-		cell.points->getPoint(i,nNSS.queryPoint);
+		cell.points->getPoint(i, nNSS.queryPoint);
 
 		//look for neighbors (either inside a sphere or the k nearest ones)
 		//warning: there may be more points at the end of nNSS.pointsInNeighbourhood than the actual nearest neighbors (neighborCount)!
@@ -777,7 +775,7 @@ bool CloudSamplingTools::applyNoiseFilterAtLevel(	const DgmOctree::octreeCell& c
 		if (useKnn)
 			neighborCount = cell.parentOctree->findNearestNeighborsStartingFromCell(nNSS);
 		else
-			neighborCount = cell.parentOctree->findNeighborsInASphereStartingFromCell(nNSS,kernelRadius,false);
+			neighborCount = cell.parentOctree->findNeighborsInASphereStartingFromCell(nNSS, kernelRadius, false);
 
 		if (neighborCount > 3) //we want 3 points or more (other than the point itself!)
 		{
@@ -788,13 +786,13 @@ bool CloudSamplingTools::applyNoiseFilterAtLevel(	const DgmOctree::octreeCell& c
 				++localIndex;
 			//the query point should be in the nearest neighbors set!
 			assert(localIndex < neighborCount);
-			if (localIndex+1 < neighborCount) //no need to swap with another point if it's already at the end!
+			if (localIndex + 1 < neighborCount) //no need to swap with another point if it's already at the end!
 			{
-				std::swap(nNSS.pointsInNeighbourhood[localIndex],nNSS.pointsInNeighbourhood[neighborCount-1]);
+				std::swap(nNSS.pointsInNeighbourhood[localIndex], nNSS.pointsInNeighbourhood[neighborCount - 1]);
 			}
 
-			unsigned realNeighborCount = neighborCount-1;
-			DgmOctreeReferenceCloud neighboursCloud(&nNSS.pointsInNeighbourhood,realNeighborCount); //we don't take the query point into account!
+			unsigned realNeighborCount = neighborCount - 1;
+			DgmOctreeReferenceCloud neighboursCloud(&nNSS.pointsInNeighbourhood, realNeighborCount); //we don't take the query point into account!
 			Neighbourhood Z(&neighboursCloud);
 
 			const PointCoordinateType* lsPlane = Z.getLSPlane();
@@ -806,20 +804,20 @@ bool CloudSamplingTools::applyNoiseFilterAtLevel(	const DgmOctree::octreeCell& c
 					//compute the std. dev. to this plane
 					double sum_d = 0;
 					double sum_d2 = 0;
-					for (unsigned j=0; j<realNeighborCount; ++j)
+					for (unsigned j = 0; j < realNeighborCount; ++j)
 					{
 						const CCVector3* P = neighboursCloud.getPoint(j);
-						double d = CCLib::DistanceComputationTools::computePoint2PlaneDistance(P,lsPlane);
+						double d = CCLib::DistanceComputationTools::computePoint2PlaneDistance(P, lsPlane);
 						sum_d += d;
 						sum_d2 += d*d;
 					}
 
-					double stddev = sqrt(fabs(sum_d2*realNeighborCount - sum_d*sum_d))/realNeighborCount;
+					double stddev = sqrt(fabs(sum_d2*realNeighborCount - sum_d*sum_d)) / realNeighborCount;
 					maxD = stddev * nSigma;
 				}
 
 				//distance from the query point to the plane
-				double d = fabs(CCLib::DistanceComputationTools::computePoint2PlaneDistance(&nNSS.queryPoint,lsPlane));
+				double d = fabs(CCLib::DistanceComputationTools::computePoint2PlaneDistance(&nNSS.queryPoint, lsPlane));
 
 				if (d <= maxD)
 					cloud->addPointIndex(globalIndex);
@@ -854,28 +852,28 @@ bool CloudSamplingTools::applySORFilterAtLevel(	const DgmOctree::octreeCell& cel
 												NormalizedProgress* nProgress/*=0*/)
 {
 	int knn											= *static_cast<int*>(additionalParameters[0]);
-	std::vector<PointCoordinateType>& meanDistances	= *static_cast<std::vector<PointCoordinateType>*>(additionalParameters[1]);
+	std::vector<PointCoordinateType>& meanDistances = *static_cast<std::vector<PointCoordinateType>*>(additionalParameters[1]);
 
 	//structure for nearest neighbors search
 	DgmOctree::NearestNeighboursSphericalSearchStruct nNSS;
 	nNSS.level = cell.level;
 	nNSS.minNumberOfNeighbors = knn; //DGM: I woud have put knn+1 (as the point itself will be ignored) but in this case we won't get the same result as PCL!
-	cell.parentOctree->getCellPos(cell.truncatedCode,cell.level,nNSS.cellPos,true);
-	cell.parentOctree->computeCellCenter(nNSS.cellPos,cell.level,nNSS.cellCenter);
+	cell.parentOctree->getCellPos(cell.truncatedCode, cell.level, nNSS.cellPos, true);
+	cell.parentOctree->computeCellCenter(nNSS.cellPos, cell.level, nNSS.cellCenter);
 
 	unsigned n = cell.points->size(); //number of points in the current cell
 
 	//for each point in the cell
-	for (unsigned i=0; i<n; ++i)
+	for (unsigned i = 0; i < n; ++i)
 	{
-		cell.points->getPoint(i,nNSS.queryPoint);
+		cell.points->getPoint(i, nNSS.queryPoint);
 		const unsigned globalIndex = cell.points->getPointGlobalIndex(i);
 
 		//look for the k nearest neighbors
-		unsigned neighborCount = cell.parentOctree->findNearestNeighborsStartingFromCell(nNSS);
+		cell.parentOctree->findNearestNeighborsStartingFromCell(nNSS);
 		double sumDist = 0;
 		unsigned count = 0;
-		for (unsigned j=0; j<neighborCount; ++j)
+		for (int j = 0; j < knn; ++j)
 		{
 			if (nNSS.pointsInNeighbourhood[j].pointIndex != globalIndex)
 			{
@@ -883,7 +881,7 @@ bool CloudSamplingTools::applySORFilterAtLevel(	const DgmOctree::octreeCell& cel
 				++count;
 			}
 		}
-		
+
 		if (count)
 		{
 			meanDistances[globalIndex] = static_cast<PointCoordinateType>(sumDist / count);

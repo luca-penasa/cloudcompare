@@ -1,14 +1,14 @@
 //##########################################################################
 //#                                                                        #
-//#                            CLOUDCOMPARE                                #
+//#                              CLOUDCOMPARE                              #
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU General Public License as published by  #
-//#  the Free Software Foundation; version 2 of the License.               #
+//#  the Free Software Foundation; version 2 or later of the License.      #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
 //#          COPYRIGHT: EDF R&D / TELECOM ParisTech (ENST-TSI)             #
@@ -75,7 +75,7 @@ static bool CanDetachCloud(const ccHObject* obj)
 		return true;
 	}
 
-	//can't deleted the vertices of a mesh or the verties of a polyline
+	//can't delete the vertices of a mesh or the verties of a polyline
 	bool blocked = (	(parent->isKindOf(CC_TYPES::MESH) && (ccHObjectCaster::ToGenericMesh(parent)->getAssociatedCloud() == obj))
 						||	(parent->isKindOf(CC_TYPES::POLY_LINE) && (dynamic_cast<ccPointCloud*>(ccHObjectCaster::ToPolyline(parent)->getAssociatedCloud()) == obj)) );
 
@@ -157,15 +157,14 @@ ccDBRoot::ccDBRoot(ccCustomQTreeView* dbTreeWidget, QTreeView* propertiesTreeWid
 	assert(propertiesTreeWidget);
 	m_propertiesTreeWidget = propertiesTreeWidget;
 	m_propertiesModel = new QStandardItemModel(0, 2, parent);
-	//already done in ui file!
-	//m_propertiesTreeWidget->header()->hide();
-	//m_propertiesTreeWidget->setSelectionMode(QAbstractItemView::NoSelection);
-	//m_propertiesTreeWidget->setAllColumnsShowFocus(true);
 	m_ccPropDelegate = new ccPropertiesTreeDelegate(m_propertiesModel, m_propertiesTreeWidget);
 	m_propertiesTreeWidget->setItemDelegate(m_ccPropDelegate);
 	m_propertiesTreeWidget->setModel(m_propertiesModel);
+	//already done in ui file!
+	//m_propertiesTreeWidget->setSelectionMode(QAbstractItemView::NoSelection);
+	//m_propertiesTreeWidget->setAllColumnsShowFocus(true);
+	//m_propertiesTreeWidget->header()->setStretchLastSection(true);
 	m_propertiesTreeWidget->header()->setSectionResizeMode(QHeaderView::Interactive);
-	m_propertiesTreeWidget->header()->setStretchLastSection(true);
 	m_propertiesTreeWidget->setEnabled(false);
 
 	//Properties tree signals/slots connection
@@ -251,9 +250,10 @@ void ccDBRoot::addElement(ccHObject* object, bool autoExpand/*=true*/)
 
 	if (autoExpand)
 	{
-		QModelIndex childIndex = index(object);
-		if (childIndex.isValid())
-			m_dbTreeWidget->expand(childIndex);
+		//expand the parent (just in case)
+		m_dbTreeWidget->expand(index(parentObject));
+		//and the child
+		m_dbTreeWidget->expand(index(object));
 	}
 	else //if (parentObject)
 	{
@@ -452,12 +452,12 @@ QVariant ccDBRoot::data(const QModelIndex &index, int role) const
 	{
 		QString baseName(item->getName());
 		if (baseName.isEmpty())
-			baseName = QString("no name");
+			baseName = QStringLiteral("no name");
 		//specific case
 		if (item->isA(CC_TYPES::LABEL_2D))
-			baseName = QString("2D label: ")+baseName;
+			baseName = QStringLiteral("2D label: ")+baseName;
 		else if (item->isA(CC_TYPES::VIEWPORT_2D_LABEL))
-			baseName = QString("2D area label: ")+baseName;
+			baseName = QStringLiteral("2D area label: ")+baseName;
 
 		return QVariant(baseName);
 	}
@@ -477,14 +477,14 @@ QVariant ccDBRoot::data(const QModelIndex &index, int role) const
 		{
 		case CC_TYPES::HIERARCHY_OBJECT:
 			if (locked)
-				return QIcon(QString::fromUtf8(":/CC/images/dbHObjectSymbolLocked.png"));
+				return QIcon(QStringLiteral(":/CC/images/dbHObjectSymbolLocked.png"));
 			else
-				return QIcon(QString::fromUtf8(":/CC/images/dbHObjectSymbol.png"));
+				return QIcon(QStringLiteral(":/CC/images/dbHObjectSymbol.png"));
 		case CC_TYPES::POINT_CLOUD:
 			if (locked)
-				return QIcon(QString::fromUtf8(":/CC/images/dbCloudSymbolLocked.png"));
+				return QIcon(QStringLiteral(":/CC/images/dbCloudSymbolLocked.png"));
 			else
-				return QIcon(QString::fromUtf8(":/CC/images/dbCloudSymbol.png"));
+				return QIcon(QStringLiteral(":/CC/images/dbCloudSymbol.png"));
 			//all primitives
 		case CC_TYPES::PLANE:
 		case CC_TYPES::SPHERE:
@@ -497,56 +497,56 @@ QVariant ccDBRoot::data(const QModelIndex &index, int role) const
 		case CC_TYPES::FACET:
 		case CC_TYPES::QUADRIC:
 			if (locked)
-				return QIcon(QString::fromUtf8(":/CC/images/dbMiscGeomSymbolLocked.png"));
+				return QIcon(QStringLiteral(":/CC/images/dbMiscGeomSymbolLocked.png"));
 			else
-				return QIcon(QString::fromUtf8(":/CC/images/dbMiscGeomSymbol.png"));
+				return QIcon(QStringLiteral(":/CC/images/dbMiscGeomSymbol.png"));
 		case CC_TYPES::MESH:
 			if (locked)
-				return QIcon(QString::fromUtf8(":/CC/images/dbMeshSymbolLocked.png"));
+				return QIcon(QStringLiteral(":/CC/images/dbMeshSymbolLocked.png"));
 			else
-				return QIcon(QString::fromUtf8(":/CC/images/dbMeshSymbol.png"));
+				return QIcon(QStringLiteral(":/CC/images/dbMeshSymbol.png"));
 		case CC_TYPES::MESH_GROUP:
 		case CC_TYPES::SUB_MESH:
 			if (locked)
-				return QIcon(QString::fromUtf8(":/CC/images/dbSubMeshSymbolLocked.png"));
+				return QIcon(QStringLiteral(":/CC/images/dbSubMeshSymbolLocked.png"));
 			else
-				return QIcon(QString::fromUtf8(":/CC/images/dbSubMeshSymbol.png"));
+				return QIcon(QStringLiteral(":/CC/images/dbSubMeshSymbol.png"));
 		case CC_TYPES::POLY_LINE:
-			return QIcon(QString::fromUtf8(":/CC/images/dbPolylineSymbol.png"));
+			return QIcon(QStringLiteral(":/CC/images/dbPolylineSymbol.png"));
 		case CC_TYPES::POINT_OCTREE:
 			if (locked)
-				return QIcon(QString::fromUtf8(":/CC/images/dbOctreeSymbolLocked.png"));
+				return QIcon(QStringLiteral(":/CC/images/dbOctreeSymbolLocked.png"));
 			else
-				return QIcon(QString::fromUtf8(":/CC/images/dbOctreeSymbol.png"));
+				return QIcon(QStringLiteral(":/CC/images/dbOctreeSymbol.png"));
 		case CC_TYPES::CALIBRATED_IMAGE:
-			return QIcon(QString::fromUtf8(":/CC/images/dbCalibratedImageSymbol.png"));
+			return QIcon(QStringLiteral(":/CC/images/dbCalibratedImageSymbol.png"));
 		case CC_TYPES::IMAGE:
-			return QIcon(QString::fromUtf8(":/CC/images/dbImageSymbol.png"));
+			return QIcon(QStringLiteral(":/CC/images/dbImageSymbol.png"));
 		case CC_TYPES::SENSOR:
 		case CC_TYPES::GBL_SENSOR:
-			return QIcon(QString::fromUtf8(":/CC/images/dbGBLSensorSymbol.png"));
+			return QIcon(QStringLiteral(":/CC/images/dbGBLSensorSymbol.png"));
 		case CC_TYPES::CAMERA_SENSOR:
-			return QIcon(QString::fromUtf8(":/CC/images/dbCamSensorSymbol.png"));
+			return QIcon(QStringLiteral(":/CC/images/dbCamSensorSymbol.png"));
 		case CC_TYPES::MATERIAL_SET:
-			return QIcon(QString::fromUtf8(":/CC/images/dbMaterialSymbol.png"));
+			return QIcon(QStringLiteral(":/CC/images/dbMaterialSymbol.png"));
 		case CC_TYPES::NORMALS_ARRAY:
 		case CC_TYPES::NORMAL_INDEXES_ARRAY:
 		case CC_TYPES::RGB_COLOR_ARRAY:
 		case CC_TYPES::TEX_COORDS_ARRAY:
 		case CC_TYPES::TRANS_BUFFER:
 			if (locked)
-				return QIcon(QString::fromUtf8(":/CC/images/dbContainerSymbolLocked.png"));
+				return QIcon(QStringLiteral(":/CC/images/dbContainerSymbolLocked.png"));
 			else
-				return QIcon(QString::fromUtf8(":/CC/images/dbContainerSymbol.png"));
+				return QIcon(QStringLiteral(":/CC/images/dbContainerSymbol.png"));
 		case CC_TYPES::LABEL_2D:
-			return QIcon(QString::fromUtf8(":/CC/images/dbLabelSymbol.png"));
+			return QIcon(QStringLiteral(":/CC/images/dbLabelSymbol.png"));
 		case CC_TYPES::VIEWPORT_2D_OBJECT:
-			return QIcon(QString::fromUtf8(":/CC/images/dbViewportSymbol.png"));
+			return QIcon(QStringLiteral(":/CC/images/dbViewportSymbol.png"));
 		case CC_TYPES::VIEWPORT_2D_LABEL:
-			return QIcon(QString::fromUtf8(":/CC/images/dbAreaLabelSymbol.png"));
+			return QIcon(QStringLiteral(":/CC/images/dbAreaLabelSymbol.png"));
 		default:
 			if (locked)
-				return QIcon(QString::fromUtf8(":/CC/images/dbLockSymbol.png"));
+				return QIcon(QStringLiteral(":/CC/images/dbLockSymbol.png"));
 			else
 				return QVariant();
 		}
@@ -694,7 +694,7 @@ void ccDBRoot::changeSelection(const QItemSelection & selected, const QItemSelec
 	//first unselect
 	QModelIndexList deselectedItems = deselected.indexes();
 	{
-		for (int i=0;i<deselectedItems.count();++i)
+		for (int i = 0; i < deselectedItems.count(); ++i)
 		{
 			ccHObject* element = static_cast<ccHObject*>(deselectedItems.at(i).internalPointer());
 			assert(element);
@@ -840,7 +840,7 @@ void ccDBRoot::selectEntities(const ccHObject::Container& entities, bool increme
 	//count the number of lables
 	size_t labelCount = 0;
 	{
-		for (size_t i=0; i<entities.size(); ++i)
+		for (size_t i = 0; i < entities.size(); ++i)
 		{
 			ccHObject* ent = entities[i];
 			if (!ent)
@@ -866,7 +866,7 @@ void ccDBRoot::selectEntities(const ccHObject::Container& entities, bool increme
 				keepLabels = static_cast<ccHObject*>(formerSelectedIndexes[0].internalPointer())->isA(CC_TYPES::LABEL_2D); //yes if previously selected entities were already labels
 		}
 
-		for (size_t i=0; i<entities.size(); ++i)
+		for (size_t i = 0; i < entities.size(); ++i)
 		{
 			ccHObject* ent = entities[i];
 			if (ent)
@@ -898,6 +898,7 @@ void ccDBRoot::showPropertiesView(ccHObject* obj)
 
 	m_propertiesTreeWidget->setEnabled(true);
 	m_propertiesTreeWidget->setColumnWidth(0, c_propViewLeftColumnWidth);
+	//m_propertiesTreeWidget->setColumnWidth(1, m_propertiesTreeWidget->width() - c_propViewLeftColumnWidth);
 }
 
 void ccDBRoot::hidePropertiesView()
@@ -911,13 +912,15 @@ void ccDBRoot::reflectObjectPropChange(ccHObject* obj)
 {
 	assert(m_ccPropDelegate);
 	assert(m_propertiesTreeWidget);
-	if (!m_propertiesTreeWidget->isEnabled() || m_ccPropDelegate->getCurrentObject()!=obj)
+	if (!m_propertiesTreeWidget->isEnabled() || m_ccPropDelegate->getCurrentObject() != obj)
+	{
 		showPropertiesView(obj);
+	}
 }
 
 void ccDBRoot::updatePropertiesView()
 {
-	assert(m_propertiesTreeWidget);
+	assert(m_dbTreeWidget);
 	QItemSelectionModel* qism = m_dbTreeWidget->selectionModel();
 	QModelIndexList selectedIndexes = qism->selectedIndexes();
 	if (selectedIndexes.size() == 1)
@@ -961,7 +964,7 @@ int ccDBRoot::countSelectedEntities(CC_CLASS_ENUM filter)
 		return selCount;
 
 	int realCount = 0;
-	for (int i=0; i<selCount; ++i)
+	for (int i = 0; i < selCount; ++i)
 	{
 		ccHObject* object = static_cast<ccHObject*>(selectedIndexes[i].internalPointer());
 		if (object && object->isKindOf(filter))
@@ -983,7 +986,7 @@ size_t ccDBRoot::getSelectedEntities(	ccHObject::Container& selectedEntities,
 	try
 	{
 		int selCount = selectedIndexes.size();
-		for (int i=0; i<selCount; ++i)
+		for (int i = 0; i < selCount; ++i)
 		{
 			ccHObject* object = static_cast<ccHObject*>(selectedIndexes[i].internalPointer());
 			if (object && object->isKindOf(filter))
@@ -1000,7 +1003,7 @@ size_t ccDBRoot::getSelectedEntities(	ccHObject::Container& selectedEntities,
 		info->reset();
 		info->selCount = selectedIndexes.size();
 
-		for (size_t i=0; i<info->selCount; ++i)
+		for (size_t i = 0; i < info->selCount; ++i)
 		{
 			ccHObject* obj = selectedEntities[i];
 
@@ -1009,22 +1012,29 @@ size_t ccDBRoot::getSelectedEntities(	ccHObject::Container& selectedEntities,
 			info->normalsCount += obj->hasNormals() ? 1 : 0;
 
 			if (obj->isA(CC_TYPES::HIERARCHY_OBJECT))
-				info->groupCount++;
-
-			if (obj->isKindOf(CC_TYPES::POINT_CLOUD))
 			{
-				ccGenericPointCloud* cloud = ccHObjectCaster::ToGenericPointCloud(obj);
-				info->cloudCount++;
-				info->octreeCount += cloud->getOctree() != NULL ? 1 : 0;
+				info->groupCount++;
 			}
-
-			if (obj->isKindOf(CC_TYPES::MESH))
+			else if(obj->isKindOf(CC_TYPES::POINT_CLOUD))
+			{
+				ccGenericPointCloud* genericCloud = ccHObjectCaster::ToGenericPointCloud(obj);
+				info->cloudCount++;
+				info->octreeCount += genericCloud->getOctree() != NULL ? 1 : 0;
+				ccPointCloud* qccCloud = ccHObjectCaster::ToPointCloud(obj);
+				info->gridCound += qccCloud->gridCount();
+			}
+			else if (obj->isKindOf(CC_TYPES::MESH))
+			{
 				info->meshCount++;
 
-			if (obj->isKindOf(CC_TYPES::POLY_LINE))
+				if (obj->isKindOf(CC_TYPES::PLANE))
+					info->planeCount++;
+			}
+			else if (obj->isKindOf(CC_TYPES::POLY_LINE))
+			{
 				info->polylineCount++;
-
-			if (obj->isKindOf(CC_TYPES::SENSOR))
+			}
+			else if(obj->isKindOf(CC_TYPES::SENSOR))
 			{
 				info->sensorCount++;
 				if (obj->isKindOf(CC_TYPES::GBL_SENSOR))
@@ -1032,9 +1042,10 @@ size_t ccDBRoot::getSelectedEntities(	ccHObject::Container& selectedEntities,
 				if (obj->isKindOf(CC_TYPES::CAMERA_SENSOR))
 					info->cameraSensorCount++;
 			}
-
-			if (obj->isKindOf(CC_TYPES::POINT_KDTREE))
+			else if (obj->isKindOf(CC_TYPES::POINT_KDTREE))
+			{
 				info->kdTreeCount++;
+			}
 		}
 	}
 
@@ -1062,13 +1073,14 @@ Qt::ItemFlags ccDBRoot::flags(const QModelIndex &index) const
 	if (item && !item->isLocked()) //locked items cannot be drag-dropped
 	{
 		if (item->isA(CC_TYPES::HIERARCHY_OBJECT)								||
-				(item->isKindOf(CC_TYPES::POINT_CLOUD) && CanDetachCloud(item))		|| //vertices can't be displaced
-				(item->isKindOf(CC_TYPES::MESH) && !item->isA(CC_TYPES::SUB_MESH))	|| //a sub-mesh can't leave its parent mesh
-				item->isKindOf(CC_TYPES::IMAGE)										||
-				item->isKindOf(CC_TYPES::LABEL_2D)									||
-				item->isKindOf(CC_TYPES::CAMERA_SENSOR)								||
-				item->isKindOf(CC_TYPES::PRIMITIVE)                                 ||
-				item->isKindOf(CC_TYPES::CUSTOM_H_OBJECT))
+			(item->isKindOf(CC_TYPES::POINT_CLOUD) && CanDetachCloud(item))		|| //vertices can't be displaced
+			(item->isKindOf(CC_TYPES::MESH) && !item->isA(CC_TYPES::SUB_MESH))	|| //a sub-mesh can't leave its parent mesh
+			item->isKindOf(CC_TYPES::IMAGE)										||
+			item->isKindOf(CC_TYPES::LABEL_2D)									||
+			item->isKindOf(CC_TYPES::CAMERA_SENSOR)								||
+			item->isKindOf(CC_TYPES::PRIMITIVE)									||
+			item->isKindOf(CC_TYPES::FACET)										||
+			item->isKindOf(CC_TYPES::CUSTOM_H_OBJECT))
 
 		{
 			defaultFlags |= (Qt::ItemIsDragEnabled | Qt::ItemIsDropEnabled);
@@ -1076,7 +1088,7 @@ Qt::ItemFlags ccDBRoot::flags(const QModelIndex &index) const
 		else if (item->isKindOf(CC_TYPES::POLY_LINE))
 		{
 			const ccPolyline* poly = static_cast<const ccPolyline*>(item);
-			//we can only displace a polyline if it is not dependant on it's father!
+			//we can only displace a polyline if it is not dependent on it's father!
 			const ccHObject* polyVertices = dynamic_cast<const ccHObject*>(poly->getAssociatedCloud());
 			if (polyVertices != poly->getParent())
 			{
@@ -1725,7 +1737,7 @@ void ccDBRoot::selectByTypeAndName()
 
 	// for name matching - def values
 	bool regex = false;
-	QString name = "";
+	QString name; // an empty string by default
 
 	if (scDlg.getNameMatchIsUsed())
 	{
@@ -1880,7 +1892,7 @@ void ccDBRoot::enableBubbleViewMode()
 	if (selCount == 0)
 		return;
 
-	for (int i=0; i<selCount; ++i)
+	for (int i = 0; i < selCount; ++i)
 	{
 		ccHObject* item = static_cast<ccHObject*>(selectedIndexes[i].internalPointer());
 		if (item &&item->isA(CC_TYPES::GBL_SENSOR))
@@ -1916,7 +1928,8 @@ void ccDBRoot::showContextMenu(const QPoint& menuPos)
 			bool hasExactlyOnePlanarEntity = false;
 			bool leafObject = false;
 			bool hasExacltyOneGBLSenor = false;
-			for (int i=0; i<selCount; ++i)
+			bool hasExactlyOnePlane = false;
+			for (int i = 0; i < selCount; ++i)
 			{
 				ccHObject* item = static_cast<ccHObject*>(selectedIndexes[i].internalPointer());
 				if (!item)
@@ -1951,6 +1964,7 @@ void ccDBRoot::showContextMenu(const QPoint& menuPos)
 						else if (item->isA(CC_TYPES::PLANE) || item->isA(CC_TYPES::FACET))
 						{
 							hasExactlyOnePlanarEntity = true;
+							hasExactlyOnePlane = item->isKindOf(CC_TYPES::PLANE);
 						}
 						else if (item->isA(CC_TYPES::GBL_SENSOR))
 						{
@@ -1965,6 +1979,10 @@ void ccDBRoot::showContextMenu(const QPoint& menuPos)
 				menu.addAction(m_alignCameraWithEntity);
 				menu.addAction(m_alignCameraWithEntityReverse);
 				menu.addSeparator();
+			}
+			if (hasExactlyOnePlane)
+			{
+				menu.addAction(MainWindow::TheInstance()->actionEditPlane);
 			}
 			if (hasExacltyOneGBLSenor)
 			{

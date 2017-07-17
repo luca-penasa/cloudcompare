@@ -4,14 +4,14 @@
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU General Public License as published by  #
-//#  the Free Software Foundation; version 2 of the License.               #
+//#  the Free Software Foundation; version 2 or later of the License.      #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
-//#         COPYRIGHT: Ryan Wicks, 2G Robotics Inc., 2015				   #
+//#             COPYRIGHT: Ryan Wicks, 2G Robotics Inc., 2015              #
 //#                                                                        #
 //##########################################################################
 
@@ -47,7 +47,7 @@
 //System
 #include <algorithm>
 #if defined(CC_WINDOWS)
-#include "Windows.h"
+#include "windows.h"
 #else
 #include <unistd.h>
 #endif
@@ -89,12 +89,14 @@ qAnimationDlg::qAnimationDlg(ccGLWindow* view3d, QWidget* parent)
 			bool loop = settings.value("loop", loopCheckBox->isChecked()).toBool();
 			int frameRate = settings.value("frameRate", fpsSpinBox->value()).toInt();
 			int superRes = settings.value("superRes", superResolutionSpinBox->value()).toInt();
+			int renderingMode = settings.value("renderingMode", renderingModeComboBox->currentIndex()).toInt();
 			int bitRate = settings.value("bitRate", bitrateSpinBox->value()).toInt();
 
 			previewFromSelectedCheckBox->setChecked(startPreviewFromSelectedStep);
 			loopCheckBox->setChecked(loop);
 			fpsSpinBox->setValue(frameRate);
 			superResolutionSpinBox->setValue(superRes);
+			renderingModeComboBox->setCurrentIndex(renderingMode);
 			bitrateSpinBox->setValue(bitRate);
 		}
 		
@@ -108,7 +110,8 @@ qAnimationDlg::qAnimationDlg(ccGLWindow* view3d, QWidget* parent)
 
 	connect ( browseButton,				SIGNAL( clicked() ),				this, SLOT( onBrowseButtonClicked() ) );
 	connect ( previewButton,			SIGNAL( clicked() ),				this, SLOT( preview() ) );
-	connect ( renderButton,				SIGNAL( clicked() ),				this, SLOT( render() ) );
+	connect ( renderButton,				SIGNAL( clicked() ),				this, SLOT( renderAnimation() ) );
+	connect ( exportFramesPushButton,	SIGNAL( clicked() ),				this, SLOT( renderFrames() ) );
 	connect ( buttonBox,				SIGNAL( accepted() ),				this, SLOT( onAccept() ) );
 }
 
@@ -130,7 +133,7 @@ bool qAnimationDlg::init(const std::vector<cc2DViewportObject*>& viewports)
 		return false;
 	}
 	
-	for (size_t i=0; i<viewports.size(); ++i)
+	for (size_t i = 0; i < viewports.size(); ++i)
 	{
 		cc2DViewportObject* vp = viewports[i];
 
@@ -169,7 +172,7 @@ bool qAnimationDlg::init(const std::vector<cc2DViewportObject*>& viewports)
 void qAnimationDlg::onAccept()
 {
 	assert(stepSelectionList->count() >= m_videoSteps.size());
-	for ( size_t i=0; i<m_videoSteps.size(); ++i )
+	for (size_t i = 0; i < m_videoSteps.size(); ++i)
 	{
 		cc2DViewportObject* vp = m_videoSteps[i].viewport;
 
@@ -185,6 +188,7 @@ void qAnimationDlg::onAccept()
 		settings.setValue("previewFromSelected", previewFromSelectedCheckBox->isChecked());
 		settings.setValue("loop", loopCheckBox->isChecked());
 		settings.setValue("frameRate", fpsSpinBox->value());
+		settings.setValue("renderingMode", renderingModeComboBox->currentIndex());
 		settings.setValue("superRes", superResolutionSpinBox->value());
 		settings.setValue("bitRate", bitrateSpinBox->value());
 
@@ -463,7 +467,7 @@ void qAnimationDlg::preview()
 	setEnabled(true);
 }
 
-void qAnimationDlg::render()
+void qAnimationDlg::render(bool asSeparateFrames)
 {
 	if (!m_view3d)
 	{
@@ -485,7 +489,13 @@ void qAnimationDlg::render()
 	//count the total number of frames
 	int frameCount = countFrames(0);
 	int fps = fpsSpinBox->value();
+
+	//super resolution
 	int superRes = superResolutionSpinBox->value();
+	const int SUPER_RESOLUTION = 0;
+	const int ZOOM = 1;
+	int renderingMode = renderingModeComboBox->currentIndex();
+	assert(renderingMode == SUPER_RESOLUTION || renderingMode == ZOOM);
 
 	//show progress dialog
 	QProgressDialog progressDialog(QString("Frames: %1").arg(frameCount), "Cancel", 0, frameCount, this);
@@ -494,38 +504,56 @@ void qAnimationDlg::render()
 	QApplication::processEvents();
 
 #ifdef QFFMPEG_SUPPORT
-	//get original viewport size
-	QSize originalViewSize = m_view3d->size();
-
-	//hack: as the encoder requires that the video dimensions are multiples of 8, we resize the window a little bit...
+	QScopedPointer<QVideoEncoder> encoder(0);
+	QSize originalViewSize;
+	if (!asSeparateFrames)
 	{
-		//find the nearest multiples of 8
-		QSize customSize = originalViewSize;
-		if (originalViewSize.width() % 8 || originalViewSize.height() % 8)
+		//get original viewport size
+		originalViewSize = m_view3d->qtSize();
+
+		//hack: as the encoder requires that the video dimensions are multiples of 8, we resize the window a little bit...
 		{
-			if (originalViewSize.width() % 8)
-				customSize.setWidth((originalViewSize.width() / 8 + 1) * 8);
-			if (originalViewSize.height() % 8)
-				customSize.setHeight((originalViewSize.height() / 8 + 1) * 8);
-			m_view3d->resize(customSize);
-			QApplication::processEvents();
+			//find the nearest multiples of 8
+			QSize customSize = originalViewSize;
+			if (originalViewSize.width() % 8 || originalViewSize.height() % 8)
+			{
+				if (originalViewSize.width() % 8)
+					customSize.setWidth((originalViewSize.width() / 8 + 1) * 8);
+				if (originalViewSize.height() % 8)
+					customSize.setHeight((originalViewSize.height() / 8 + 1) * 8);
+				m_view3d->resize(customSize);
+				QApplication::processEvents();
+			}
+		}
+
+		int bitrate = bitrateSpinBox->value() * 1024;
+		int gop = fps;
+		int animScale = 1;
+		if (renderingMode == ZOOM)
+		{
+			animScale = superRes;
+		}
+		encoder.reset(new QVideoEncoder(outputFilename, m_view3d->glWidth() * animScale, m_view3d->glHeight() * animScale, bitrate, gop, static_cast<unsigned>(fpsSpinBox->value())));
+		QString errorString;
+		if (!encoder->open(&errorString))
+		{
+			QMessageBox::critical(this, "Error", QString("Failed to open file for output: %1").arg(errorString));
+			setEnabled(true);
+			return;
 		}
 	}
-
-	int bitrate = bitrateSpinBox->value() * 1024;
-	int gop = fps;
-	QVideoEncoder encoder(outputFilename, m_view3d->width(), m_view3d->height(), bitrate, gop, static_cast<unsigned>(fpsSpinBox->value()));
-	QString errorString;
-	if (!encoder.open(&errorString))
+#else
+	if (!asSeparateFrames)
 	{
-		QMessageBox::critical(this, "Error", QString("Failed to open file for output: %1").arg(errorString));
-		setEnabled(true);
+		QMessageBox::critical(this, "Error", QString("Animation mode is not supported (no FFMPEG support)"));
 		return;
 	}
 #endif
 
 	bool lodWasEnabled = m_view3d->isLODEnabled();
 	m_view3d->setLODEnabled(false);
+
+	QDir outputDir( QFileInfo(outputFilename).absolutePath() );
 
 	int frameIndex = 0;
 	bool success = true;
@@ -545,7 +573,7 @@ void qAnimationDlg::render()
 			applyViewport ( &current_params );
 
 			//render to image
-			QImage image = m_view3d->renderToImage(superRes, false, false, true );
+			QImage image = m_view3d->renderToImage(superRes, renderingMode == ZOOM, false, true );
 
 			if (image.isNull())
 			{
@@ -554,28 +582,34 @@ void qAnimationDlg::render()
 				break;
 			}
 
-			if (superRes > 1)
+			if (renderingMode == SUPER_RESOLUTION && superRes > 1)
 			{
-				image = image.scaled(image.width()/superRes, image.height()/superRes, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
+				image = image.scaled(image.width() / superRes, image.height() / superRes, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
 			}
 
+			if (asSeparateFrames)
+			{
+				QString filename = QString("frame_%1.png").arg(frameIndex, 6, 10, QChar('0'));
+				QString fullPath = outputDir.filePath(filename);
+				if (!image.save(fullPath))
+				{
+					QMessageBox::critical(this, "Error", QString("Failed to save frame #%1").arg(frameIndex + 1));
+					success = false;
+					break;
+				}
+			}
+			else
+			{
 #ifdef QFFMPEG_SUPPORT
-			if (!encoder.encodeImage(image, frameIndex, &errorString))
-			{
-				QMessageBox::critical(this, "Error", QString("Failed to encode frame #%1: %2").arg(frameIndex+1).arg(errorString));
-				success = false;
-				break;
-			}
-#else
-			QString filename = QString("frame_%1.png").arg(frameIndex, 6, 10, QChar('0'));
-			QString fullPath = QDir(outputFilename).filePath(filename);
-			if (!image.save(fullPath))
-			{
-				QMessageBox::critical(this, "Error", QString("Failed to save frame #%1").arg(frameIndex+1));
-				success = false;
-				break;
-			}
+				QString errorString;
+				if (!encoder->encodeImage(image, frameIndex, &errorString))
+				{
+					QMessageBox::critical(this, "Error", QString("Failed to encode frame #%1: %2").arg(frameIndex + 1).arg(errorString));
+					success = false;
+					break;
+				}
 #endif
+			}
 			++frameIndex;
 			progressDialog.setValue(frameIndex);
 			QApplication::processEvents();
@@ -603,13 +637,16 @@ void qAnimationDlg::render()
 	m_view3d->setLODEnabled(lodWasEnabled);
 
 #ifdef QFFMPEG_SUPPORT
-	encoder.close();
+	if (encoder)
+	{
+		encoder->close();
 
-	//hack: restore original size
-	m_view3d->resize(originalViewSize);
-	QApplication::processEvents();
+		//hack: restore original size
+		m_view3d->resize(originalViewSize);
+		QApplication::processEvents();
+	}
 #endif
-	
+
 	progressDialog.hide();
 	QApplication::processEvents();
 

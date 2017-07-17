@@ -1,14 +1,14 @@
 //##########################################################################
 //#                                                                        #
-//#                            CLOUDCOMPARE                                #
+//#                              CLOUDCOMPARE                              #
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU General Public License as published by  #
-//#  the Free Software Foundation; version 2 of the License.               #
+//#  the Free Software Foundation; version 2 or later of the License.      #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
 //#          COPYRIGHT: EDF R&D / TELECOM ParisTech (ENST-TSI)             #
@@ -22,6 +22,9 @@
 
 //qCC_gl
 #include <ccGuiParameters.h>
+
+// qCC_db
+#include "ccFileUtils.h"
 
 //Qt
 #include <QFileDialog>
@@ -106,7 +109,7 @@ void MatrixDisplayDlg::exportToASCII()
 	//persistent settings
 	QSettings settings;
 	settings.beginGroup(ccPS::LoadFile()); //use the same folder as the load one
-	QString currentPath = settings.value(ccPS::CurrentPath(),QApplication::applicationDirPath()).toString();
+	QString currentPath = settings.value(ccPS::CurrentPath(), ccFileUtils::defaultDocPath()).toString();
 
 	QString outputFilename = QFileDialog::getSaveFileName(this, "Select output file", currentPath, "*.mat.txt");
 	if (outputFilename.isEmpty())

@@ -2,14 +2,6 @@ cmake_minimum_required(VERSION 3.0)
 
 cmake_policy(PUSH)
 
-# set up rpaths before we do anything
-if (APPLE)
-	# see: https://cmake.org/Wiki/CMake_RPATH_handling
-	set( CMAKE_SKIP_BUILD_RPATH  FALSE )
-	set( CMAKE_BUILD_WITH_INSTALL_RPATH FALSE ) 
-	set( CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE )
-endif()
-
 include ( CMakePolicies.cmake )
 
 project( CloudCompareProjects )
@@ -33,7 +25,7 @@ set( INSTALL_DESTINATIONS CloudCompare )
 
 # RPATH Linux/Unix: (dynamic) libs are put in a subdir of prefix/lib,
 # since they are only used by qCC/ccViewer
-if( UNIX AND NOT APPLE)
+if( UNIX AND NOT APPLE )
 	set(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_PREFIX}/lib/cloudcompare")
 endif()
 
@@ -75,13 +67,13 @@ if( WIN32 )
     if( ${OPTION_BUILD_CCVIEWER} )
         list( APPEND INSTALL_DESTINATIONS ${CCVIEWER_DEST_FOLDER} )
     endif()
-else( APPLE )
+elseif( APPLE )
 	set( INSTALL_DESTINATIONS "${CLOUDCOMPARE_MAC_FRAMEWORK_DIR}" )
     
     if( ${OPTION_BUILD_CCVIEWER} )
         list( APPEND INSTALL_DESTINATIONS "${CCVIEWER_MAC_FRAMEWORK_DIR}" )
     endif()
-else( UNIX )
+elseif( UNIX )
   set( INSTALL_DESTINATIONS ${CMAKE_INSTALL_PREFIX}/bin )
 endif()
 

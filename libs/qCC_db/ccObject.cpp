@@ -1,14 +1,14 @@
 //##########################################################################
 //#                                                                        #
-//#                            CLOUDCOMPARE                                #
+//#                              CLOUDCOMPARE                              #
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU General Public License as published by  #
-//#  the Free Software Foundation; version 2 of the License.               #
+//#  the Free Software Foundation; version 2 or later of the License.      #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
 //#          COPYRIGHT: EDF R&D / TELECOM ParisTech (ENST-TSI)             #
@@ -54,8 +54,12 @@
 	v4.1 - 09/01/2015 - Scan grids added to point clouds
 	v4.2 - 10/07/2015 - Global shift added to the ccScalarField structure
 	v4.3 - 01/07/2016 - Additional intrinsic parameters of a camera sensor (optical center)
+	v4.4 - 07/07/2016 - Full WaveForm data added to point clouds
+	v4.5 - 10/06/2016 - Transformation history is now saved
+	v4.6 - 11/03/2016 - Null normal vector code added
+	v4.7 - 12/22/2016 - Return index added to ccWaveform
 **/
-const unsigned c_currentDBVersion = 43; //4.3
+const unsigned c_currentDBVersion = 47; //4.7
 
 //! Default unique ID generator (using the system persistent settings as we did previously proved to be not reliable)
 static ccUniqueIDGenerator::Shared s_uniqueIDGenerator(new ccUniqueIDGenerator);
@@ -137,7 +141,7 @@ bool ccObject::toFile(QFile& out) const
 		return WriteError();
 
 	//unique ID (dataVersion>=20)
-	//DGM: this ID will be usefull to recreate dynamic links between entities!
+	//DGM: this ID will be useful to recreate dynamic links between entities!
 	uint32_t uniqueID = (uint32_t)m_uniqueID;
 	if (out.write((const char*)&uniqueID,4) < 0)
 		return WriteError();
@@ -155,17 +159,30 @@ bool ccObject::toFile(QFile& out) const
 
 	//meta data (dataVersion>=30)
 	{
+		//check for valid pieces of meta-data
+		//DGM: some pieces of meta-data can't be properly streamed (the ones relying on 'Q_DECLARE_METATYPE' calls typically)
+		uint32_t validMetaDataCount = 0;
+		for (QVariantMap::const_iterator it = m_metaData.begin(); it != m_metaData.end(); ++it)
+		{
+			if (!it.key().contains(".nosave"))
+			{
+				++validMetaDataCount;
+			}
+		}
+
 		//count
-		uint32_t metaDataCount = (uint32_t)m_metaData.size();
-		if (out.write((const char*)&metaDataCount,4) < 0)
+		if (out.write((const char*)&validMetaDataCount, 4) < 0)
 			return WriteError();
 
 		//"key + value" pairs
 		QDataStream outStream(&out);
 		for (QVariantMap::const_iterator it = m_metaData.begin(); it != m_metaData.end(); ++it)
 		{
-			outStream << it.key();
-			outStream << it.value();
+			if (!it.key().contains(".nosave"))
+			{
+				outStream << it.key();
+				outStream << it.value();
+			}
 		}
 	}
 
@@ -242,7 +259,7 @@ bool ccObject::fromFile(QFile& in, short dataVersion, int flags)
 	//	return ReadError();
 
 	//unique ID (dataVersion>=20)
-	//DGM: this ID will be usefull to recreate dynamic links between entities!
+	//DGM: this ID will be useful to recreate dynamic links between entities!
 	uint32_t uniqueID = 0;
 	if (in.read((char*)&uniqueID,4) < 0)
 		return ReadError();

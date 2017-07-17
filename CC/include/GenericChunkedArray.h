@@ -4,11 +4,12 @@
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU Library General Public License as       #
-//#  published by the Free Software Foundation; version 2 of the License.  #
+//#  published by the Free Software Foundation; version 2 or later of the  #
+//#  License.                                                              #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
 //#          COPYRIGHT: EDF R&D / TELECOM ParisTech (ENST-TSI)             #
@@ -112,14 +113,14 @@ public:
 	inline unsigned dim() const { return N; }
 
 	//! Returns memory (in bytes) currently used by this structure
-	inline unsigned memory() const
+	inline size_t memory() const
 	{
 		return sizeof(GenericChunkedArray) 
 #ifndef CC_ENV_64
-				+ static_cast<unsigned>(m_theChunks.capacity())*sizeof(ElementType*)
-				+ static_cast<unsigned>(m_perChunkCount.capacity())*sizeof(unsigned)
+				+ m_theChunks.capacity()     * sizeof(ElementType*)
+				+ m_perChunkCount.capacity() * sizeof(unsigned)
 #endif
-				+ N*capacity()*sizeof(ElementType);
+				+ static_cast<size_t>(N) * static_cast<size_t>(capacity()) * sizeof(ElementType);
 	}
 
 	//! Clears the array
@@ -143,8 +144,8 @@ public:
 		}
 
 		m_count = 0;
-		memset(m_minVal,0,sizeof(ElementType)*N);
-		memset(m_maxVal,0,sizeof(ElementType)*N);
+		memset(m_minVal, 0, sizeof(ElementType)*N);
+		memset(m_maxVal, 0, sizeof(ElementType)*N);
 		placeIteratorAtBegining();
 	}
 
@@ -166,8 +167,8 @@ public:
 			ElementType zero = 0;
 			std::fill(m_data.begin(), m_data.end(), zero);
 #else
-			for (size_t i=0; i<m_theChunks.size(); ++i)
-				memset(m_theChunks[i],0,m_perChunkCount[i]*sizeof(ElementType)*N);
+			for (size_t i = 0; i < m_theChunks.size(); ++i)
+				memset(m_theChunks[i], 0, m_perChunkCount[i]*sizeof(ElementType)*N);
 #endif
 		}
 		else
@@ -181,7 +182,7 @@ public:
 #endif
 			const ElementType* _cSrc = _cDest;
 			//we copy only the first element to init recurrence
-			memcpy(_cDest,fillValue,N*sizeof(ElementType));
+			memcpy(_cDest, fillValue, N*sizeof(ElementType));
 			_cDest += N;
 
 #ifdef CC_ENV_64
@@ -195,10 +196,10 @@ public:
 			//recurrence
 			while (elemFilled < elemToFill)
 			{
-				unsigned cs = elemToFill-elemFilled;
+				unsigned cs = elemToFill - elemFilled;
 				if (copySize < cs)
 					cs = copySize;
-				memcpy(_cDest,_cSrc,cs*sizeof(ElementType)*N);
+				memcpy(_cDest, _cSrc, cs*sizeof(ElementType)*N);
 				_cDest += cs*static_cast<unsigned>(N);
 				elemFilled += cs;
 				copySize <<= 1;
@@ -206,7 +207,7 @@ public:
 
 #ifndef CC_ENV_64
 			//then we simply have to copy the first chunk to the other ones
-			for (size_t i=1; i<m_theChunks.size(); ++i)
+			for (size_t i = 1; i < m_theChunks.size(); ++i)
 				memcpy(m_theChunks[i],_cSrc,m_perChunkCount[i]*sizeof(ElementType)*N);
 #endif
 		}
@@ -307,8 +308,8 @@ public:
 			if (initNewElements)
 			{
 				//m_capacity should be up-to-date after a call to 'reserve'
-				for (unsigned i=m_count; i<m_capacity; ++i)
-					setValue(i,valueForNewElements);
+				for (unsigned i = m_count; i < m_capacity; ++i)
+					setValue(i, valueForNewElements);
 			}
 		}
 		else //last case: we have to reduce the array size
@@ -401,7 +402,7 @@ public:
 
 	//***** data access *****//
 
-	//! Places global iterator at the begining of the array
+	//! Places global iterator at the beginning of the array
 	inline void placeIteratorAtBegining() { m_iterator = 0; }
 
 	//! Forwards global iterator (one position)
@@ -484,12 +485,12 @@ public:
 	//! Const version of GenericChunkedArray::getMax
 	inline const ElementType* getMax() const { return m_maxVal; }
 
-	//! Sets the value of the minimum (independantly of what is stored in the array)
+	//! Sets the value of the minimum (independently of what is stored in the array)
 	/** \param m the "minimum" element
 	**/
 	inline void setMin(const ElementType* m) { memcpy(m_minVal,m,N*sizeof(ElementType)); }
 
-	//! Sets the value of the maximum (independantly of what is stored in the array)
+	//! Sets the value of the maximum (independently of what is stored in the array)
 	/** \param M the "maximum" element
 	**/
 	inline void setMax(const ElementType* M) { memcpy(m_maxVal,M,N*sizeof(ElementType)); }
@@ -499,36 +500,85 @@ public:
 		the algorithm will look for the element which have the smallest
 		(or biggest) component of all (without any consideration for the order
 		of the values).
-	**/
+	**/	
 	virtual void computeMinAndMax()
 	{
 		//no points?
 		if (m_count == 0)
 		{
 			//all boundaries to zero
-			memset(m_minVal,0,sizeof(ElementType)*N);
-			memset(m_maxVal,0,sizeof(ElementType)*N);
+			memset(m_minVal, 0, sizeof(ElementType)*N);
+			memset(m_maxVal, 0, sizeof(ElementType)*N);
 			return;
 		}
-
+		
 		//we set the first element as min and max boundaries
-		memcpy(m_minVal,getValue(0),sizeof(ElementType)*N);
-		memcpy(m_maxVal,m_minVal,sizeof(ElementType)*N);
-
+		memcpy(m_minVal, getValue(0), sizeof(ElementType)*N);
+		memcpy(m_maxVal, m_minVal, sizeof(ElementType)*N);
+		
+		unsigned int count = m_count - 1;
+		
+		// do we have an odd number of (remaining) elements to check?
+		bool odd = count & 1;
+		if ( odd )
+		{
+			count--;
+		}
+		
 		//we update boundaries with all other values
-		for (unsigned i=1; i<m_count; ++i)
+		for (unsigned i = 1; i < count; i += 2)
 		{
 			const ElementType* val = getValue(i);
-			for (unsigned j=0; j<N; ++j)
+			const ElementType* val2 = getValue(i + 1);
+
+			for (unsigned j = 0; j < N; ++j)
 			{
-				if (val[j] < m_minVal[j])
-					m_minVal[j] = val[j];
-				else if (val[j] > m_maxVal[j])
-					m_maxVal[j] = val[j];
+				ElementType maximum;
+				ElementType	minimum;
+
+				if (val[j] > val2[j])
+				{
+					minimum = val2[j];
+					maximum = val[j];
+				}
+				else
+				{
+					minimum = val[j];
+					maximum = val2[j];
+				}
+				
+				if (maximum > m_maxVal[j])
+				{
+					m_maxVal[j] = maximum;
+				}
+				
+				if (minimum < m_minVal[j])
+				{
+					m_minVal[j] = minimum;
+				}
 			}
 		}
-	}
+		
+		// if we have an extra element, check it
+		if (odd)
+		{
+			const ElementType* val = getValue(m_count - 1);
 
+			for (unsigned j = 0; j < N; ++j)
+			{
+				if (val[j] > m_maxVal[j])
+				{
+					m_maxVal[j] = val[j];
+				}
+
+				if (val[j] < m_minVal[j])
+				{
+					m_minVal[j] = val[j];
+				}
+			}
+		}	
+	}
+	
 	//! Swaps two elements
 	/** \param firstElementIndex first element index
 		\param secondElementIndex second element index
@@ -544,9 +594,9 @@ public:
 		//{
 		//
 			ElementType tempVal[N];
-			memcpy(tempVal,v1,N*sizeof(ElementType));
-			memcpy(v1,v2,N*sizeof(ElementType));
-			memcpy(v2,tempVal,N*sizeof(ElementType));
+			memcpy(tempVal, v1, N*sizeof(ElementType));
+			memcpy(v1, v2, N*sizeof(ElementType));
+			memcpy(v2, tempVal, N*sizeof(ElementType));
 		//}
 	}
 
@@ -580,7 +630,7 @@ public:
 #endif
 	}
 
-	//! Returns the begining of a given chunk (pointer)
+	//! Returns the beginning of a given chunk (pointer)
 	inline ElementType* chunkStartPtr(unsigned index)
 	{
 		assert(index < chunksCount());
@@ -591,7 +641,7 @@ public:
 #endif
 	}
 
-	//! Returns the begining of a given chunk (pointer)
+	//! Returns the beginning of a given chunk (pointer)
 	inline const ElementType* chunkStartPtr(unsigned index) const
 	{
 		assert(index < chunksCount());
@@ -607,7 +657,7 @@ public:
 		\param dest destination array (will be resized if necessary)
 		\return success
 	**/
-	bool copy(GenericChunkedArray<N,ElementType>& dest) const
+	bool copy(GenericChunkedArray<N, ElementType>& dest) const
 	{
 		unsigned count = currentSize();
 		if (!dest.resize(count))
@@ -674,7 +724,7 @@ protected:
 };
 
 //! Specialization of GenericChunkedArray for the case where N=1 (speed up)
-template <class ElementType> class GenericChunkedArray<1,ElementType> : public CCShareable
+template <class ElementType> class GenericChunkedArray<1, ElementType> : public CCShareable
 {
 public:
 
@@ -735,14 +785,14 @@ public:
 	inline unsigned dim() const {return 1;}
 
 	//! Returns memory (in bytes) currently used by this structure
-	inline unsigned memory() const
+	inline size_t memory() const
 	{
 		return sizeof(GenericChunkedArray) 
 #ifndef CC_ENV_64
-				+ static_cast<unsigned>(m_theChunks.capacity())*sizeof(ElementType*)
-				+ static_cast<unsigned>(m_perChunkCount.capacity())*sizeof(unsigned)
+				+ m_theChunks.capacity()     * sizeof(ElementType*)
+				+ m_perChunkCount.capacity() * sizeof(unsigned)
 #endif
-				+ capacity()*sizeof(ElementType);
+				+ static_cast<size_t>(capacity()) * sizeof(ElementType);
 	}
 	//! Clears the array
 	/** \param releaseMemory whether memory should be released or not (for quicker "refill")
@@ -909,13 +959,18 @@ public:
 		else if (count > m_capacity)
 		{
 			if (!reserve(count))
+			{
 				return false;
+			}
+			
 			//eventually we can fill it with a custom value
 			if (initNewElements)
 			{
 				//m_capacity should be up-to-date after a call to 'reserve'
-				for (unsigned i=m_count; i<m_capacity; ++i)
-					setValue(i,valueForNewElements);
+				for (unsigned i = m_count; i < m_capacity; ++i)
+				{
+					setValue(i, valueForNewElements);
+				}
 			}
 		}
 		else //last case: we have to reduce the array size
@@ -1002,13 +1057,13 @@ public:
 
 	//! Direct access operator
 	/** \param index an element index
-		\return pointer to the ith element.
+		\return value of the ith element.
 	**/
 	inline ElementType& operator[] (unsigned index) { return getValue(index); }
 
 	//***** data access *****//
 
-	//! Places global iterator at the begining of the array
+	//! Places global iterator at the beginning of the array
 	inline void placeIteratorAtBegining() { m_iterator = 0; }
 
 	//! Forwards global iterator (one position)
@@ -1038,7 +1093,7 @@ public:
 	inline void addElement(const ElementType& newElement)
 	{
 		assert(m_count < m_capacity);
-		setValue(m_count++,newElement);
+		setValue(m_count++, newElement);
 	}
 
 	//! Returns the ith value stored in the array
@@ -1095,12 +1150,12 @@ public:
 	//! Const version of GenericChunkedArray::getMax
 	inline const ElementType getMax() const { return m_maxVal; }
 
-	//! Sets the value of the minimum (independantly of what is stored in the array)
+	//! Sets the value of the minimum (independently of what is stored in the array)
 	/** \param m the "minimum" element
 	**/
 	inline void setMin(const ElementType& m) { m_minVal = m; }
 
-	//! Sets the value of the maximum (independantly of what is stored in the array)
+	//! Sets the value of the maximum (independently of what is stored in the array)
 	/** \param M the "maximum" element
 	**/
 	inline void setMax(const ElementType& M) { m_maxVal = M; }
@@ -1122,10 +1177,10 @@ public:
 		}
 
 		//we set the first element as min and max boundaries
-		m_minVal = m_minVal = getValue(0);
+		m_minVal = m_maxVal = getValue(0);
 
 		//we update boundaries with all other values
-		for (unsigned i=1; i<m_capacity; ++i)
+		for (unsigned i = 1; i < m_capacity; ++i)
 		{
 			const ElementType& val = getValue(i);
 			if (val < m_minVal)
@@ -1179,7 +1234,7 @@ public:
 #endif
 	}
 
-	//! Returns the begining of a given chunk (pointer)
+	//! Returns the beginning of a given chunk (pointer)
 	inline ElementType* chunkStartPtr(unsigned index)
 	{
 		assert(index < chunksCount());
@@ -1190,7 +1245,7 @@ public:
 #endif
 	}
 
-	//! Returns the begining of a given chunk (pointer)
+	//! Returns the beginning of a given chunk (pointer)
 	inline const ElementType* chunkStartPtr(unsigned index) const
 	{
 		assert(index < chunksCount());
@@ -1206,7 +1261,7 @@ public:
 		\param dest destination array (will be resized if necessary)
 		\return success
 	**/
-	bool copy(GenericChunkedArray<1,ElementType>& dest) const
+	bool copy(GenericChunkedArray<1, ElementType>& dest) const
 	{
 		unsigned count = currentSize();
 		if (!dest.resize(count))

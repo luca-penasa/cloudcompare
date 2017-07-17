@@ -1,14 +1,14 @@
 //##########################################################################
 //#                                                                        #
-//#                            CLOUDCOMPARE                                #
+//#                              CLOUDCOMPARE                              #
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU General Public License as published by  #
-//#  the Free Software Foundation; version 2 of the License.               #
+//#  the Free Software Foundation; version 2 or later of the License.      #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
 //#          COPYRIGHT: EDF R&D / TELECOM ParisTech (ENST-TSI)             #
@@ -31,6 +31,8 @@
 //! QCustomPlot: vertical bar with text along side
 class QCPBarsWithText : public QCPBars
 {
+	Q_OBJECT
+
 public:
 
 	QCPBarsWithText(QCPAxis* keyAxis, QCPAxis* valueAxis) : QCPBars(keyAxis,valueAxis), m_textOnTheLeft(false) {}
@@ -83,6 +85,8 @@ protected:
 //! QCustomPlot: colored histogram
 class QCPColoredBars : public QCPBars
 {
+	Q_OBJECT
+
 public:
 
 	class QCPColoredBarData : public QCPBarData
@@ -184,6 +188,8 @@ protected:
 //! QCustomPlot: selectable cursor interface
 class QCPSelectableCursor : public QCPAbstractPlottable
 {
+	Q_OBJECT
+
 public:
 	
 	//! Default constructor
@@ -241,6 +247,8 @@ protected:
 //! QCustomPlot: greyed areas
 class QCPHiddenArea : public QCPSelectableCursor
 {
+	Q_OBJECT
+
 public:
 	explicit QCPHiddenArea(bool leftSide, QCPAxis *keyAxis, QCPAxis *valueAxis)
 		: QCPSelectableCursor(keyAxis, valueAxis)
@@ -323,6 +331,8 @@ protected:
 //! QCustomPlot: small arrows at the bottom
 class QCPArrow : public QCPSelectableCursor
 {
+	Q_OBJECT
+
 public:
 	explicit QCPArrow(QCPAxis *keyAxis, QCPAxis *valueAxis)
 		: QCPSelectableCursor(keyAxis, valueAxis)

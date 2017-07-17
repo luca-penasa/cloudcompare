@@ -4,11 +4,12 @@
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU Library General Public License as       #
-//#  published by the Free Software Foundation; version 2 of the License.  #
+//#  published by the Free Software Foundation; version 2 or later of the  #
+//#  License.                                                              #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
 //#          COPYRIGHT: EDF R&D / TELECOM ParisTech (ENST-TSI)             #
@@ -42,7 +43,7 @@ struct KMeanClass
 	ScalarType maxValue;
 };
 
-//! Severeal scalar field treatment algorithms (gradient, classification, etc.)
+//! Several scalar field treatment algorithms (gradient, classification, etc.)
 /** This toolbox provides several algorithms to apply
 	treatments and handle scalar fields
 **/
@@ -119,7 +120,7 @@ public:
 
 	//! Computes an histogram of the scalar field with a given number of classes
 	/** The scalar values are projected in a given number of classes,
-		regularily spaced between the lowest and the highest value of
+		regularly spaced between the lowest and the highest value of
 		the scalar field.
 		\param theCloud a point cloud (associated to scalar values)
 		\param numberOfClasses number of histogram classes
@@ -144,7 +145,7 @@ public:
 	static unsigned countScalarFieldValidValues(const GenericCloud* theCloud);
 
 	//! Classifies automaticaly a scalar field in K classes with the K-means algorithm
-	/** The initial K classes positions are regularily spaced between the
+	/** The initial K classes positions are regularly spaced between the
 		lowest and the highest values of the scalar field. Eventually the
 		algorithm will converge and produce K classes.
 		\param theCloud a point cloud (associated to scalar values)

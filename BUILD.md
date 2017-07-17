@@ -96,9 +96,18 @@ The Mac OS X install/release process is still a bit less automated than the othe
 
 As all the files (executables, plugins and other DLLs) are copied in the `CMAKE_INSTALL_PREFIX` directory, the standard project launch/debug mechanism is broken. Therefore by default you won't be able to 'run' the CloudCompare or ccViewer projects as is (with F5 or Ctrl + F5 for instance). See [this post](http://www.danielgm.net/cc/forum/viewtopic.php?t=992) on the forum to setup Visual correctly.
 
+### Debugging plugins
+
+If you want to use or debug plugins in DEBUG mode while using a single configuration compiler/IDE (gcc, etc.) the you'll have to comment the automatic definition of the `QT_NO_DEBUG` macro in '/plugins/CMakePluginTpl.cmake' (see http://www.cloudcompare.org/forum/viewtopic.php?t=2070).
+
 # Appendix
 
 ## Additional optional CMake setup steps
+
+### [Optional] Setup for the qPoissonRecon plugin
+
+1. The version of the Poisson Surface Reconstruction library (M. Kazhdan et al.) used by the  is https://github.com/cloudcompare/PoissonRecon. It is declared as a submodule of CC's repository. You have to explicitly synchronize it (see https://git-scm.com/docs/git-submodule).
+2. Then simply check the INSTALL_QPOISSON_RECON_PLUGIN option in CMake
 
 ### [Optional] Setup for LibLAS support
 
@@ -164,7 +173,7 @@ If you want to compile CloudCompare (and ccViewer) with GDAL (raster) files supp
 
 Then, the CloudCompare CMake project will request that you set the 2 following variables:
 1. `GDAL_INCLUDE_DIR`: GDAL include directory (pretty straightforward ;)
-2. `GFAL_LIBRARY`: the static library (e.g. `gdal_i.lib`)
+2. `GDAL_LIBRARY`: the static library (e.g. `gdal_i.lib`)
 
 ### [Optional] Setup for Cork + MPIR support (for qCork)
 

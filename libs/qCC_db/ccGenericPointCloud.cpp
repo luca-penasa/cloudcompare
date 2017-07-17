@@ -1,14 +1,14 @@
 //##########################################################################
 //#                                                                        #
-//#                            CLOUDCOMPARE                                #
+//#                              CLOUDCOMPARE                              #
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU General Public License as published by  #
-//#  the Free Software Foundation; version 2 of the License.               #
+//#  the Free Software Foundation; version 2 or later of the License.      #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
 //#          COPYRIGHT: EDF R&D / TELECOM ParisTech (ENST-TSI)             #
@@ -18,8 +18,10 @@
 #include "ccGenericPointCloud.h"
 
 //CCLib
-#include <Neighbourhood.h>
 #include <DistanceComputationTools.h>
+#include <GenericProgressCallback.h>
+#include <Neighbourhood.h>
+#include <ReferenceCloud.h>
 
 //Local
 #include "ccOctreeProxy.h"
@@ -76,6 +78,21 @@ bool ccGenericPointCloud::resetVisibilityArray()
 	return true;
 }
 
+void ccGenericPointCloud::invertVisibilityArray()
+{
+	if (!m_pointsVisibility || m_pointsVisibility->currentSize() == 0)
+	{
+		assert(false);
+		return;
+	}
+
+	unsigned count = m_pointsVisibility->currentSize();
+	for (unsigned i = 0; i < count; ++i)
+	{
+		m_pointsVisibility->setValue(i, m_pointsVisibility->getValue(i) == POINT_HIDDEN ? POINT_VISIBLE : POINT_HIDDEN);
+	}
+}
+
 void ccGenericPointCloud::unallocateVisibilityArray()
 {
 	if (m_pointsVisibility)
@@ -123,7 +140,7 @@ void ccGenericPointCloud::deleteOctree()
 
 ccOctreeProxy* ccGenericPointCloud::getOctreeProxy() const
 {
-	for (size_t i=0; i<m_children.size(); ++i)
+	for (size_t i = 0; i < m_children.size(); ++i)
 	{
 		if (m_children[i]->isA(CC_TYPES::POINT_OCTREE))
 			return static_cast<ccOctreeProxy*>(m_children[i]);
@@ -424,7 +441,7 @@ bool ccGenericPointCloud::pointPicking(	const CCVector2d& clickPos,
 	{
 		//back project the clicked point in 3D
 		CCVector3d clickPosd(clickPos.x, clickPos.y, 0);
-		CCVector3d X(0,0,0);
+		CCVector3d X(0, 0, 0);
 		if (!camera.unproject(clickPosd, X))
 		{
 			return false;

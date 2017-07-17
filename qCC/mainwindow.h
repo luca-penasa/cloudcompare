@@ -1,14 +1,14 @@
 //##########################################################################
 //#                                                                        #
-//#                            CLOUDCOMPARE                                #
+//#                              CLOUDCOMPARE                              #
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU General Public License as published by  #
-//#  the Free Software Foundation; version 2 of the License.               #
+//#  the Free Software Foundation; version 2 or later of the License.      #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
 //#          COPYRIGHT: EDF R&D / TELECOM ParisTech (ENST-TSI)             #
@@ -17,6 +17,9 @@
 
 #ifndef CC_MAIN_WINDOW_HEADER
 #define CC_MAIN_WINDOW_HEADER
+
+//Local
+#include "ccPickingListener.h"
 
 //qCC_plugins
 #include <ccMainAppInterface.h>
@@ -62,10 +65,12 @@ class ccPrimitiveFactoryDlg;
 class ccDrawableObject;
 class ccOverlayDialog;
 class QMdiSubWindow;
-class Mouse3DInput;
+class cc3DMouseManager;
+class ccGamepadManager;
+class ccRecentFiles;
 
 //! Main window
-class MainWindow : public QMainWindow, public ccMainAppInterface, public Ui::MainWindow
+class MainWindow : public QMainWindow, public ccMainAppInterface, public ccPickingListener, public Ui::MainWindow
 {
 	Q_OBJECT
 
@@ -123,6 +128,10 @@ public:
 							bool checkDimensions = false,
 							bool autoRedraw = true) override;
 
+	virtual void registerOverlayDialog(ccOverlayDialog* dlg, Qt::Corner pos) override;
+	virtual void unregisterOverlayDialog(ccOverlayDialog* dlg) override;
+	virtual void updateOverlayDialogsPlacement() override;
+	void updateOverlayDialogPlacement(ccOverlayDialog* dlg);
 	virtual void removeFromDB(ccHObject* obj, bool autoDelete = true) override;
 	virtual void setSelectedInDB(ccHObject* obj, bool selected) override;
 	virtual void dispToConsole(QString message, ConsoleMessageLevel level = STD_CONSOLE_MESSAGE) override;
@@ -130,11 +139,17 @@ public:
 	virtual ccHObject* dbRootObject() override;
 	inline virtual QMainWindow* getMainWindow() override { return this; }
 	inline virtual const ccHObject::Container& getSelectedEntities() const override { return m_selectedEntities; }
+	virtual void createGLWindow(ccGLWindow*& window, QWidget*& widget) const override;
+	virtual void destroyGLWindow(ccGLWindow*) const override;
 	virtual ccUniqueIDGenerator::Shared getUniqueIDGenerator() override;
 	virtual ccColorScalesManager* getColorScalesManager() override;
 	virtual void spawnHistogramDialog(const std::vector<unsigned>& histoValues,
 												 double minVal, double maxVal,
 												 QString title, QString xAxisLabel) override;
+	virtual ccPickingHub* pickingHub() override { return m_pickingHub; }
+
+	//! Inherited from ccPickingListener
+	virtual void onItemPicked(const PickedItem& pi) override;
 
 	//! Returns real 'dbRoot' object
 	virtual ccDBRoot* db();
@@ -177,6 +192,12 @@ public:
 		\return the selected cloud (or null if the user cancelled the operation)
 	**/
 	ccPointCloud* askUserToSelectACloud(ccHObject* defaultCloudEntity = 0, QString inviteMessage = QString());
+
+	//! Dispatches the (loaded) plugins in the UI
+	void dispatchPlugins(const tPluginInfoList& plugins, const QStringList& pluginPaths);
+
+	//! Updates the 'Properties' view
+	void updatePropertiesView();
 	
 protected slots:
 
@@ -226,24 +247,30 @@ protected slots:
 	virtual void setBackView() override;
 	virtual void setLeftView() override;
 	virtual void setRightView() override;
+	virtual void setIsoView1() override;
+	virtual void setIsoView2() override;
+	
 	virtual void toggleActiveWindowStereoVision(bool);
 	virtual void toggleActiveWindowCenteredPerspective() override;
 	virtual void toggleActiveWindowCustomLight() override;
 	virtual void toggleActiveWindowSunLight() override;
 	virtual void toggleActiveWindowViewerBasedPerspective() override;
 	virtual void zoomOnSelectedEntities() override;
+	virtual void setGlobalZoom() override;
+	
+	virtual void increasePointSize() override;
+	virtual void decreasePointSize() override;
 
-	void setIsoView1();
-	void setIsoView2();
 	void toggleRotationAboutVertAxis();
 	void doActionEnableBubbleViewMode();
-	void setGlobalZoom();
 	void setPivotAlwaysOn();
 	void setPivotRotationOnly();
 	void setPivotOff();
 	void setOrthoView();
 	void setCenteredPerspectiveView();
 	void setViewerPerspectiveView();
+	void toggleActiveWindowAutoPickRotCenter(bool);
+	void toggleActiveWindowShowCursorCoords(bool);
 
 	//! Handles new label
 	void handleNewLabel(ccHObject*);
@@ -286,6 +313,7 @@ protected slots:
 	void doActionSetColorGradient();
 	void doActionInterpolateColors();
 	void doActionChangeColorLevels();
+	void doActionEnhanceRGBWithIntensities();
 
 	void doActionSFGaussianFilter();
 	void doActionSFBilateralFilter();
@@ -295,6 +323,7 @@ protected slots:
 	void doActionOpenColorScalesManager();
 	void doActionAddIdField();
 	void doActionSetSFAsCoord();
+	void doActionInterpolateScalarFields();
 
 	void doComputeDensity();
 	void doComputeCurvature();
@@ -330,13 +359,16 @@ protected slots:
 	// Picking opeations
 	void enablePickingOperation(ccGLWindow* win, QString message);
 	void cancelPreviousPickingOperation(bool aborted);
-	void processPickedPoint(ccHObject*, unsigned, int, int, const CCVector3&);
 
 	// For rotation center picking
 	void doPickRotationCenter();
 	// For leveling
 	void doLevel();
 	
+	void doActionCreatePlane();
+	void doActionEditPlane();
+
+	void doActionDeleteScanGrids();
 	void doActionDeleteScalarField();
 	void doActionSmoothMeshSF();
 	void doActionEnhanceMeshSF();
@@ -350,6 +382,7 @@ protected slots:
 	void doActionResampleWithOctree();
 	void doActionComputeMeshAA();
 	void doActionComputeMeshLS();
+	void doActionMeshScanGrids();
 	void doActionComputeDistanceMap();
 	void doActionComputeDistToBestFitQuadric3D();
 	void doActionMeasureMeshSurface();
@@ -359,6 +392,8 @@ protected slots:
 	void doActionSubdivideMesh();
 	void doActionComputeCPS();
 	void doActionDeleteAllSF();
+	void doActionShowWaveDialog();
+	void doActionCompressFWFData();
 	void doActionKMeans();
 	void doActionFrontPropagation();
 	void doActionApplyScale();
@@ -382,6 +417,7 @@ protected slots:
 	void doActionRasterize();
 	void doCompute2HalfDimVolume();
 	void doConvertPolylinesToMesh();
+	void doMeshTwoPolylines();
 	void doActionExportCoordToSF();
 	void doComputeBestFitBB();
 	void doActionCrop();
@@ -411,9 +447,9 @@ protected slots:
 	void activateSegmentationMode();
 	void deactivateSegmentationMode(bool);
 
-    //Polyline tracing
-    void activateTracePolylineMode();
-    void deactivateTracePolylineMode(bool);
+	//Polyline tracing
+	void activateTracePolylineMode();
+	void deactivateTracePolylineMode(bool);
 
 	//Section extraction
 	void activateSectionExtractionMode();
@@ -441,16 +477,7 @@ protected slots:
 	void doActionShowActiveSFPrevious();
 	void doActionShowActiveSFNext();
 
-	//3D mouse
-	void on3DMouseMove(std::vector<float>&);
-	void on3DMouseKeyUp(int);
-	void on3DMouseKeyDown(int);
-	void on3DMouseReleased();
-
-	//! Setups 3D mouse (if any)
-	void setup3DMouse(bool);
-
-	//! Removes all entiites currently loaded in the DB tree
+	//! Removes all entities currently loaded in the DB tree
 	void closeAll();
 
 	//! Batch export some pieces of info from a set of selected clouds
@@ -461,6 +488,9 @@ protected slots:
 
 	//! Creates a cloud with the (bounding-box) centers of all selected entities
 	void doActionCreateCloudFromEntCenters();
+
+	//! Show high DPI (Retina) screen warning
+	void showHighDPIScreenWarning();
 
 protected:
 
@@ -491,9 +521,7 @@ protected:
 	virtual void closeEvent(QCloseEvent* event) override;
 	virtual void moveEvent(QMoveEvent* event) override;
 	virtual void resizeEvent(QResizeEvent* event) override;
-
-	void loadPlugins();
-	bool dispatchPlugin(QObject* plugin);
+	virtual bool eventFilter(QObject *obj, QEvent *event) override;
 
 	//! Makes the window including an entity zoom on it (helper)
 	void zoomOn(ccHObject* object);
@@ -516,6 +544,11 @@ protected:
 	**/
 	void doComputePlaneOrientation(bool fitFacet);
 
+	//! Sets up any input devices (3D mouse, gamepad) and adds their menus
+	void setupInputDevices();
+	//! Stops input and destroys any input device handling
+	void destroyInputDevices();
+
 	//! Connects all QT actions to slots
 	void connectActions();
 
@@ -524,15 +557,6 @@ protected:
 
 	//! Expands DB tree for selected items
 	void expandDBTreeWithSelection(ccHObject::Container& selection);
-
-	//! Releases any connected 3D mouse (if any)
-	void release3DMouse();
-
-	//! Trys to enable (or disable) a 3D mouse device
-	/** \param state whether to enable or disable the device
-		\param silent whether to issue an error message in case of failure
-	**/
-	void enable3DMouse(bool state, bool silent);
 
 	//! Updates the view mode pop-menu based for a given window (or an absence of!)
 	virtual void updateViewModePopUpMenu(ccGLWindow* win);
@@ -552,14 +576,26 @@ protected:
 	//! UI frozen state (see freezeUI)
 	bool m_uiFrozen;
 
-	//! 3D mouse handler
-	Mouse3DInput* m_3dMouseInput;
+	//! Recent files menu
+	ccRecentFiles* m_recentFiles;
+	
+	//! 3D mouse
+	cc3DMouseManager* m_3DMouseManager;
+
+	//! Gamepad handler
+	ccGamepadManager* m_gamepadManager;
 
 	//! View mode pop-up menu button
 	QToolButton* m_viewModePopupButton;
 
 	//! Pivot visibility pop-up menu button
 	QToolButton* m_pivotVisibilityPopupButton;
+
+	//! Flag: first time the window is made visible
+	bool m_FirstShow;
+
+	//! Point picking hub
+	ccPickingHub* m_pickingHub;
 
 	/******************************/
 	/***        MDI AREA        ***/
@@ -581,18 +617,10 @@ protected:
 		{}
 	};
 
-	//! Replaces an MDI dialog at its right position
-	void placeMDIDialog(ccMDIDialogs& mdiDlg);
+	//! Repositions an MDI dialog at its right position
+	void repositionOverlayDialog(ccMDIDialogs& mdiDlg);
 
-	//! Registers a MDI area overlay dialog
-	void registerMDIDialog(ccOverlayDialog* dlg, Qt::Corner pos);
-	//! Unregisters a MDI area overlay dialog
-	void unregisterMDIDialog(ccOverlayDialog* dlg);
-
-	//! Automatically updates all registered MDI dialogs placement
-	void updateMDIDialogsPlacement();
-
-	//! Registered MDI area overlay dialogs
+	//! Registered MDI area 'overlay' dialogs
 	std::vector<ccMDIDialogs> m_mdiDialogs;
 
 	/*** dialogs ***/
@@ -601,8 +629,8 @@ protected:
 	ccCameraParamEditDlg* m_cpeDlg;
 	//! Graphical segmentation dialog
 	ccGraphicalSegmentationTool* m_gsTool;
-    //! Polyline tracing tool
-    ccTracePolylineTool * m_tplTool;
+	//! Polyline tracing tool
+	ccTracePolylineTool * m_tplTool;
 	//! Section extraction dialog
 	ccSectionExtractionTool* m_seTool;
 	//! Graphical transformation dialog
@@ -626,8 +654,6 @@ protected:
 	QList<ccStdPluginInterface*> m_stdPlugins;
 	QList<QToolBar*> m_stdPluginsToolbars;
 	QActionGroup m_glFilterActions;
-
-	bool	m_FirstShow;
 };
 
 #endif

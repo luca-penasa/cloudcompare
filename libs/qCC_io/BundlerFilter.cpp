@@ -1,14 +1,14 @@
 //##########################################################################
 //#                                                                        #
-//#                            CLOUDCOMPARE                                #
+//#                              CLOUDCOMPARE                              #
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU General Public License as published by  #
-//#  the Free Software Foundation; version 2 of the License.               #
+//#  the Free Software Foundation; version 2 or later of the License.      #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
 //#          COPYRIGHT: EDF R&D / TELECOM ParisTech (ENST-TSI)             #
@@ -122,7 +122,7 @@ CC_FILE_ERROR BundlerFilter::loadFileExtended(	const QString& filename,
 		return CC_FERR_MALFORMED_FILE;
 	}
 	unsigned majorVer = 0, minorVer = 0;
-	sscanf(qPrintable(currentLine),"# Bundle file v%u.%u",&majorVer,&minorVer);
+	sscanf(qPrintable(currentLine), "# Bundle file v%u.%u", &majorVer, &minorVer);
 	if (majorVer != 0 || (minorVer != 3 && minorVer != 4))
 	{
 		ccLog::Error("Only version 0.3 and 0.4 of Bundler files are supported!");
@@ -224,16 +224,20 @@ CC_FILE_ERROR BundlerFilter::loadFileExtended(	const QString& filename,
 	//Read Bundler '.out' file
 	{
 		//progress dialog
-		ccProgressDialog pdlg(true, parameters.parentWidget); //cancel available
-		CCLib::NormalizedProgress nprogress(&pdlg, camCount + (importKeypoints || orthoRectifyImages || generateColoredDTM ? ptsCount : 0));
-		pdlg.setMethodTitle(QObject::tr("Open Bundler file"));
-		pdlg.setInfo(QObject::tr("Cameras: %1\nPoints: %2").arg(camCount).arg(ptsCount));
-		pdlg.start();
+		QScopedPointer<ccProgressDialog> pDlg(0);
+		if (parameters.parentWidget)
+		{
+			pDlg.reset(new ccProgressDialog(true, parameters.parentWidget)); //cancel available
+			pDlg->setMethodTitle(QObject::tr("Open Bundler file"));
+			pDlg->setInfo(QObject::tr("Cameras: %1\nPoints: %2").arg(camCount).arg(ptsCount));
+			pDlg->start();
+		}
+		CCLib::NormalizedProgress nprogress(pDlg.data(), camCount + (importKeypoints || orthoRectifyImages || generateColoredDTM ? ptsCount : 0));
 
 		//read cameras info (whatever the case!)
 		cameras.resize(camCount);
 		unsigned camIndex = 0;
-		for (std::vector<BundlerCamera>::iterator it=cameras.begin(); it!=cameras.end(); ++it,++camIndex)
+		for (std::vector<BundlerCamera>::iterator it = cameras.begin(); it != cameras.end(); ++it, ++camIndex)
 		{
 			//f, k1 and k2
 			currentLine = stream.readLine();
@@ -296,8 +300,10 @@ CC_FILE_ERROR BundlerFilter::loadFileExtended(	const QString& filename,
 					return CC_FERR_MALFORMED_FILE;
 			}
 
-			if (!nprogress.oneStep()) //cancel requested?
+			if (pDlg && !nprogress.oneStep()) //cancel requested?
+			{
 				return CC_FERR_CANCELED_BY_USER;
+			}
 		}
 
 		//read points
@@ -383,7 +389,7 @@ CC_FILE_ERROR BundlerFilter::loadFileExtended(	const QString& filename,
 							trans.setTranslation(trans.getTranslationAsVec3D() + Pshift);
 							trans.invert();
 						}
-						ccLog::Warning("[Bundler] Cloud has been recentered! Translation: (%.2f,%.2f,%.2f)",Pshift.x,Pshift.y,Pshift.z);
+						ccLog::Warning("[Bundler] Cloud has been recentered! Translation: (%.2f ; %.2f ; %.2f)",Pshift.x,Pshift.y,Pshift.z);
 					}
 				}
 				keypointsCloud->addPoint(CCVector3::fromArray((Pd+Pshift).u));
@@ -491,7 +497,7 @@ CC_FILE_ERROR BundlerFilter::loadFileExtended(	const QString& filename,
 					}
 				}
 
-				if (!nprogress.oneStep()) //cancel requested?
+				if (pDlg && !nprogress.oneStep()) //cancel requested?
 				{
 					delete keypointsCloud;
 					return CC_FERR_CANCELED_BY_USER;
@@ -512,21 +518,27 @@ CC_FILE_ERROR BundlerFilter::loadFileExtended(	const QString& filename,
 			{
 				keypointsCloud->applyGLTransformation_recursive(&orthoOptMatrix);
 				ccLog::Print("[Bundler] Keypoints cloud has been transformed with input matrix!");
+				//this transformation is of no interest for the user
+				keypointsCloud->resetGLTransformationHistory_recursive();
 			}
 
 			if (importKeypoints)
 				container.addChild(keypointsCloud);
 		}
 
-		pdlg.stop();
-		QApplication::processEvents();
+		if (pDlg)
+		{
+			pDlg->stop();
+			QApplication::processEvents();
+		}
 	}
 
 	//use alternative cloud/mesh as keypoints
 	if (useAltKeypoints)
 	{
 		FileIOFilter::LoadParameters altKeypointsParams;
-		ccHObject* altKeypointsContainer = FileIOFilter::LoadFromFile(altKeypointsFilename,altKeypointsParams);
+		CC_FILE_ERROR result = CC_FERR_NO_ERROR;
+		ccHObject* altKeypointsContainer = FileIOFilter::LoadFromFile(altKeypointsFilename, altKeypointsParams, result);
 		if (	!altKeypointsContainer
 			||	altKeypointsContainer->getChildrenNumber() != 1
 			||	(!altKeypointsContainer->getChild(0)->isKindOf(CC_TYPES::POINT_CLOUD) && !altKeypointsContainer->getChild(0)->isKindOf(CC_TYPES::MESH)))
@@ -604,12 +616,16 @@ CC_FILE_ERROR BundlerFilter::loadFileExtended(	const QString& filename,
 	}
 
 	//let's try to open the image corresponding to each camera
-	ccProgressDialog ipdlg(true, parameters.parentWidget); //cancel available
-	CCLib::NormalizedProgress inprogress(&ipdlg, camCount);
-	ipdlg.setMethodTitle(QObject::tr("Open & process images"));
-	ipdlg.setInfo(QObject::tr("Images: %1").arg(camCount));
-	ipdlg.start();
-	QApplication::processEvents();
+	QScopedPointer<ccProgressDialog> ipDlg(0);
+	if (parameters.parentWidget)
+	{
+		ipDlg.reset(new ccProgressDialog(true, parameters.parentWidget)); //cancel available
+		ipDlg->setMethodTitle(QObject::tr("Open & process images"));
+		ipDlg->setInfo(QObject::tr("Images: %1").arg(camCount));
+		ipDlg->start();
+		QApplication::processEvents();
+	}
+	CCLib::NormalizedProgress inprogress(ipDlg.data(), camCount);
 
 	assert(imageFilenames.size() >= static_cast<int>(camCount));
 
@@ -620,10 +636,14 @@ CC_FILE_ERROR BundlerFilter::loadFileExtended(	const QString& filename,
 	CCLib::SimpleCloud* mntSamples = 0;
 	if (generateColoredDTM)
 	{
-		ccProgressDialog toDlg(true, parameters.parentWidget); //cancel available
-		toDlg.setMethodTitle(QObject::tr("Preparing colored DTM"));
-		toDlg.start();
-		QApplication::processEvents();
+		QScopedPointer<ccProgressDialog> toDlg(0);
+		if (parameters.parentWidget)
+		{
+			toDlg.reset(new ccProgressDialog(true, parameters.parentWidget)); //cancel available
+			toDlg->setMethodTitle(QObject::tr("Preparing colored DTM"));
+			toDlg->start();
+			QApplication::processEvents();
+		}
 
 		//1st step: triangulate keypoints (or use existing one)
 		ccGenericMesh* baseDTMMesh = (altEntity ? ccHObjectCaster::ToGenericMesh(altEntity) : 0);
@@ -643,15 +663,11 @@ CC_FILE_ERROR BundlerFilter::loadFileExtended(	const QString& filename,
 				ccLog::Warning(QString("[Bundler] Failed to generate DTM! (%1)").arg(errorStr));
 			}
 		}
-		else
-		{
-			dummyMesh = baseDTMMesh;
-		}
 
 		if (dummyMesh)
 		{
 			//2nd step: samples points on resulting mesh
-			mntSamples = CCLib::MeshSamplingTools::samplePointsOnMesh((CCLib::GenericMesh*)dummyMesh,coloredDTMVerticesCount);
+			mntSamples = CCLib::MeshSamplingTools::samplePointsOnMesh((CCLib::GenericMesh*)dummyMesh, coloredDTMVerticesCount);
 			if (!baseDTMMesh)
 				delete dummyMesh;
 			dummyMesh = 0;
@@ -660,7 +676,7 @@ CC_FILE_ERROR BundlerFilter::loadFileExtended(	const QString& filename,
 			{
 				//3rd step: project each point in all images and get average color
 				unsigned count = mntSamples->size();
-				mntColors = new int[4*count]; //R + G + B + accum count
+				mntColors = new int[4 * count]; //R + G + B + accum count
 				if (!mntColors)
 				{
 					//not enough memory
@@ -671,7 +687,7 @@ CC_FILE_ERROR BundlerFilter::loadFileExtended(	const QString& filename,
 				}
 				else
 				{
-					memset(mntColors,0,sizeof(int)*4*count);
+					memset(mntColors, 0, sizeof(int) * 4 * count);
 				}
 			}
 		}
@@ -692,7 +708,7 @@ CC_FILE_ERROR BundlerFilter::loadFileExtended(	const QString& filename,
 	/*** process each image ***/
 
 	bool cancelledByUser = false;
-	for (unsigned i=0; i<camCount; ++i)
+	for (unsigned i = 0; i < camCount; ++i)
 	{
 		const BundlerCamera& cam = cameras[i];
 		if (!cam.isValid)
@@ -700,9 +716,9 @@ CC_FILE_ERROR BundlerFilter::loadFileExtended(	const QString& filename,
 
 		ccImage* image = new ccImage();
 		QString errorStr;
-		if (!image->load(imageDir.absoluteFilePath(imageFilenames[i]),errorStr))
+		if (!image->load(imageDir.absoluteFilePath(imageFilenames[i]), errorStr))
 		{
-			ccLog::Error(QString("[Bundler] %1 (image '%2')").arg(errorStr).arg(imageFilenames[i]));
+			ccLog::Error(QString("[Bundler] %1 (image '%2')").arg(errorStr,imageFilenames[i]));
 			delete image;
 			image = 0;
 			break;
@@ -735,7 +751,7 @@ CC_FILE_ERROR BundlerFilter::loadFileExtended(	const QString& filename,
 			params.zNear_mm = 0.001f;
 
 			sensor = new ccCameraSensor(params);
-			sensor->setName(QString("Camera #%1").arg(i+1));
+			sensor->setName(QString("Camera #%1").arg(i + 1));
 			sensor->setEnabled(true);
 			sensor->setVisible(true/*false*/);
 			sensor->setGraphicScale(keypointsCloud ? keypointsCloud->getOwnBB().getDiagNorm() / 10 : PC_ONE);
@@ -755,6 +771,8 @@ CC_FILE_ERROR BundlerFilter::loadFileExtended(	const QString& filename,
 			{
 				sensor->applyGLTransformation_recursive(&orthoOptMatrix);
 				//ccLog::Print("[Bundler] Camera cloud has been transformed with input matrix!");
+				//this transformation is of no interest for the user
+				sensor->resetGLTransformationHistory_recursive();
 			}
 		}
 		//the image is a child of the sensor!
@@ -784,18 +802,18 @@ CC_FILE_ERROR BundlerFilter::loadFileExtended(	const QString& filename,
 			{
 				//project alternative cloud in image!
 				_keypointsCloud->placeIteratorAtBegining();
-				int half_w = (image->getW()>>1);
-				int half_h = (image->getH()>>1);
+				int half_w = (image->getW() >> 1);
+				int half_h = (image->getH() >> 1);
 				ccCameraSensor::KeyPoint kp;
 				unsigned keyptsCount = _keypointsCloud->size();
-				for (unsigned k=0; k<keyptsCount; ++k)
+				for (unsigned k = 0; k<keyptsCount; ++k)
 				{
 					CCVector3 P(*_keypointsCloud->getPointPersistentPtr(k));
 					//apply bundler equation
 					cam.trans.apply(P);
 					//convert to keypoint
-					kp.x = -cam.f_pix * static_cast<float>(P.x/P.z);
-					kp.y =  cam.f_pix * static_cast<float>(P.y/P.z);
+					kp.x = -cam.f_pix * static_cast<float>(P.x / P.z);
+					kp.y = cam.f_pix * static_cast<float>(P.y / P.z);
 					if (	static_cast<int>(kp.x) > -half_w && static_cast<int>(kp.x < half_w)
 						&&	static_cast<int>(kp.y) > -half_h && static_cast<int>(kp.y < half_h))
 					{
@@ -841,9 +859,9 @@ CC_FILE_ERROR BundlerFilter::loadFileExtended(	const QString& filename,
 							||	orthoRectMethod == BundlerImportDlg::DIRECT_UNDISTORTED );
 
 						//we take the keypoints 'middle altitude' by default
-						CCVector3 bbMin,bbMax;
-						_keypointsCloud->getBoundingBox(bbMin,bbMax);
-						PointCoordinateType Z0 = (bbMin.z + bbMax.z)/2;
+						CCVector3 bbMin, bbMax;
+						_keypointsCloud->getBoundingBox(bbMin, bbMax);
+						PointCoordinateType Z0 = (bbMin.z + bbMax.z) / 2;
 
 						orthoImage = sensor->orthoRectifyAsImageDirect(	image,
 																		Z0,
@@ -1074,7 +1092,7 @@ CC_FILE_ERROR BundlerFilter::loadFileExtended(	const QString& filename,
 
 		QApplication::processEvents();
 
-		if (!inprogress.oneStep())
+		if (ipDlg && !inprogress.oneStep())
 		{
 			cancelledByUser = true;
 			break;
@@ -1098,6 +1116,7 @@ CC_FILE_ERROR BundlerFilter::loadFileExtended(	const QString& filename,
 		if (f.open(QIODevice::WriteOnly | QIODevice::Text))
 		{
 			QTextStream stream(&f);
+			stream.setRealNumberNotation(QTextStream::FixedNotation);
 			stream.setRealNumberPrecision(12);
 			stream << "PixelSize" << ' ' << OR_pixelSize << endl;
 			stream << "Global3DBBox" << ' ' << OR_globalCorners[0] << ' ' << OR_globalCorners[1] << ' ' << OR_globalCorners[2] << ' ' << OR_globalCorners[3] << endl;
@@ -1156,7 +1175,7 @@ CC_FILE_ERROR BundlerFilter::loadFileExtended(	const QString& filename,
 
 					mntCloud->showColors(true);
 					container.addChild(mntCloud);
-					ccLog::Warning("[Bundler] DTM vertices sucessfully generated: clean it if necessary then use 'Edit > Mesh > Compute Delaunay 2D (Best LS plane)' then 'Smooth' to get a proper mesh");
+					ccLog::Warning("[Bundler] DTM vertices successfully generated: clean it if necessary then use 'Edit > Mesh > Compute Delaunay 2D (Best LS plane)' then 'Smooth' to get a proper mesh");
 
 					if (!parameters.alwaysDisplayLoadDialog)
 					{

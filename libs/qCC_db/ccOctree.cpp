@@ -1,14 +1,14 @@
 //##########################################################################
 //#                                                                        #
-//#                            CLOUDCOMPARE                                #
+//#                              CLOUDCOMPARE                              #
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU General Public License as published by  #
-//#  the Free Software Foundation; version 2 of the License.               #
+//#  the Free Software Foundation; version 2 or later of the License.      #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
 //#          COPYRIGHT: EDF R&D / TELECOM ParisTech (ENST-TSI)             #
@@ -30,6 +30,10 @@
 //CCLib
 #include <ScalarFieldTools.h>
 #include <RayAndBox.h>
+
+#ifdef QT_DEBUG
+//#define DEBUG_PICKING_MECHANISM
+#endif
 
 ccOctree::ccOctree(ccGenericPointCloud* aCloud)
 	: CCLib::DgmOctree(aCloud)
@@ -71,6 +75,9 @@ void ccOctree::setDisplayMode(DisplayMode mode)
 
 void ccOctree::clear()
 {
+	//warn the others that the octree organization is going to change
+	emit updated();
+
 	QOpenGLContext* context = QOpenGLContext::currentContext();
 	if (context)
 	{
@@ -107,7 +114,7 @@ void ccOctree::multiplyBoundingBox(const PointCoordinateType multFactor)
 	m_pointsMin *= multFactor;
 	m_pointsMax *= multFactor;
 
-	for (int i=0; i<=MAX_OCTREE_LEVEL; ++i)
+	for (int i = 0; i <= MAX_OCTREE_LEVEL; ++i)
 		m_cellSize[i] *= multFactor;
 }
 
@@ -393,7 +400,7 @@ bool ccOctree::DrawCellAsAPrimitive(const CCLib::DgmOctree::octreeCell& cell,
 		if (primitive->getTriNormsTable())
 		{
 			//only one normal!
-			primitive->getTriNormsTable()->setValue(0,ccNormalVectors::GetNormIndex(N.u));
+			primitive->getTriNormsTable()->setValue(0, ccNormalVectors::GetNormIndex(N.u));
 		}
 	}
 
@@ -431,7 +438,7 @@ void ccOctree::ComputeAverageColor(CCLib::ReferenceCloud* subset, ccGenericPoint
 
 CCVector3 ccOctree::ComputeAverageNorm(CCLib::ReferenceCloud* subset, ccGenericPointCloud* sourceCloud)
 {
-	CCVector3 N(0,0,0);
+	CCVector3 N(0, 0, 0);
 
 	if (!subset || subset->size() == 0 || !sourceCloud)
 		return N;
@@ -440,7 +447,7 @@ CCVector3 ccOctree::ComputeAverageNorm(CCLib::ReferenceCloud* subset, ccGenericP
 	assert(subset->getAssociatedCloud() == static_cast<CCLib::GenericIndexedCloud*>(sourceCloud));
 
 	unsigned n = subset->size();
-	for (unsigned i=0; i<n; ++i)
+	for (unsigned i = 0; i < n; ++i)
 	{
 		const CCVector3& Ni = sourceCloud->getPointNormal(subset->getPointGlobalIndex(i));
 		N += Ni;
@@ -477,7 +484,7 @@ bool ccOctree::intersectWithFrustum(ccCameraSensor* sensor, std::vector<unsigned
 	m_frustumIntersector->computeFrustumIntersectionWithOctree(pointsToTest, inCameraFrustum, globalPlaneCoefficients, globalCorners, globalEdges, globalCenter);
 	
 	// project points
-	for (size_t i=0; i<pointsToTest.size(); i++)
+	for (size_t i = 0; i < pointsToTest.size(); i++)
 	{
 		if (sensor->isGlobalCoordInFrustum(pointsToTest[i].second/*, false*/))
 			inCameraFrustum.push_back(pointsToTest[i].first);
@@ -507,7 +514,7 @@ bool ccOctree::pointPicking(const CCVector2d& clickPos,
 	}
 	
 	CCVector3d clickPosd(clickPos.x, clickPos.y, 0.0);
-	CCVector3d X(0,0,0);
+	CCVector3d X(0, 0, 0);
 	if (!camera.unproject(clickPosd, X))
 	{
 		return false;
@@ -520,7 +527,7 @@ bool ccOctree::pointPicking(const CCVector2d& clickPos,
 	CCVector3 rayAxis, rayOrigin;
 	{
 		CCVector3d clickPosd2(clickPos.x, clickPos.y, 1.0);
-		CCVector3d Y(0,0,0);
+		CCVector3d Y(0, 0, 0);
 		if (!camera.unproject(clickPosd2, Y))
 		{
 			return false;
@@ -540,7 +547,6 @@ bool ccOctree::pointPicking(const CCVector2d& clickPos,
 	}
 
 	CCVector3 margin(0, 0, 0);
-	double maxSqRadius = 0;
 	double maxFOV_rad = 0;
 	if (camera.perspective)
 	{
@@ -550,7 +556,6 @@ bool ccOctree::pointPicking(const CCVector2d& clickPos,
 	{
 		double maxRadius = pickWidth_pix * camera.pixelSize / 2;
 		margin = CCVector3(1, 1, 1) * static_cast<PointCoordinateType>(maxRadius);
-		maxSqRadius = maxRadius*maxRadius;
 	}
 
 	//first test with the total bounding box
@@ -574,7 +579,7 @@ bool ccOctree::pointPicking(const CCVector2d& clickPos,
 	//whether the current cell should be skipped or not
 	bool skipThisCell = false;
 
-#ifdef QT_DEBUG
+#ifdef DEBUG_PICKING_MECHANISM
 	m_theAssociatedCloud->enableScalarField();
 #endif
 
@@ -663,7 +668,7 @@ bool ccOctree::pointPicking(const CCVector2d& clickPos,
 			currentCellTruncatedCode = (currentCellCode >> currentBitDec);
 		}
 
-#ifdef QT_DEBUG
+#ifdef DEBUG_PICKING_MECHANISM
 		m_theAssociatedCloud->setPointScalarValue(it->theIndex, level);
 #endif
 

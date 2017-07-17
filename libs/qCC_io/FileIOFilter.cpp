@@ -1,14 +1,14 @@
 //##########################################################################
 //#                                                                        #
-//#                            CLOUDCOMPARE                                #
+//#                              CLOUDCOMPARE                              #
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU General Public License as published by  #
-//#  the Free Software Foundation; version 2 of the License.               #
+//#  the Free Software Foundation; version 2 or later of the License.      #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
 //#          COPYRIGHT: EDF R&D / TELECOM ParisTech (ENST-TSI)             #
@@ -49,6 +49,7 @@
 #include "MascaretFilter.h"
 #include "SinusxFilter.h"
 #include "SalomeHydroFilter.h"
+#include "HeightProfileFilter.h"
 
 //Qt
 #include <QFileInfo>
@@ -113,6 +114,7 @@ void FileIOFilter::InitInternalFilters()
 	Register(Shared(new MascaretFilter()));
 	Register(Shared(new SinusxFilter()));
 	Register(Shared(new SalomeHydroFilter()));
+	Register(Shared(new HeightProfileFilter()));
 }
 
 void FileIOFilter::Register(Shared filter)
@@ -124,26 +126,26 @@ void FileIOFilter::Register(Shared filter)
 	}
 
 	//filters are uniquely recognized by their 'file filter' string
-	QStringList fileFilters = filter->getFileFilters(true);
-	QString filterName = filter->getDefaultExtension().toUpper();
+	const QStringList fileFilters = filter->getFileFilters(true);
+	const QString filterName = filter->getDefaultExtension().toUpper();
 	for (FilterContainer::const_iterator it=s_ioFilters.begin(); it!=s_ioFilters.end(); ++it)
 	{
 		bool error = false;
 		if (*it == filter)
 		{
-			ccLog::Warning(QString("[FileIOFilter::Register] I/O filter '%1' is already registered").arg(filterName));
+			ccLog::Warning(QStringLiteral("[FileIOFilter::Register] I/O filter '%1' is already registered").arg(filterName));
 			error = true;
 		}
 		else
 		{
 			//we are going to compare the file filters as they should remain unique!
-			QStringList otherFilters = (*it)->getFileFilters(true);
+			const QStringList otherFilters = (*it)->getFileFilters(true);
 			for (int i=0; i<fileFilters.size(); ++i)
 			{
 				if (otherFilters.contains(fileFilters[i]))
 				{
-					QString otherFilterName = (*it)->getDefaultExtension().toUpper();;
-					ccLog::Warning(QString("[FileIOFilter::Register] Internal error: file filter '%1' of filter '%2' is already handled by another filter ('%3')!").arg(fileFilters[i]).arg(filterName).arg(otherFilterName));
+					const QString otherFilterName = (*it)->getDefaultExtension().toUpper();;
+					ccLog::Warning(QStringLiteral("[FileIOFilter::Register] Internal error: file filter '%1' of filter '%2' is already handled by another filter ('%3')!").arg(fileFilters[i],filterName,otherFilterName));
 					error = true;
 					break;
 				}
@@ -202,10 +204,13 @@ FileIOFilter::Shared FileIOFilter::FindBestFilterForExtension(QString ext)
 
 ccHObject* FileIOFilter::LoadFromFile(	const QString& filename,
 										LoadParameters& loadParameters,
-										Shared filter)
+										Shared filter,
+										CC_FILE_ERROR& result)
 {
 	if (!filter)
 	{
+		ccLog::Error(QString("[Load] Internal error (invalid input filter)").arg(filename));
+		result = CC_FERR_CONSOLE_ERROR;
 		assert(false);
 		return 0;
 	}
@@ -215,12 +220,13 @@ ccHObject* FileIOFilter::LoadFromFile(	const QString& filename,
 	if (!fi.exists())
 	{
 		ccLog::Error(QString("[Load] File '%1' doesn't exist!").arg(filename));
+		result = CC_FERR_CONSOLE_ERROR; 
 		return 0;
 	}
 
 	//load file
 	ccHObject* container = new ccHObject();
-	CC_FILE_ERROR result = CC_FERR_NO_ERROR;
+	result = CC_FERR_NO_ERROR;
 	try
 	{
 		result = filter->loadFile(	filename,
@@ -241,24 +247,22 @@ ccHObject* FileIOFilter::LoadFromFile(	const QString& filename,
 	}
 	else
 	{
-		DisplayErrorMessage(result,"loading",fi.baseName());
+		DisplayErrorMessage(result, "loading", fi.baseName());
 	}
 
 	unsigned childCount = container->getChildrenNumber();
 	if (childCount != 0)
 	{
-		//all transformation that could have happened before this point are of no interest for the user ;)
-		container->resetGLTransformationHistory_recursive();
 		//we set the main container name as the full filename (with path)
-		container->setName(QString("%1 (%2)").arg(fi.fileName()).arg(fi.absolutePath()));
-		for (unsigned i=0; i<childCount; ++i)
+		container->setName(QString("%1 (%2)").arg(fi.fileName(),fi.absolutePath()));
+		for (unsigned i = 0; i < childCount; ++i)
 		{
 			ccHObject* child = container->getChild(i);
 			QString newName = child->getName();
 			if (newName.startsWith("unnamed"))
 			{
-				//we automatically replace occurences of 'unnamed' in entities names by the base filename (no path, no extension)
-				newName.replace(QString("unnamed"),fi.baseName());
+				//we automatically replace occurrences of 'unnamed' in entities names by the base filename (no path, no extension)
+				newName.replace(QString("unnamed"), fi.baseName());
 				child->setName(newName);
 			}
 		}
@@ -274,6 +278,7 @@ ccHObject* FileIOFilter::LoadFromFile(	const QString& filename,
 
 ccHObject* FileIOFilter::LoadFromFile(	const QString& filename,
 										LoadParameters& loadParameters,
+										CC_FILE_ERROR& result,
 										QString fileFilter/*=QString()*/)
 {
 	Shared filter(0);
@@ -281,10 +286,11 @@ ccHObject* FileIOFilter::LoadFromFile(	const QString& filename,
 	//if the right filter is specified by the caller
 	if (!fileFilter.isEmpty())
 	{
-		filter = GetFilter(fileFilter,true);
+		filter = GetFilter(fileFilter, true);
 		if (!filter)
 		{
-			ccLog::Error(QString("[Load] Internal error: no filter corresponds to filter '%1'").arg(fileFilter));
+			ccLog::Error(QString("[Load] Internal error: no I/O filter corresponds to filter '%1'").arg(fileFilter));
+			result = CC_FERR_CONSOLE_ERROR;
 			return 0;
 		}
 	}
@@ -295,6 +301,7 @@ ccHObject* FileIOFilter::LoadFromFile(	const QString& filename,
 		if (extension.isEmpty())
 		{
 			ccLog::Error("[Load] Can't guess file format: no file extension");
+			result = CC_FERR_CONSOLE_ERROR;
 			return 0;
 		}
 
@@ -305,11 +312,12 @@ ccHObject* FileIOFilter::LoadFromFile(	const QString& filename,
 		if (!filter)
 		{
 			ccLog::Error(QString("[Load] Can't guess file format: unhandled file extension '%1'").arg(extension));
+			result = CC_FERR_CONSOLE_ERROR;
 			return 0;
 		}
 	}
 
-	return LoadFromFile(filename, loadParameters, filter);
+	return LoadFromFile(filename, loadParameters, filter, result);
 }
 
 CC_FILE_ERROR FileIOFilter::SaveToFile(	ccHObject* entities,
@@ -431,11 +439,16 @@ void FileIOFilter::DisplayErrorMessage(CC_FILE_ERROR err, const QString& action,
 		return; //no message will be displayed!
 	}
 
-	QString outputString = QString("An error occurred while %1 '%2': ").arg(action).arg(filename) + errorStr;
+	QString outputString = QString("An error occurred while %1 '%2': ").arg(action,filename) + errorStr;
 	if (warning)
 		ccLog::Warning(outputString);
 	else
 		ccLog::Error(outputString);
+}
+
+bool FileIOFilter::CheckForSpecialChars(QString filename)
+{
+	return (filename.normalized(QString::NormalizationForm_D) != filename);
 }
 
 bool FileIOFilter::HandleGlobalShift(const CCVector3d& P, CCVector3d& Pshift, LoadParameters& loadParameters, bool useInputCoordinatesShiftIfPossible/*=false*/)

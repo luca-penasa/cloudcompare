@@ -1,14 +1,14 @@
 //##########################################################################
 //#                                                                        #
-//#                            CLOUDCOMPARE                                #
+//#                              CLOUDCOMPARE                              #
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU General Public License as published by  #
-//#  the Free Software Foundation; version 2 of the License.               #
+//#  the Free Software Foundation; version 2 or later of the License.      #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
 //#          COPYRIGHT: EDF R&D / TELECOM ParisTech (ENST-TSI)             #
@@ -47,6 +47,9 @@ public:
 							ABS_NORM_GREY	=	5,		/**< Absolute normalized grey ramp (intensities between 0 and 1) */
 							HSV_360_DEG		=	6,		/**< HSV colors between 0 and 360 degrees */
 							VERTEX_QUALITY	=	7,		/**< Mesh vertex quality (see CCLib::MeshSamplingTools::VertexFlags) */
+							DIP_BRYW		=	8,		/**< Dip (0 - 90 degrees) (Brown-Red-Yellow-White) */
+							DIP_DIR_REPEAT	=	9,		/**< Dip direction (0 - 360 degrees) */
+							VIRIDIS			=	10,		/**< matplotlib library colorscale created by Stéfan van der Walt and Nathaniel Smith */
 	};
 
 	//! Returns a pre-defined color scale UUID

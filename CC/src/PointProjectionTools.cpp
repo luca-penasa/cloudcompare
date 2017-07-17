@@ -4,11 +4,12 @@
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU Library General Public License as       #
-//#  published by the Free Software Foundation; version 2 of the License.  #
+//#  published by the Free Software Foundation; version 2 or later of the  #
+//#  License.                                                              #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
 //#          COPYRIGHT: EDF R&D / TELECOM ParisTech (ENST-TSI)             #
@@ -20,15 +21,12 @@
 //local
 #include "SimpleCloud.h"
 #include "Delaunay2dMesh.h"
-#include "GenericIndexedMesh.h"
 #include "GenericProgressCallback.h"
 #include "Neighbourhood.h"
 #include "SimpleMesh.h"
 #include "DistanceComputationTools.h"
 
 //system
-#include <assert.h>
-#include <string.h>
 #include <set>
 
 using namespace CCLib;
@@ -115,7 +113,7 @@ SimpleCloud* PointProjectionTools::developCloudOnCone(GenericCloud* cloud, unsig
 	unsigned char dim1 = (dim>0 ? dim-1 : 2);
 	unsigned char dim2 = (dim<2 ? dim+1 : 0);
 
-	float tan_alpha = tan(alpha*static_cast<float>(CC_DEG_TO_RAD));
+	float tan_alpha = tanf(alpha*static_cast<float>(CC_DEG_TO_RAD));
 	//float cos_alpha = cos(alpha*CC_DEG_TO_RAD);
 	//float sin_alpha = sin(alpha*CC_DEG_TO_RAD);
 	float q = 1.0f/(1.0f+tan_alpha*tan_alpha);
@@ -579,7 +577,7 @@ bool PointProjectionTools::extractConcaveHull2D(std::vector<IndexedCCVector2>& p
 												PointCoordinateType maxSquareEdgeLength/*=0*/)
 {
 	//first compute the Convex hull
-	if (!extractConvexHull2D(points,hullPoints))
+	if (!extractConvexHull2D(points, hullPoints))
 		return false;
 
 	//do we really need to compute the concave hull?
@@ -591,9 +589,9 @@ bool PointProjectionTools::extractConcaveHull2D(std::vector<IndexedCCVector2>& p
 	std::vector<HullPointFlags> pointFlags;
 	try
 	{
-		pointFlags.resize(pointCount,POINT_NOT_USED);
+		pointFlags.resize(pointCount, POINT_NOT_USED);
 	}
-	catch(...)
+	catch (...)
 	{
 		//not enough memory
 		return false;
@@ -603,15 +601,15 @@ bool PointProjectionTools::extractConcaveHull2D(std::vector<IndexedCCVector2>& p
 	PointCoordinateType minSquareEdgeLength = 0;
 	{
 		CCVector2 minP,maxP;
-		for (size_t i=0; i<pointCount; ++i)
+		for (size_t i = 0; i < pointCount; ++i)
 		{
 			const IndexedCCVector2& P = points[i];
 			if (i)
 			{
-				minP.x = std::min(P.x,minP.x);
-				minP.y = std::min(P.y,minP.y);
-				maxP.x = std::max(P.x,maxP.x);
-				maxP.y = std::max(P.y,maxP.y);
+				minP.x = std::min(P.x, minP.x);
+				minP.y = std::min(P.y, minP.y);
+				maxP.x = std::max(P.x, maxP.x);
+				maxP.y = std::max(P.y, maxP.y);
 			}
 			else
 			{
@@ -619,7 +617,7 @@ bool PointProjectionTools::extractConcaveHull2D(std::vector<IndexedCCVector2>& p
 			}
 		}
 		minSquareEdgeLength = (maxP-minP).norm2() / static_cast<PointCoordinateType>(1.0e7); //10^-7 of the max bounding rectangle side
-		minSquareEdgeLength = std::min(minSquareEdgeLength, maxSquareEdgeLength/10);
+		minSquareEdgeLength = std::min(minSquareEdgeLength, maxSquareEdgeLength / 10);
 
 		//we remove very small edges
 		for (std::list<IndexedCCVector2*>::iterator itA = hullPoints.begin(); itA != hullPoints.end(); ++itA)
@@ -684,7 +682,7 @@ bool PointProjectionTools::extractConcaveHull2D(std::vector<IndexedCCVector2>& p
 
 						if (minSquareDist >= 0)
 						{
-							Edge e(itA,nearestPointIndex,minSquareDist);
+							Edge e(itA, nearestPointIndex, minSquareDist);
 							edges.insert(e);
 						}
 					}

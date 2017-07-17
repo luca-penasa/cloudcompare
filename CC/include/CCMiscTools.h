@@ -4,11 +4,12 @@
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU Library General Public License as       #
-//#  published by the Free Software Foundation; version 2 of the License.  #
+//#  published by the Free Software Foundation; version 2 or later of the  #
+//#  License.                                                              #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
 //#          COPYRIGHT: EDF R&D / TELECOM ParisTech (ENST-TSI)             #
@@ -69,7 +70,7 @@ namespace CCLib
 
 		//! Ovelap test between a 3D box and a triangle
 		/** \param boxcenter the box center
-		\param boxhalfsize the box half dimenions
+		\param boxhalfsize the box half dimensions
 		\param triverts the 3 triangle vertices
 		\return true if the input box and triangle overlap, false otherwise
 		**/
@@ -79,7 +80,7 @@ namespace CCLib
 
 		//! Ovelap test between a 3D box and a triangle (double version)
 		/** \param boxcenter the box center
-			\param boxhalfsize the box half dimenions
+			\param boxhalfsize the box half dimensions
 			\param triverts the 3 triangle vertices
 			\return true if the input box and triangle overlap, false otherwise
 		**/

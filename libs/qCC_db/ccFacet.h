@@ -1,14 +1,14 @@
 //##########################################################################
 //#                                                                        #
-//#                            CLOUDCOMPARE                                #
+//#                              CLOUDCOMPARE                              #
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU General Public License as published by  #
-//#  the Free Software Foundation; version 2 of the License.               #
+//#  the Free Software Foundation; version 2 or later of the License.      #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
 //#          COPYRIGHT: EDF R&D / TELECOM ParisTech (ENST-TSI)             #
@@ -19,15 +19,22 @@
 #define CC_FACET_HEADER
 
 //Local
-#include "ccMesh.h"
-#include "ccPolyline.h"
-#include "ccPointCloud.h"
+#include "ccHObject.h"
+#include "ccPlanarEntityInterface.h"
 
+namespace CCLib
+{
+	class GenericIndexedCloudPersist;
+}
+
+class ccMesh;
+class ccPolyline;
+class ccPointCloud;
 
 //! Facet
 /** Composite object: point cloud + 2D1/2 contour polyline + 2D1/2 surface mesh
 **/
-class QCC_DB_LIB_API ccFacet : public ccHObject
+class QCC_DB_LIB_API ccFacet : public ccHObject, public ccPlanarEntityInterface
 {
 public:
 
@@ -64,17 +71,18 @@ public:
 	**/
 	void setColor(const ccColor::Rgb& rgb);
 
+	//inherited from ccPlanarEntityInterface
+	inline CCVector3 getNormal() const override { return CCVector3(m_planeEquation); }
+
 	//! Returns associated RMS
 	inline double getRMS() const { return m_rms; }
 	//! Returns associated surface
 	inline double getSurface() const { return m_surface; }
 	//! Returns plane equation
 	inline const PointCoordinateType* getPlaneEquation() const { return m_planeEquation; }
-	//! Returns normal
-	inline CCVector3 getNormal() const { return CCVector3(m_planeEquation); }
-	//! Inverts normal
+	//! Inverts the facet normal
 	void invertNormal();
-	//! Returns center
+	//! Returns the facet center
 	inline const CCVector3& getCenter() const { return m_center; }
 
 	//! Returns polygon mesh (if any)
@@ -95,11 +103,6 @@ public:
 	//! Sets origin points
 	inline void setOriginPoints(ccPointCloud* cloud) { m_originPoints = cloud; }
 
-	//! Show normal vector
-	inline void showNormalVector(bool state) { m_showNormalVector = state; }
-	//! Whether normal vector is shown or not
-	inline bool normalVectorIsShown() const { return m_showNormalVector; }
-
 	//! Clones this facet
 	ccFacet* clone() const;
 
@@ -112,7 +115,7 @@ protected:
 	bool createInternalRepresentation(	CCLib::GenericIndexedCloudPersist* points,
 										const PointCoordinateType* planeEquation = 0);
 
-	//! Facet 
+	//! Facet
 	ccMesh* m_polygonMesh;
 	//! Facet contour
 	ccPolyline* m_contourPolyline;
@@ -121,9 +124,9 @@ protected:
 	//! Origin points
 	ccPointCloud* m_originPoints;
 
-	//! Plane equation
+	//! Plane equation - as usual in CC plane equation is ax + by + cz = d
 	PointCoordinateType m_planeEquation[4];
-	
+
 	//! Facet centroid
 	CCVector3 m_center;
 
@@ -136,12 +139,12 @@ protected:
 	//! Max length
 	PointCoordinateType m_maxEdgeLength;
 
-	//! Whether the facet normal vector should be displayed or not
-	bool m_showNormalVector;
-
 	//inherited from ccHObject
 	virtual bool toFile_MeOnly(QFile& out) const override;
 	virtual bool fromFile_MeOnly(QFile& in, short dataVersion, int flags) override;
+
+	// ccHObject interface
+	virtual void applyGLTransformation(const ccGLMatrix &trans) override;
 };
 
 #endif //CC_FACET_PRIMITIVE_HEADER

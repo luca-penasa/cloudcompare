@@ -1,14 +1,14 @@
 //##########################################################################
 //#                                                                        #
-//#                            CLOUDCOMPARE                                #
+//#                              CLOUDCOMPARE                              #
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU General Public License as published by  #
-//#  the Free Software Foundation; version 2 of the License.               #
+//#  the Free Software Foundation; version 2 or later of the License.      #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
 //#          COPYRIGHT: EDF R&D / TELECOM ParisTech (ENST-TSI)             #
@@ -221,7 +221,7 @@ public: //bounding-box
 
 	//! Returns the bounding-box of this entity and it's children WHEN DISPLAYED
 	/** Children's GL transformation is taken into account (if enabled).
-		\param relative whether the bounding-box is relative (i.e. in the entity's local coordinate sytem) or absolute (in which case the parent's GL transformation will be taken into account)
+		\param relative whether the bounding-box is relative (i.e. in the entity's local coordinate system) or absolute (in which case the parent's GL transformation will be taken into account)
 		\param display if not null, this method will return the bounding-box of this entity (and its children) in the specified 3D view (i.e. potentially not visible)
 		\return bounding-box
 	**/
@@ -269,6 +269,9 @@ public: //display
 
 	//! Returns whether the object is actually displayed (visible) or not
 	virtual bool isDisplayed() const;
+
+	//! Returns whether the object is actually displayed (visible) in a given display or not
+	virtual bool isDisplayedIn(ccGenericGLDisplay* display) const;
 
 	//! Returns whether the object and all its ancestors are enabled
 	virtual bool isBranchEnabled() const;
@@ -437,7 +440,7 @@ protected:
 	/** First parameter: other object
 		Second parameter: dependency flags (see DEPENDENCY_FLAGS)
 	**/
-	std::map<ccHObject*,int> m_dependencies;
+	std::map<ccHObject*, int> m_dependencies;
 
 	//! Cumulative GL transformation
 	/** History of all the applied transformations since the creation of the object
@@ -460,11 +463,11 @@ protected:
 inline void ConvertToGroup(const ccHObject::Container& origin, ccHObject& dest, int dependencyFlags = ccHObject::DP_NONE)
 {
 	size_t count = origin.size();
-	for (size_t i=0; i<count; ++i)
+	for (size_t i = 0; i < count; ++i)
 	{
 		//we don't take objects that are siblings of others
 		bool isSiblingOfAnotherOne = false;
-		for (size_t j=0; j<count; ++j)
+		for (size_t j = 0; j < count; ++j)
 		{
 			if (i != j && origin[j]->isAncestorOf(origin[i]))
 			{

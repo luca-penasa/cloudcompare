@@ -1,14 +1,14 @@
 //##########################################################################
 //#                                                                        #
-//#                            CLOUDCOMPARE                                #
+//#                              CLOUDCOMPARE                              #
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU General Public License as published by  #
-//#  the Free Software Foundation; version 2 of the License.               #
+//#  the Free Software Foundation; version 2 or later of the License.      #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
 //#          COPYRIGHT: EDF R&D / TELECOM ParisTech (ENST-TSI)             #
@@ -109,13 +109,21 @@ CC_FILE_ERROR PTXFilter::loadFile(	QString filename,
 	ScalarType maxIntensity = 0;
 
 	//progress dialog
-	ccProgressDialog pdlg(true, parameters.parentWidget);
-	pdlg.setMethodTitle(QObject::tr("Loading PTX file"));
-	pdlg.setAutoClose(false);
+	QScopedPointer<ccProgressDialog> pDlg(0);
+	if (parameters.parentWidget)
+	{
+		pDlg.reset(new ccProgressDialog(true, parameters.parentWidget));
+		pDlg->setMethodTitle(QObject::tr("Loading PTX file"));
+		pDlg->setAutoClose(false);
+	}
 
 	//progress dialog (for normals computation)
-	ccProgressDialog normalsProgressDlg(true, parameters.parentWidget);
-	normalsProgressDlg.setAutoClose(false);
+	QScopedPointer<ccProgressDialog> normalsProgressDlg(0);
+	if (parameters.parentWidget)
+	{
+		normalsProgressDlg.reset(new ccProgressDialog(true, parameters.parentWidget));
+		normalsProgressDlg->setAutoClose(false);
+	}
 
 	for (unsigned cloudIndex = 0; result == CC_FERR_NO_ERROR || result == CC_FERR_NO_LOAD; cloudIndex++)
 	{
@@ -196,7 +204,7 @@ CC_FILE_ERROR PTXFilter::loadFile(	QString filename,
 			{
 				if (HandleGlobalShift(cloudTransD.getTranslationAsVec3D(),PshiftTrans,parameters))
 				{
-					ccLog::Warning("[PTXFilter::loadFile] Cloud has be recentered! Translation: (%.2f,%.2f,%.2f)",PshiftTrans.x,PshiftTrans.y,PshiftTrans.z);
+					ccLog::Warning("[PTXFilter::loadFile] Cloud has be recentered! Translation: (%.2f ; %.2f ; %.2f)",PshiftTrans.x,PshiftTrans.y,PshiftTrans.z);
 				}
 			}
 
@@ -257,9 +265,12 @@ CC_FILE_ERROR PTXFilter::loadFile(	QString filename,
 
 		//read points
 		{
-			CCLib::NormalizedProgress nprogress(&pdlg, gridSize);
-			pdlg.setInfo(qPrintable(QString("Number of cells: %1").arg(gridSize)));
-			pdlg.start();
+			CCLib::NormalizedProgress nprogress(pDlg.data(), gridSize);
+			if (pDlg)
+			{
+				pDlg->setInfo(qPrintable(QString("Number of cells: %1").arg(gridSize)));
+				pDlg->start();
+			}
 
 			bool firstPoint = true;
 			bool hasColors = false;
@@ -335,7 +346,7 @@ CC_FILE_ERROR PTXFilter::loadFile(	QString filename,
 								if (HandleGlobalShift(P,PshiftCloud,parameters))
 								{
 									cloud->setGlobalShift(PshiftCloud);
-									ccLog::Warning("[PTXFilter::loadFile] Cloud has been recentered! Translation: (%.2f,%.2f,%.2f)",PshiftCloud.x,PshiftCloud.y,PshiftCloud.z);
+									ccLog::Warning("[PTXFilter::loadFile] Cloud has been recentered! Translation: (%.2f ; %.2f ; %.2f)",PshiftCloud.x,PshiftCloud.y,PshiftCloud.z);
 								}
 							}
 							firstPoint = false;
@@ -392,7 +403,7 @@ CC_FILE_ERROR PTXFilter::loadFile(	QString filename,
 						}
 					}
 
-					if (!nprogress.oneStep())
+					if (parameters.parentWidget && !nprogress.oneStep())
 					{
 						result = CC_FERR_CANCELED_BY_USER;
 						break;
@@ -451,7 +462,9 @@ CC_FILE_ERROR PTXFilter::loadFile(	QString filename,
 			//we apply the transformation
 			ccGLMatrix cloudTrans(cloudTransD.data());
 			cloud->applyGLTransformation_recursive(&cloudTrans);
-			
+			//this transformation is of no interest for the user
+			cloud->resetGLTransformationHistory_recursive();
+
 			if (sensor)
 			{
 				ccGLMatrix sensorTrans(sensorTransD.data());
@@ -471,7 +484,7 @@ CC_FILE_ERROR PTXFilter::loadFile(	QString filename,
 				//by default we don't compute normals without asking the user
 				if (parameters.autoComputeNormals)
 				{
-					cloud->computeNormalsWithGrids(LS, 2, true, &normalsProgressDlg);
+					cloud->computeNormalsWithGrids(LS, 2, true, normalsProgressDlg.data());
 				}
 			}
 

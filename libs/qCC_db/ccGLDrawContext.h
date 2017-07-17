@@ -1,14 +1,14 @@
 //##########################################################################
 //#                                                                        #
-//#                            CLOUDCOMPARE                                #
+//#                              CLOUDCOMPARE                              #
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU General Public License as published by  #
-//#  the Free Software Foundation; version 2 of the License.               #
+//#  the Free Software Foundation; version 2 or later of the License.      #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
 //#          COPYRIGHT: EDF R&D / TELECOM ParisTech (ENST-TSI)             #
@@ -80,6 +80,8 @@ struct ccGLDrawContext
 	int glW;
 	//! GL screen height
 	int glH;
+	//! Device pixel ratio (general 1, 2 on HD displays)
+	float devicePixelRatio;
 	//! Corresponding GL window
 	ccGenericGLDisplay* display;
 
@@ -151,11 +153,15 @@ struct ccGLDrawContext
 	//! Stereo pass index
 	unsigned stereoPassIndex;
 
+	//! Whether to draw rounded points (instead of sqaures)
+	bool drawRoundedPoints;
+
 	//Default constructor
 	ccGLDrawContext()
 		: drawingFlags(0)
 		, glW(0)
 		, glH(0)
+		, devicePixelRatio(1.0f)
 		, display(0)
 		, qGLContext(nullptr)
 		, renderZoom(1.0f)
@@ -185,6 +191,7 @@ struct ccGLDrawContext
 		, sourceBlend(GL_SRC_ALPHA)
 		, destBlend(GL_ONE_MINUS_SRC_ALPHA)
 		, stereoPassIndex(0)
+		, drawRoundedPoints(false)
 	{}
    
 	template<class TYPE>

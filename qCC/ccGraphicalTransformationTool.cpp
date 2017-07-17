@@ -1,14 +1,14 @@
 //##########################################################################
 //#                                                                        #
-//#                            CLOUDCOMPARE                                #
+//#                              CLOUDCOMPARE                              #
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU General Public License as published by  #
-//#  the Free Software Foundation; version 2 of the License.               #
+//#  the Free Software Foundation; version 2 or later of the License.      #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
 //#          COPYRIGHT: EDF R&D / TELECOM ParisTech (ENST-TSI)             #
@@ -119,14 +119,14 @@ bool ccGraphicalTransformationTool::addEntity(ccHObject* entity)
 		return false;
 	}
 
-	//we can't tranform locked entities
+	//we can't transform locked entities
 	if (entity->isLocked())
 	{
 		ccLog::Warning(QString("[Graphical Transformation Tool] Can't transform entity '%1' cause it's locked!").arg(entity->getName()));
 		return false;
 	}
 
-	//we can't tranform child meshes
+	//we can't transform child meshes
 	if (entity->isA(CC_TYPES::MESH) && entity->getParent() && entity->getParent()->isKindOf(CC_TYPES::MESH))
 	{
 		ccLog::Warning(QString("[Graphical Transformation Tool] Entity '%1' can't be modified as it is part of a mesh group. You should 'clone' it first.").arg(entity->getName()));
@@ -262,7 +262,7 @@ void ccGraphicalTransformationTool::glRotate(const ccGLMatrixd& rotMat)
 void ccGraphicalTransformationTool::reset()
 {
 	m_rotation.toIdentity();
-	m_translation = CCVector3d(0,0,0);
+	m_translation = CCVector3d(0, 0, 0);
 
 	updateAllGLTransformations();
 }
@@ -282,11 +282,12 @@ void ccGraphicalTransformationTool::updateAllGLTransformations()
 	newTrans += m_rotationCenter + m_translation - m_rotation * m_rotationCenter;
 
 	ccGLMatrix newTransf(newTrans.data());
-	for (unsigned i=0; i<m_toTransform.getChildrenNumber(); ++i)
+	for (unsigned i = 0; i < m_toTransform.getChildrenNumber(); ++i)
 	{
 		ccHObject* child = m_toTransform.getChild(i);
 		child->setGLTransformation(newTransf);
 		child->prepareDisplayForRefresh_recursive();
+
 	}
 
 	MainWindow::RefreshAllGLWindow(false);
@@ -304,7 +305,7 @@ void ccGraphicalTransformationTool::apply()
 	{
 		//convert matrix back and forth so as to be sure to get a 'true' rotation matrix
 		//DGM: we use Euler angles, as the axis/angle method (formerly used) is not robust
-		//enough! Shifts could be percieved by the user.
+		//enough! Shifts could be perceived by the user.
 		double phi_rad,theta_rad,psi_rad;
 		CCVector3d t3D;
 		finalTrans.getParameters(phi_rad,theta_rad,psi_rad,t3D);
@@ -346,7 +347,7 @@ void ccGraphicalTransformationTool::apply()
 		toTransform->prepareDisplayForRefresh_recursive();
 		MainWindow::TheInstance()->putObjectBackIntoDBTree(toTransform,objContext);
 
-		//specif case: if the object is a mesh vertices set, we may have to update the mesh normals!
+		//special case: if the object is a mesh vertices set, we may have to update the mesh normals!
 		if (toTransform->isA(CC_TYPES::POINT_CLOUD) && toTransform->getParent() && toTransform->getParent()->isKindOf(CC_TYPES::MESH))
 		{
 			ccMesh* mesh = static_cast<ccMesh*>(toTransform->getParent());

@@ -1,14 +1,14 @@
 //##########################################################################
 //#                                                                        #
-//#                            CLOUDCOMPARE                                #
+//#                              CLOUDCOMPARE                              #
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU General Public License as published by  #
-//#  the Free Software Foundation; version 2 of the License.               #
+//#  the Free Software Foundation; version 2 or later of the License.      #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
 //#          COPYRIGHT: EDF R&D / TELECOM ParisTech (ENST-TSI)             #
@@ -81,11 +81,15 @@ CC_FILE_ERROR PNFilter::saveToFile(ccHObject* entity, QString filename, SavePara
 						static_cast<float>(s_defaultNorm.z) };
 
 	//progress dialog
-	ccProgressDialog pdlg(true, parameters.parentWidget); //cancel available
-	CCLib::NormalizedProgress nprogress(&pdlg,numberOfPoints);
-	pdlg.setMethodTitle(QObject::tr("Save PN file"));
-	pdlg.setInfo(QObject::tr("Points: %1").arg(numberOfPoints));
-	pdlg.start();
+	QScopedPointer<ccProgressDialog> pDlg(0);
+	if (pDlg)
+	{
+		pDlg.reset(new ccProgressDialog(true, parameters.parentWidget)); //cancel available
+		pDlg->setMethodTitle(QObject::tr("Save PN file"));
+		pDlg->setInfo(QObject::tr("Points: %1").arg(numberOfPoints));
+		pDlg->start();
+	}
+	CCLib::NormalizedProgress nprogress(pDlg.data(), numberOfPoints);
 
 	CC_FILE_ERROR result = CC_FERR_NO_ERROR;
 
@@ -119,7 +123,7 @@ CC_FILE_ERROR PNFilter::saveToFile(ccHObject* entity, QString filename, SavePara
 			break;
 		}
 
-		if (!nprogress.oneStep())
+		if (pDlg && !nprogress.oneStep())
 		{
 			result = CC_FERR_CANCELED_BY_USER;
 			break;
@@ -149,11 +153,15 @@ CC_FILE_ERROR PNFilter::loadFile(QString filename, ccHObject& container, LoadPar
 	unsigned numberOfPoints = static_cast<unsigned>(fileSize  / singlePointSize);
 
 	//progress dialog
-	ccProgressDialog pdlg(true, parameters.parentWidget); //cancel available
-	CCLib::NormalizedProgress nprogress(&pdlg,numberOfPoints);
-	pdlg.setMethodTitle(QObject::tr("Open PN file"));
-	pdlg.setInfo(QObject::tr("Points: %1").arg(numberOfPoints));
-	pdlg.start();
+	QScopedPointer<ccProgressDialog> pDlg(0);
+	if (parameters.parentWidget)
+	{
+		pDlg.reset(new ccProgressDialog(true, parameters.parentWidget)); //cancel available
+		pDlg->setMethodTitle(QObject::tr("Open PN file"));
+		pDlg->setInfo(QObject::tr("Points: %1").arg(numberOfPoints));
+		pDlg->start();
+	}
+	CCLib::NormalizedProgress nprogress(pDlg.data(), numberOfPoints);
 
 	ccPointCloud* loadedCloud = 0;
 	//if the file is too big, it will be chuncked in multiple parts
@@ -216,7 +224,7 @@ CC_FILE_ERROR PNFilter::loadFile(QString filename, ccHObject& container, LoadPar
 
 		++pointsRead;
 
-		if (!nprogress.oneStep())
+		if (pDlg && !nprogress.oneStep())
 		{
 			result = CC_FERR_CANCELED_BY_USER;
 			break;

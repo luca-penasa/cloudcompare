@@ -1,14 +1,14 @@
 //##########################################################################
 //#                                                                        #
-//#                            CLOUDCOMPARE                                #
+//#                              CLOUDCOMPARE                              #
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU General Public License as published by  #
-//#  the Free Software Foundation; version 2 of the License.               #
+//#  the Free Software Foundation; version 2 or later of the License.      #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
 //#          COPYRIGHT: EDF R&D / TELECOM ParisTech (ENST-TSI)             #
@@ -32,7 +32,7 @@ class ccOverlayDialog : public QDialog
 public:
 
 	//! Default constructor
-	explicit ccOverlayDialog(QWidget* parent = 0);
+	explicit ccOverlayDialog(QWidget* parent = 0, Qt::WindowFlags flags = Qt::FramelessWindowHint | Qt::Tool);
 
 	//! Destructor
 	virtual ~ccOverlayDialog();
@@ -77,10 +77,13 @@ signals:
 	**/
 	void shortcutTriggered(int key);
 
+	//! Signal emitted when a 'show' event is detected
+	void shown();
+
 protected slots:
 
 	//! Slot called when the linked window is deleted (calls 'onClose')
-	virtual void onLinkedWindowDeletion(QObject* object=0);
+	virtual void onLinkedWindowDeletion(QObject* object = 0);
 
 protected:
 

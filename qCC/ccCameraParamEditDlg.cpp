@@ -1,14 +1,14 @@
 //##########################################################################
 //#                                                                        #
-//#                            CLOUDCOMPARE                                #
+//#                              CLOUDCOMPARE                              #
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU General Public License as published by  #
-//#  the Free Software Foundation; version 2 of the License.               #
+//#  the Free Software Foundation; version 2 or later of the License.      #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
 //#          COPYRIGHT: EDF R&D / TELECOM ParisTech (ENST-TSI)             #
@@ -19,6 +19,7 @@
 
 //Local
 #include "ccPointCloud.h"
+#include "ccPickingHub.h"
 
 //qCC_db
 #include <ccGLUtils.h>
@@ -27,6 +28,7 @@
 
 //qCC_gl
 #include <ccGLWidget.h>
+#include <ccGLWindow.h>
 
 //CCLib
 #include <CCConst.h>
@@ -36,23 +38,10 @@
 #include <QDoubleValidator>
 #include <QMdiSubWindow>
 
-double SliderPosToZNearCoef(int i, int iMax)
-{
-	assert(i >= 0 && i <= iMax);
-	return pow(10,-static_cast<double>((iMax-i)*3)/iMax); //between 10^-3 and 1
-}
-
-int ZNearCoefToSliderPos(double coef, int iMax)
-{
-	assert(coef >= 0 && coef <= 1.0);
-	int i = static_cast<int>(-(static_cast<double>(iMax)/3) * log10(coef));
-	assert(i >= 0 && i <= iMax);
-	return iMax-i;
-}
-
-ccCameraParamEditDlg::ccCameraParamEditDlg(QWidget* parent)
-	: ccOverlayDialog(parent)
+ccCameraParamEditDlg::ccCameraParamEditDlg(QWidget* parent, ccPickingHub* pickingHub)
+	: ccOverlayDialog(parent, pickingHub ? Qt::FramelessWindowHint | Qt::Tool : Qt::Tool) //pickingHub = CloudCompare / otherwise = ccViewer
 	, Ui::CameraParamDlg()
+	, m_pickingHub(pickingHub)
 {
 	setupUi(this);
 
@@ -88,7 +77,7 @@ ccCameraParamEditDlg::ccCameraParamEditDlg(QWidget* parent)
 	connect(pushMatrixToolButton,	SIGNAL(clicked()),				this,	SLOT(pushCurrentMatrix()));
 	connect(revertMatrixToolButton,	SIGNAL(clicked()),				this,	SLOT(revertToPushedMatrix()));
 
-	connect(pivotPickingToolButton,	SIGNAL(clicked()),				this,	SLOT(pickPointAsPivot()));
+	connect(pivotPickingToolButton,	SIGNAL(toggled(bool)),			this,	SLOT(pickPointAsPivot(bool)));
 }
 
 ccCameraParamEditDlg::~ccCameraParamEditDlg()
@@ -97,7 +86,7 @@ ccCameraParamEditDlg::~ccCameraParamEditDlg()
 
 void ccCameraParamEditDlg::makeFrameless()
 {
-	setWindowFlags(Qt::FramelessWindowHint |Qt::Tool);
+	setWindowFlags(Qt::FramelessWindowHint | Qt::Tool);
 }
 
 void ccCameraParamEditDlg::iThetaValueChanged(int val)
@@ -194,7 +183,7 @@ void ccCameraParamEditDlg::zNearSliderMoved(int i)
 	if (!m_associatedWin)
 		return;
 
-	double zNearCoef = SliderPosToZNearCoef(i, zNearHorizontalSlider->maximum());
+	double zNearCoef = ccViewportParameters::IncrementToZNearCoef(i, zNearHorizontalSlider->maximum() + 1);
 	m_associatedWin->setZNearCoef(zNearCoef);
 	m_associatedWin->redraw();
 }
@@ -227,17 +216,67 @@ void ccCameraParamEditDlg::revertToPushedMatrix()
 	m_associatedWin->redraw();
 }
 
-void ccCameraParamEditDlg::pickPointAsPivot()
+void ccCameraParamEditDlg::pickPointAsPivot(bool state)
 {
-	if (m_associatedWin)
+	if (m_pickingHub)
 	{
-		m_associatedWin->setPickingMode(ccGLWindow::POINT_OR_TRIANGLE_PICKING);
-		connect(m_associatedWin, SIGNAL(itemPicked(ccHObject*, unsigned, int, int, const CCVector3&)), this, SLOT(processPickedItem(ccHObject*, unsigned, int, int, const CCVector3&)));
+		if (state)
+		{
+			if (!m_pickingHub->addListener(this, true))
+			{
+				ccLog::Error("Can't start the picking process (another tool is using it)");
+				state = false;
+			}
+		}
+		else
+		{
+			m_pickingHub->removeListener(this);
+		}
 	}
+	else if (m_associatedWin)
+	{
+		if (state)
+		{
+			m_associatedWin->setPickingMode(ccGLWindow::POINT_OR_TRIANGLE_PICKING);
+			connect(m_associatedWin, SIGNAL(itemPicked(ccHObject*, unsigned, int, int, const CCVector3&)), this, SLOT(processPickedItem(ccHObject*, unsigned, int, int, const CCVector3&)));
+		}
+		else
+		{
+			m_associatedWin->setPickingMode(ccGLWindow::DEFAULT_PICKING);
+			disconnect(m_associatedWin, SIGNAL(itemPicked(ccHObject*, unsigned, int, int, const CCVector3&)), this, SLOT(processPickedItem(ccHObject*, unsigned, int, int, const CCVector3&)));
+		}
+	}
+
+	pivotPickingToolButton->blockSignals(true);
+	pivotPickingToolButton->setChecked(state);
+	pivotPickingToolButton->blockSignals(false);
 }
 
-void ccCameraParamEditDlg::processPickedItem(ccHObject* entity, unsigned itemIndex, int x, int y, const CCVector3& P)
+void ccCameraParamEditDlg::onItemPicked(const PickedItem& pi)
 {
+	//with picking hub (CloudCompare)
+	if (!m_associatedWin || !m_pickingHub)
+	{
+		assert(false);
+		return;
+	}
+
+	if (m_associatedWin != m_pickingHub->activeWindow())
+	{
+		assert(false);
+		ccLog::Warning("Point has been picked in the wrong window");
+		return;
+	}
+
+	m_associatedWin->setPivotPoint(CCVector3d::fromArray(pi.P3D.u));
+	m_associatedWin->redraw();
+
+	pickPointAsPivot(false);
+}
+
+void ccCameraParamEditDlg::processPickedItem(ccHObject* entity, unsigned, int, int, const CCVector3& P)
+{
+	//without picking hub (ccViewer)
 	if (!m_associatedWin)
 	{
 		assert(false);
@@ -252,8 +291,7 @@ void ccCameraParamEditDlg::processPickedItem(ccHObject* entity, unsigned itemInd
 	m_associatedWin->setPivotPoint(CCVector3d::fromArray(P.u));
 	m_associatedWin->redraw();
 
-	m_associatedWin->setPickingMode(ccGLWindow::DEFAULT_PICKING);
-	disconnect(m_associatedWin, SIGNAL(itemPicked(ccHObject*, unsigned, int, int, const CCVector3&)), this, SLOT(processPickedItem(ccHObject*, unsigned, int, int, const CCVector3&)));
+	pickPointAsPivot(false);
 }
 
 void ccCameraParamEditDlg::setView(CC_VIEW_ORIENTATION orientation)
@@ -337,6 +375,12 @@ bool ccCameraParamEditDlg::linkWith(ccGLWindow* win)
 		return false;
 	}
 
+	if (oldWin != m_associatedWin && pivotPickingToolButton->isChecked())
+	{
+		//automatically disable picking mode when changing th
+		pickPointAsPivot(false);
+	}
+
 	if (oldWin)
 	{
 		oldWin->disconnect(this);
@@ -352,6 +396,7 @@ bool ccCameraParamEditDlg::linkWith(ccGLWindow* win)
 		connect(m_associatedWin,	SIGNAL(perspectiveStateChanged()),					this,	SLOT(updateViewMode()));
 		connect(m_associatedWin,	SIGNAL(destroyed(QObject*)),						this,	SLOT(hide()));
 		connect(m_associatedWin,	SIGNAL(fovChanged(float)),							this,	SLOT(updateWinFov(float)));
+		connect(m_associatedWin,	SIGNAL(zNearCoefChanged(float)),					this,	SLOT(updateZNearCoef(float)));
 
 		PushedMatricesMapType::iterator it = pushedMatrices.find(m_associatedWin);
 		buttonsFrame->setEnabled(it != pushedMatrices.end());
@@ -446,9 +491,7 @@ void ccCameraParamEditDlg::initWith(ccGLWindow* win)
 	updateWinFov(win->getFov());
 
 	//update zNearCoef
-	zNearHorizontalSlider->blockSignals(true);
-	zNearHorizontalSlider->setValue(ZNearCoefToSliderPos(params.zNearCoef, zNearHorizontalSlider->maximum()));
-	zNearHorizontalSlider->blockSignals(false);
+	updateZNearCoef(params.zNearCoef);
 }
 
 void ccCameraParamEditDlg::updateCameraCenter(const CCVector3d& P)
@@ -488,6 +531,16 @@ void ccCameraParamEditDlg::updateWinFov(float fov_deg)
 	fovDoubleSpinBox->blockSignals(true);
 	fovDoubleSpinBox->setValue(fov_deg);
 	fovDoubleSpinBox->blockSignals(false);
+}
+
+void ccCameraParamEditDlg::updateZNearCoef(float zNearCoef)
+{
+	if (!m_associatedWin)
+		return;
+
+	zNearHorizontalSlider->blockSignals(true);
+	zNearHorizontalSlider->setValue(ccViewportParameters::ZNearCoefToIncrement(zNearCoef, zNearHorizontalSlider->maximum() + 1));
+	zNearHorizontalSlider->blockSignals(false);
 }
 
 ccGLMatrixd ccCameraParamEditDlg::getMatrix()

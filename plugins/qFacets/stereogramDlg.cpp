@@ -4,14 +4,14 @@
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU General Public License as published by  #
-//#  the Free Software Foundation; version 2 of the License.               #
+//#  the Free Software Foundation; version 2 or later of the License.      #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
-//#                           COPYRIGHT: BRGM                              #
+//#                      COPYRIGHT: Thomas Dewez, BRGM                     #
 //#                                                                        #
 //##########################################################################
 
@@ -32,6 +32,7 @@
 #include <ccColorScalesManager.h>
 #include <ccColorScaleSelector.h>
 #include <ccColorScaleEditorDlg.h>
+#include <ccMesh.h>
 #include <ccProgressDialog.h>
 
 //! Density grid
@@ -579,7 +580,7 @@ StereogramDialog::StereogramDialog(ccMainAppInterface* app/*=0*/)
 	if (m_app)
 	{
 		ccColorScalesManager* csManager = m_app->getColorScalesManager();
-		m_colorScaleSelector = new ccColorScaleSelector(csManager,this,QString::fromUtf8(":/CC/plugin/qFacets/gearIcon.png"));
+		m_colorScaleSelector = new ccColorScaleSelector(csManager, this, QString::fromUtf8(":/CC/plugin/qFacets/gearIcon.png"));
 		m_colorScaleSelector->init();
 		ccColorScale::Shared scale = csManager->getDefaultScale(ccColorScalesManager::BGYR);
 		if (scale)
@@ -594,7 +595,7 @@ StereogramDialog::StereogramDialog(ccMainAppInterface* app/*=0*/)
 			colorRampGroupBox->setLayout(new QHBoxLayout());
 		colorRampGroupBox->layout()->addItem(new QSpacerItem(20, 20, QSizePolicy::Preferred, QSizePolicy::Minimum));
 		colorRampGroupBox->layout()->addWidget(m_colorScaleSelector);
-		colorScaleStepsSpinBox->setRange(ccColorScale::MIN_STEPS,ccColorScale::MAX_STEPS);
+		colorScaleStepsSpinBox->setRange(ccColorScale::MIN_STEPS, ccColorScale::MAX_STEPS);
 	}
 	else
 	{
@@ -936,11 +937,11 @@ void StereogramDialog::spawnColorScaleEditor()
 		return;
 
 	ccColorScale::Shared colorScale = (m_colorScaleSelector ? m_colorScaleSelector->getSelectedScale() : m_app->getColorScalesManager()->getDefaultScale(ccColorScalesManager::BGYR));
-	ccColorScaleEditorDialog cseDlg(m_app->getColorScalesManager(),m_app,colorScale,m_app->getMainWindow());
+	ccColorScaleEditorDialog cseDlg(m_app->getColorScalesManager(), m_app, colorScale, m_app->getMainWindow());
 	if (cseDlg.exec())
 	{
 		colorScale = cseDlg.getActiveScale();
-		if (colorScale)
+		if (colorScale && m_colorScaleSelector)
 		{
 			m_colorScaleSelector->init(); //in fact it's a 're-init'
 			m_colorScaleSelector->setSelectedScale(colorScale->getUuid());

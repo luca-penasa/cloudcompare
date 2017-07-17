@@ -5,11 +5,14 @@
 FIND_PACKAGE( CGAL QUIET COMPONENTS Core ) # implies findGMP
 
 if (CGAL_FOUND)
-	if(${CGAL_MAJOR_VERSION}.${CGAL_MINOR_VERSION} LESS 4.3)
+	if(${CGAL_MAJOR_VERSION} LESS 4)
+		message(SEND_ERROR "CC Lib requires at least CGAL 4.3")
+	endif()
+	if(${CGAL_MAJOR_VERSION} EQUAL 4 AND CGAL_MINOR_VERSION LESS 3)
 		message(SEND_ERROR "CC Lib requires at least CGAL 4.3")
 	endif()
 
-  	# We need to get ride of CGAL CXX flags
+  	# We need to get rid of CGAL CXX flags
   	set(CGAL_DONT_OVERRIDE_CMAKE_FLAGS ON CACHE INTERNAL "override CGAL flags" FORCE)
 
 	include( ${CGAL_USE_FILE} )

@@ -1,14 +1,14 @@
 //##########################################################################
 //#                                                                        #
-//#                            CLOUDCOMPARE                                #
+//#                              CLOUDCOMPARE                              #
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU General Public License as published by  #
-//#  the Free Software Foundation; version 2 of the License.               #
+//#  the Free Software Foundation; version 2 or later of the License.      #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
 //#          COPYRIGHT: EDF R&D / TELECOM ParisTech (ENST-TSI)             #
@@ -49,6 +49,7 @@ class ccDish;
 class ccExtru;
 class ccTorus;
 class ccShiftedObject;
+class ccPlanarEntityInterface;
 
 //! Useful class to (try to) statically cast a basic ccHObject to a given type
 class QCC_DB_LIB_API ccHObjectCaster
@@ -56,19 +57,19 @@ class QCC_DB_LIB_API ccHObjectCaster
 public:
 
 	//! Converts current object to 'equivalent' ccPointCloud
-	/** Waring: if a mesh is passed, this method returns its vertices.
+	/** Warning: if a mesh is passed, this method returns its vertices.
 		\param obj ccHObject to dynamically cast to a ccPointCloud object
 		\param isLockedVertices the caller can be warned if the returned cloud corresponds to locked vertices
 	**/
 	static ccPointCloud* ToPointCloud(ccHObject* obj, bool* isLockedVertices = 0);
 
 	//! Converts current object to 'equivalent' ccGenericPointCloud
-	/** Waring: if a mesh is passed, this method returns its vertices.
+	/** Warning: if a mesh is passed, this method returns its vertices.
 	**/
 	static ccGenericPointCloud* ToGenericPointCloud(ccHObject* obj, bool* isLockedVertices = 0);
 
 	//! Converts current object to 'equivalent' ccShiftedObject
-	/** Waring: if a mesh is passed, this method returns its vertices.
+	/** Warning: if a mesh is passed, this method returns its vertices.
 	**/
 	static ccShiftedObject* ToShifted(ccHObject* obj, bool* isLockedVertices = 0);
 
@@ -86,6 +87,9 @@ public:
 
 	//! Converts current object to ccFacet (if possible)
 	static ccFacet* ToFacet(ccHObject* obj);
+
+	//! Converts current object to ccPlanarEntityInterface (if possible)
+	static ccPlanarEntityInterface* ToPlanarEntity(ccHObject* obj);
 
 	//! Converts current object to ccGenericPrimitive (if possible)
 	static ccGenericPrimitive* ToPrimitive(ccHObject* obj);

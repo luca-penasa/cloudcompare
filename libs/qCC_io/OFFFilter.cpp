@@ -1,14 +1,14 @@
 //##########################################################################
 //#                                                                        #
-//#                            CLOUDCOMPARE                                #
+//#                              CLOUDCOMPARE                              #
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU General Public License as published by  #
-//#  the Free Software Foundation; version 2 of the License.               #
+//#  the Free Software Foundation; version 2 or later of the License.      #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
 //#          COPYRIGHT: EDF R&D / TELECOM ParisTech (ENST-TSI)             #
@@ -84,6 +84,7 @@ CC_FILE_ERROR OFFFilter::saveToFile(ccHObject* entity, QString filename, SavePar
 		return CC_FERR_WRITING;
 
 	QTextStream stream(&fp);
+	stream.setRealNumberNotation(QTextStream::FixedNotation);
 	stream.setRealNumberPrecision(12); //TODO: ask the user?
 
 	//header: "OFF"
@@ -96,7 +97,7 @@ CC_FILE_ERROR OFFFilter::saveToFile(ccHObject* entity, QString filename, SavePar
 
 	//save vertices
 	{
-		for (unsigned i=0; i<vertCount; ++i)
+		for (unsigned i = 0; i < vertCount; ++i)
 		{
 			const CCVector3* P = vertices->getPoint(i);
 			CCVector3d Pglobal = vertices->toGlobal3d<PointCoordinateType>(*P);
@@ -106,7 +107,7 @@ CC_FILE_ERROR OFFFilter::saveToFile(ccHObject* entity, QString filename, SavePar
 
 	//save triangles
 	{
-		for (unsigned i=0; i<triCount; ++i)
+		for (unsigned i = 0; i < triCount; ++i)
 		{
 			const CCLib::VerticesIndexes* tsi = mesh->getTriangleVertIndexes(i);
 			stream << "3 " << tsi->i1 << ' ' << tsi->i2 << ' ' << tsi->i3 << endl;
@@ -219,7 +220,7 @@ CC_FILE_ERROR OFFFilter::loadFile(QString filename, ccHObject& container, LoadPa
 				if (HandleGlobalShift(Pd,Pshift,parameters))
 				{
 					vertices->setGlobalShift(Pshift);
-					ccLog::Warning("[OFF] Cloud has been recentered! Translation: (%.2f,%.2f,%.2f)",Pshift.x,Pshift.y,Pshift.z);
+					ccLog::Warning("[OFF] Cloud has been recentered! Translation: (%.2f ; %.2f ; %.2f)",Pshift.x,Pshift.y,Pshift.z);
 				}
 			}
 

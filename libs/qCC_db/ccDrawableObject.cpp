@@ -1,14 +1,14 @@
 //##########################################################################
 //#                                                                        #
-//#                            CLOUDCOMPARE                                #
+//#                              CLOUDCOMPARE                              #
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU General Public License as published by  #
-//#  the Free Software Foundation; version 2 of the License.               #
+//#  the Free Software Foundation; version 2 or later of the License.      #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
 //#          COPYRIGHT: EDF R&D / TELECOM ParisTech (ENST-TSI)             #
@@ -21,7 +21,7 @@
 #include "ccGenericGLDisplay.h"
 
 ccDrawableObject::ccDrawableObject()
-	: m_currentDisplay(0)
+	: m_currentDisplay(nullptr)
 {
 	setVisible(true);
 	setSelected(false);
@@ -72,15 +72,37 @@ void ccDrawableObject::prepareDisplayForRefresh()
 void ccDrawableObject::setDisplay(ccGenericGLDisplay* win)
 {
 	if (win && m_currentDisplay != win)
+	{
 		win->invalidateViewport();
+		win->deprecate3DLayer();
+	}
 
 	m_currentDisplay = win;
+	if (m_currentDisplay)
+	{
+		m_currentDisplay->deprecate3DLayer();
+	}
 }
 
 void ccDrawableObject::removeFromDisplay(const ccGenericGLDisplay* win)
 {
 	if (m_currentDisplay == win)
-		setDisplay(0);
+	{
+		if (m_currentDisplay)
+		{
+			m_currentDisplay->deprecate3DLayer();
+		}
+		setDisplay(nullptr);
+	}
+}
+
+void ccDrawableObject::enableGLTransformation(bool state)
+{
+	m_glTransEnabled = state;
+	if (m_currentDisplay)
+	{
+		m_currentDisplay->deprecate3DLayer();
+	}
 }
 
 void ccDrawableObject::setGLTransformation(const ccGLMatrix& trans)

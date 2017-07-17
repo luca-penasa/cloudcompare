@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.0)
 
-project( CloudCompare VERSION 2.7.0 )
+project( CloudCompare VERSION 2.9.0 )
 
 include_directories( ${CC_FBO_LIB_SOURCE_DIR}/include )
 include_directories( ${CC_CORE_LIB_SOURCE_DIR}/include )
@@ -29,10 +29,18 @@ if ( ${OPTION_SUPPORT_3DCONNEXION_DEVICES} )
 	list( APPEND source_list ${3DX_source_list} )
 endif()	
 
+# Gamepad support (requires Qt 5.7+)
+if ( ${OPTION_SUPPORT_GAMEPADS} )
+	file( GLOB gamepad_header_list devices/gamepad/*.h )
+	file( GLOB gamepad_source_list devices/gamepad/*.cpp )
+	list( APPEND header_list ${gamepad_header_list} )
+	list( APPEND source_list ${gamepad_source_list} )
+endif()	
+
 file( GLOB ui_list ui_templates/*.ui )
 file( GLOB qrc_list *.qrc )
 
-file( GLOB txt_list TODO.txt bin_other/history.txt )
+file( GLOB txt_list TODO.txt ${CloudCompareProjects_SOURCE_DIR}/CHANGELOG.md )
 
 qt5_wrap_ui( generated_ui_list ${ui_list} )
 qt5_add_resources( generated_qrc_list ${qrc_list} )
@@ -75,6 +83,10 @@ endif()
 if ( ${OPTION_SUPPORT_3DCONNEXION_DEVICES} )
 	target_link_3DXWARE( ${PROJECT_NAME} )
 endif()
+# Gamepad support (requires Qt 5.7+)
+if ( ${OPTION_SUPPORT_GAMEPADS} )
+	target_link_GAMEPADS( ${PROJECT_NAME} )
+endif()
 
 # Add custom preprocessor definitions
 if (OPTION_GL_QUAD_BUFFER_SUPPORT)
@@ -101,11 +113,11 @@ endif()
 install_ext( TARGETS ${PROJECT_NAME} ${CLOUDCOMPARE_DEST_FOLDER} )
 
 # Auxiliary files
-set( auxFiles bin_other/history.txt bin_other/license.txt bin_other/global_shift_list_template.txt )
+set( auxFiles  ${CloudCompareProjects_SOURCE_DIR}/CHANGELOG.md bin_other/license.txt bin_other/global_shift_list_template.txt )
 
 if( WIN32 )
 	# Export Qt dlls
-	install_Qt_Dlls( ${CLOUDCOMPARE_DEST_FOLDER} )
+	install_Qt_Dlls( ${CLOUDCOMPARE_DEST_FOLDER} ${OPTION_SUPPORT_GAMEPADS} )
 	install_Qt_ImageFormats( ${CLOUDCOMPARE_DEST_FOLDER} )
 	install_Qt5_plugins( ${CLOUDCOMPARE_DEST_FOLDER} )
 
@@ -128,7 +140,7 @@ endif()
 # in order to ensure that everything else is installed first, put the Mac bundling in its own subdirectory
 if( APPLE )
     set_target_properties( ${PROJECT_NAME} PROPERTIES
-        INSTALL_RPATH "@loader_path/../Frameworks"
+        INSTALL_RPATH "@executable_path/../Frameworks"
         MACOSX_BUNDLE_INFO_PLIST ${CMAKE_CURRENT_SOURCE_DIR}/Mac/CloudCompare.plist )
 
     set( MACOSX_BUNDLE_ICON_FILE cc_icon.icns ) 

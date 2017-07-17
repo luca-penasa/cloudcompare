@@ -1,14 +1,14 @@
 //##########################################################################
 //#                                                                        #
-//#                            CLOUDCOMPARE                                #
+//#                              CLOUDCOMPARE                              #
 //#                                                                        #
 //#  This program is free software; you can redistribute it and/or modify  #
 //#  it under the terms of the GNU General Public License as published by  #
-//#  the Free Software Foundation; version 2 of the License.               #
+//#  the Free Software Foundation; version 2 or later of the License.      #
 //#                                                                        #
 //#  This program is distributed in the hope that it will be useful,       #
 //#  but WITHOUT ANY WARRANTY; without even the implied warranty of        #
-//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+//#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          #
 //#  GNU General Public License for more details.                          #
 //#                                                                        #
 //#          COPYRIGHT: EDF R&D / TELECOM ParisTech (ENST-TSI)             #
@@ -274,11 +274,13 @@ CC_FILE_ERROR PovFilter::loadFile(QString filename, ccHObject& container, LoadPa
 			FileIOFilter::Shared filter = FileIOFilter::FindBestFilterForExtension(subFileType);
 			if (!filter)
 			{
-				ccLog::Warning(QString("[POV] No I/O filter found for loading file '%1' (type = '%2')").arg(subFileName).arg(subFileType));
+				ccLog::Warning(QString("[POV] No I/O filter found for loading file '%1' (type = '%2')").arg(subFileName,subFileType));
 				fclose(fp);
 				return CC_FERR_UNKNOWN_FILE;
 			}
-			ccHObject* entities = FileIOFilter::LoadFromFile(QString("%0/%1").arg(path).arg(subFileName),parameters,filter);
+
+			CC_FILE_ERROR result = CC_FERR_NO_ERROR;
+			ccHObject* entities = FileIOFilter::LoadFromFile(QString("%1/%2").arg(path,subFileName), parameters, filter, result);
 			if (entities)
 			{
 				ccGLMatrix rot;
@@ -359,7 +361,14 @@ CC_FILE_ERROR PovFilter::loadFile(QString filename, ccHObject& container, LoadPa
 			}
 			else
 			{
-				ccLog::Print("[PovFilter::loadFile] File (%s) not found or empty!",subFileName);
+				if (result == CC_FERR_CANCELED_BY_USER)
+				{
+					break;
+				}
+				else
+				{
+					ccLog::Print("[PovFilter::loadFile] File (%s) not found or empty!", subFileName);
+				}
 			}
 		}
 	}
