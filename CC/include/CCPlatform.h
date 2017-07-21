@@ -22,10 +22,10 @@
 //Defines the following macros (depending on the compilation platform/settings)
 //	- CC_WINDOWS / CC_MAC_OS / CC_LINUX
 //	- CC_ENV32 / CC_ENV64
-#if defined(_WIN32) || defined(_WIN64) || defined(WIN32)
+#if defined(_WIN32) || defined(WIN32) || defined(_WIN64) || defined(WIN64)
 	#define CC_WINDOWS
-#if defined(_WIN64)
-	#define CC_ENV_64
+#if defined(_WIN64) || defined(WIN64)
+    #define CC_ENV_64
 #else
 	#define CC_ENV_32
 #endif
