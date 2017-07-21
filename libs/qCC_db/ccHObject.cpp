@@ -40,6 +40,8 @@
 #include "ccQuadric.h"
 #include "ccCustomObject.h"
 #include "ccExternalFactory.h"
+#include "ccPointCloud.h"
+#include "ccPolyline.h"
 
 //Qt
 #include <QIcon>
@@ -101,7 +103,10 @@ void ccHObject::notifyGeometryUpdate()
 {
     //the associated display bounding-box is (potentially) deprecated!!!
     if (m_currentDisplay)
+	{
         m_currentDisplay->invalidateViewport();
+		m_currentDisplay->deprecate3DLayer();
+	}
 
     //process dependencies
     for (std::map<ccHObject*,int>::const_iterator it=m_dependencies.begin(); it!=m_dependencies.end(); ++it)
@@ -554,7 +559,12 @@ ccBBox ccHObject::getDisplayBB_recursive(bool relative, const ccGenericGLDisplay
 
 bool ccHObject::isDisplayed() const
 {
-    return isVisible() && (getDisplay() != 0) && isBranchEnabled();
+	return (getDisplay() != 0) && isVisible() && isBranchEnabled();
+}
+
+bool ccHObject::isDisplayedIn(ccGenericGLDisplay* display) const
+{
+	return (getDisplay() == display) && isVisible() && isBranchEnabled();
 }
 
 bool ccHObject::isBranchEnabled() const
