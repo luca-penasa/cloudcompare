@@ -25,21 +25,31 @@
 #include <ccHObject.h>
 
 class QMainWindow;
+class QWidget;
 class ccGLWindow;
 class ccColorScalesManager;
 class ccOverlayDialog;
+class ccPickingHub;
 
 //! Main application interface (for plugins)
 class ccMainAppInterface
 {
 public:
-	virtual ~ccMainAppInterface() {}
 
 	//! Returns main window
 	virtual QMainWindow* getMainWindow() = 0;
 
 	//! Returns active GL sub-window (if any)
 	virtual ccGLWindow* getActiveGLWindow() = 0;
+
+	//! Creates a new instance of GL window (with its encapsulating widget)
+	/** \warning This instance must be destroyed by the application as well (see destroyGLWindow)
+		Note that the encapsulating widget is the window instance itself if 'stereo' mode is disabled
+	**/
+	virtual void createGLWindow(ccGLWindow*& window, QWidget*& widget) const = 0;
+
+	//! Destroys an instance of GL window created by createGLWindow
+	virtual void destroyGLWindow(ccGLWindow*) const = 0;
 
 	//! Registers a MDI area 'overlay' dialog
 	/** Overlay dialogs are displayed in the central MDI area, above the 3D views.
@@ -154,18 +164,28 @@ public:
 										QString title,
 										QString xAxisLabel) = 0;
 
-	//other usefull methods
+	//! Returns the picking hub (if any)
+	virtual ccPickingHub* pickingHub() { return nullptr; }
+
+	//other useful methods
 	virtual void setFrontView() = 0;
 	virtual void setBottomView() = 0;
 	virtual void setTopView() = 0;
 	virtual void setBackView() = 0;
 	virtual void setLeftView() = 0;
 	virtual void setRightView() = 0;
+	virtual void setIsoView1() = 0;
+	virtual void setIsoView2() = 0;
+
 	virtual void toggleActiveWindowCenteredPerspective() = 0;
 	virtual void toggleActiveWindowCustomLight() = 0;
 	virtual void toggleActiveWindowSunLight() = 0;
 	virtual void toggleActiveWindowViewerBasedPerspective() = 0;
 	virtual void zoomOnSelectedEntities() = 0;
+	virtual void setGlobalZoom() = 0;
+
+	virtual void increasePointSize() = 0;
+	virtual void decreasePointSize() = 0;
 };
 
 #endif //CC_MAIN_APP_INTERFACE_HEADER

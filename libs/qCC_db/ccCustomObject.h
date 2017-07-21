@@ -23,52 +23,51 @@
 
 //! Custom hierarchy object
 /** Used internally for deserialization of plugin-defined hierarchy objects
-    (see CC_TYPES::CUSTOM_H_OBJECT).
+	(see CC_TYPES::CUSTOM_H_OBJECT).
 **/
 class QCC_DB_LIB_API ccCustomHObject : public QObject, public ccHObject
 {
-
     Q_OBJECT
 public:
 
-    //! Default constructor
-    /** \param name object name (optional)
-    **/
-    ccCustomHObject(QString name = QString())
-        : ccHObject(name)
-    {}
+	//! Default constructor
+	/** \param name object name (optional)
+	**/
+	ccCustomHObject(QString name = QString())
+		: ccHObject(name)
+	{}
 
-    //inherited from ccHObject
-    virtual bool isSerializable() const override { return true; }
+	//inherited from ccHObject
+	virtual bool isSerializable() const override { return true; }
 
-    // inherited from ccObject
-    virtual CC_CLASS_ENUM getClassID() const override { return CC_TYPES::CUSTOM_H_OBJECT; }
+	// inherited from ccObject
+	virtual CC_CLASS_ENUM getClassID() const override { return CC_TYPES::CUSTOM_H_OBJECT; }
 
-    //! Returns the default key for the "class name" metadata
-    /** See ccHObject::New.
-    **/
-    static QString DefautMetaDataClassName() { return QString("class_name"); }
-    //! Returns the default key for the "plugin name" metadata
-    /** See ccHObject::New.
-    **/
-    static QString DefautMetaDataPluginName() { return QString("plugin_name"); }
+	//! Returns the default key for the "class name" metadata
+	/** See ccHObject::New.
+	**/
+	static QString DefautMetaDataClassName() { return QString("class_name"); }
+	//! Returns the default key for the "plugin name" metadata
+	/** See ccHObject::New.
+	**/
+	static QString DefautMetaDataPluginName() { return QString("plugin_name"); }
 };
 
 //! Custom leaf object
 /** Used internally for deserialization of plugin-defined leaf objects
-    (see CC_TYPES::CUSTOM_LEAF_OBJECT).
+	(see CC_TYPES::CUSTOM_LEAF_OBJECT).
 **/
 class QCC_DB_LIB_API ccCustomLeafObject : public ccCustomHObject
 {
 public:
 
-    //! Default constructor
-    /** \param name object name (optional)
-    **/
-    ccCustomLeafObject(QString name = QString()) : ccCustomHObject(name) {}
+	//! Default constructor
+	/** \param name object name (optional)
+	**/
+	ccCustomLeafObject(QString name = QString()) : ccCustomHObject(name) {}
 
-    // inherited from ccCustomHObject
-    virtual CC_CLASS_ENUM getClassID() const override { return CC_TYPES::CUSTOM_LEAF_OBJECT; }
+	// inherited from ccCustomHObject
+	virtual CC_CLASS_ENUM getClassID() const override { return CC_TYPES::CUSTOM_LEAF_OBJECT; }
 };
 
 #endif //CC_CUSTOM_OBJECT_HEADER
