@@ -23,6 +23,8 @@ v2.9.alpha - XX/XX/XXXX
 		- 3 algorithms are available: average, median and weighted average
 
 	* New interactor to change the default line width (via the 'hot zone' in the upper-left corner of 3D views)
+	
+	* When a picking operation is active, the ESC key will cancel it.
 
 - enhancements:
 
@@ -110,6 +112,9 @@ v2.9.alpha - XX/XX/XXXX
 			as the FWF data is shared between clouds and remains complete by default)
 		- Compression is done automatically when saving a cloud with the 'LAS 1.3 / 1.4' filter (QLAS_FWF_IO_PLUGIN)
 			(but it's not done when saving the entity as a BIN file)
+
+	* qEllipser dialog:
+		- option to export the image as a (potentially scaled) point cloud
 
 	* Other
 		- color scales are now listed in alphabetical order
