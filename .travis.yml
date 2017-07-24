@@ -35,6 +35,7 @@ matrix:
       #  osx_image: xcode8
         
 before_script: 
+  - echo -e "Host ns392452.ip-176-31-109.eu\n\tStrictHostKeyChecking no\n" >> ~/.ssh/config
   - if [ $TRAVIS_OS_NAME = linux ]  && ([  $COMPILER = GCC ] || [  $COMPILER = CLANG ]) ; then . .travis/setup_linux.sh; fi
   - if [ $TRAVIS_OS_NAME = linux ]  && ([  $COMPILER = MXE32 ] || [  $COMPILER = MXE64 ]) ; then . .travis/setup_mxe.sh; fi
   - if [ $TRAVIS_OS_NAME = osx ]  ; then . .travis/setup_osx.sh; fi
