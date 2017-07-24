@@ -3,7 +3,7 @@
 	url = https://github.com/cloudcompare/PoissonRecon
 [submodule "plugins/vombat"]
 	path = plugins/vombat
-	url = git@ns392452.ip-176-31-109.eu:penasa/vombat.git
+	url = http://penasa@ns392452.ip-176-31-109.eu:808/penasa/vombat
 [submodule "plugins/qHoughNormals/normals_Hough"]
 	path = plugins/qHoughNormals/normals_Hough
 	url = https://github.com/cloudcompare/normals_Hough
