@@ -45,7 +45,7 @@
 #include <assert.h>
 #include <cmath> //for std::modf
 
-static CCVector3 s_blankNorm(0,0,0);
+static CCVector3 s_blankNorm(0, 0, 0);
 
 ccMesh::ccMesh(ccGenericPointCloud* vertices)
 	: ccGenericMesh("Mesh")
@@ -284,7 +284,7 @@ bool ccMesh::computePerTriangleNormals()
 
 	//for each triangle
 	{
-		for (unsigned i=0; i<triCount; ++i)
+		for (unsigned i = 0; i < triCount; ++i)
 		{
 			const unsigned* tri = m_triVertIndexes->getValue(i);
 			const CCVector3* A = m_associatedCloud->getPoint(tri[0]);
@@ -310,8 +310,8 @@ bool ccMesh::computePerTriangleNormals()
 
 		setTriNormsTable(normIndexes);
 
-		for (int i=0; i<static_cast<int>(triCount); ++i)
-			addTriangleNormalIndexes(i,i,i);
+		for (int i = 0; i < static_cast<int>(triCount); ++i)
+			addTriangleNormalIndexes(i, i, i);
 	}
 
 	//apply it also to sub-meshes!
@@ -1021,7 +1021,8 @@ ccMesh* ccMesh::TriangulateTwoPolylines(ccPolyline* p1, ccPolyline* p2, CCVector
 				for (; A != hullPoints.end(); ++A)
 				{
 					//current hull segment
-					std::list<CCLib::PointProjectionTools::IndexedCCVector2*>::iterator B = A; B++;
+					std::list<CCLib::PointProjectionTools::IndexedCCVector2*>::iterator B = A;
+					++B;
 					if (B == hullPoints.end())
 					{
 						B = hullPoints.begin();

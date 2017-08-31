@@ -22,6 +22,9 @@
 #include "ccHObject.h"
 #include "ccInteractor.h"
 
+//Qt
+#include <QRect>
+
 class ccGenericPointCloud;
 
 //! 2D label (typically attached to points)
@@ -45,7 +48,7 @@ public:
 	/** \param precision displayed numbers precision
 		\return label body (one string per line)
 	**/
-	QStringList getLabelContent(int precision);
+	QStringList getLabelContent(int precision) const;
 
 	//! Returns the (3D) label title
 	/** \param precision displayed numbers precision

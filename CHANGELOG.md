@@ -1,5 +1,5 @@
-CloudCompare versions history
-=============================
+CloudCompare version history
+============================
 
 v2.9.alpha - XX/XX/XXXX
 ----------------------
@@ -59,11 +59,11 @@ v2.9.alpha - XX/XX/XXXX
 
 	* Command line mode
 		- the Rasterize tool is now accessible via the command line:
-			'-RASTERIZE -GRID_STEP {value}'
+			* '-RASTERIZE -GRID_STEP {value}'
 			* additional options are:
 				-VERT_DIR {0=X/1=Y/2=Z} - default is Z
 				-EMPTY_FILL {MIN_H/MAX_H/CUSTOM_H/INTERP} - default is 'leave cells empty'
-				-CUSTOM_HEIGHT {value} - to define the custom height filling value if the 'CUSTOM_H' stragety is used (see above)
+				-CUSTOM_HEIGHT {value} - to define the custom height filling value if the 'CUSTOM_H' strategy is used (see above)
 				-PROJ {MIN/AVG/MAX} - default is AVG (average)
 				-SF_PROJ {MIN/AVG/MAX} - default is AVG (average)
 				-OUTPUT_CLOUD - to output the result as a cloud (default if no other output format is defined)
@@ -72,11 +72,19 @@ v2.9.alpha - XX/XX/XXXX
 				-OUTPUT_RASTER_RGB - to output the result as a geotiff raster (RGB)
 				-RESAMPLE - to resample the input cloud instead of generating a regular cloud (or mesh)
 			* if OUTPUT_CLOUD and/or OUTPUT_MESH options are selected, the resulting entities are kept in memory.
-				Moreover if OUTPUT_CLOUD is selected, the resutling raster will replace the original cloud.
-		- 2.5D Volume Calculation tool (-VOLUME -GRID_STEP {...} etc. - see the wiki for more details)
-		- Export coord. to SF (-COORD_TO_SF {X, Y or Z})
-		- the progress bar shouldn't appear anymore when loading / saving a file with 'SILENT' mode enabled
-		- the ASCII loading dialog shouldn't appear anymore in 'SILENT' mode (only if CC really can't guess anything)
+				Moreover if OUTPUT_CLOUD is selected, the resulting raster will replace the original cloud.
+		- 2.5D Volume Calculation tool
+			* '-VOLUME -GRID_STEP {...} etc.' (see the wiki for more details)
+		- Export coord. to SF
+			* '-COORD_TO_SF {X, Y or Z}'
+		- Compute unstructured cloud normals:
+			* '-OCTREE_NORMALS {radius}'
+			* for now the local model is 'Height Function' and no default orientation is specified
+		- Clear normals
+			* '-CLEAR_NORMALS'
+		- Other improvements:
+			* the progress bar shouldn't appear anymore when loading / saving a file with 'SILENT' mode enabled
+			* the ASCII loading dialog shouldn't appear anymore in 'SILENT' mode (only if CC really can't guess anything)
 
 	* Rasterize tool
 		- new option to re-project contour lines computed on a scalar field (i.e. a layer other than the altitudes)
@@ -116,6 +124,10 @@ v2.9.alpha - XX/XX/XXXX
 	* qEllipser dialog:
 		- option to export the image as a (potentially scaled) point cloud
 
+	* Normal computation tools:
+		- new algorithm to compute the normals based on scan grids (faster, and more robust)
+		- the 'kernel size' parameter is replaced by 'the minimum angle of triangles' used in the internal triangulation process
+
 	* Other
 		- color scales are now listed in alphabetical order
 		- the DXF format can now be used to export point clouds (their size should be very limited!)
@@ -136,6 +148,7 @@ v2.9.alpha - XX/XX/XXXX
 	* Point-pair based alignment tool:
 		- extracting spheres on a cloud with Global Shift would create the sphere in the global coordinate system instead of the local one (i.e. the sphere was not visible)
 		- deleting a point would remove all the detected spheres
+	* The FARO I/O plugin was associating a wrong transformation to the scan grids, resulting in weird results when computing normals or constructing a mesh based on scan grids
 
 v2.8.1 - 16/02/2017
 ----------------------
