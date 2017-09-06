@@ -12,6 +12,7 @@ v2.9.alpha - XX/XX/XXXX
 		- new option to position the pivot point automatically on the point currently at the screen center (dynamic update)
 			(now the default behavior, can be toggled thanks to the dedicated icon in the 'Viewing tools' toolbar or the 'Shift + P' shortcut)
 		- double clicking on the 3D view will also reposition the pivot point on the point under the cursor
+		- the state of this option is automatically saved and restored when CC starts
 		
 	* New option: 'Display > Show cursor coordinates'
 		- if activated, the position of the mouse cursor relatively to the 3D view is constantly displayed
@@ -127,12 +128,14 @@ v2.9.alpha - XX/XX/XXXX
 	* Normal computation tools:
 		- new algorithm to compute the normals based on scan grids (faster, and more robust)
 		- the 'kernel size' parameter is replaced by 'the minimum angle of triangles' used in the internal triangulation process
+		- Plane and Quadric mode increase the radius adaptively to reach minimum number of points
 
 	* Other
 		- color scales are now listed in alphabetical order
 		- the DXF format can now be used to export point clouds (their size should be very limited!)
 		- polylines exported from the 'Interactive Segmentation' tool will now use the same Global Shift as the segmented entity(ies)
 		- when changing the dip and dip direction of plane parallel with XY, the resulting plane shouldn't rotate in an arbitrary way anymore
+		- the filter and single-button plugin toolbars are now on the right side of the window by default (to reset to the default layouts, use "Reset all GUI element positions" at the bottom of the Display menu)
 
 - Bug fixes:
 	* STL files are now output by default in BINARY mode in command line mode (no more annoying dialog)
@@ -149,6 +152,7 @@ v2.9.alpha - XX/XX/XXXX
 		- extracting spheres on a cloud with Global Shift would create the sphere in the global coordinate system instead of the local one (i.e. the sphere was not visible)
 		- deleting a point would remove all the detected spheres
 	* The FARO I/O plugin was associating a wrong transformation to the scan grids, resulting in weird results when computing normals or constructing a mesh based on scan grids
+	* When editing only the dip / dip direction of a plane, the rotation was not made about the plane center
 
 v2.8.1 - 16/02/2017
 ----------------------
