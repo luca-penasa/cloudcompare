@@ -91,9 +91,10 @@ public:
 		//camera interactions
 		INTERACT_ROTATE          =  1,
 		INTERACT_PAN             =  2,
-		INTERACT_ZOOM_CAMERA     =  4,
-		INTERACT_2D_ITEMS        =  8, //labels, etc.
-		INTERACT_CLICKABLE_ITEMS = 16, //hot zone
+		INTERACT_CTRL_PAN        =  4,
+		INTERACT_ZOOM_CAMERA     =  8,
+		INTERACT_2D_ITEMS        = 16, //labels, etc.
+		INTERACT_CLICKABLE_ITEMS = 32, //hot zone
 
 		//options / modifiers
 		INTERACT_TRANSFORM_ENTITIES = 64,
@@ -155,7 +156,6 @@ public:
 	//shortcuts
 	void setWindowTitle(QString title) { setTitle(title); }
 	QString windowTitle() const { return title(); }
-
 #endif
 
 	//! Sets 'scene graph' root
@@ -373,12 +373,12 @@ public:
 	virtual void getContext(CC_DRAW_CONTEXT& context);
 
 	//! Minimum point size
-	static const unsigned MIN_POINT_SIZE = 1;
+	static const float MIN_POINT_SIZE_F;
 	//! Maximum point size
-	static const unsigned MAX_POINT_SIZE = 10;
+	static const float MAX_POINT_SIZE_F;
 
 	//! Sets point size
-	/** \param size point size (between MIN_POINT_SIZE and MAX_POINT_SIZE)
+	/** \param size point size (between MIN_POINT_SIZE_F and MAX_POINT_SIZE_F)
 	**/
 	virtual void setPointSize(float size, bool silent = false);
 
@@ -480,19 +480,7 @@ public:
 	const ccGui::ParamStruct& getDisplayParameters() const;
 
 	//! Sets current parameters for this display
-	void setDisplayParameters(const ccGui::ParamStruct& params, bool thisWindowOnly = false)
-	{
-		if (thisWindowOnly)
-		{
-			m_overridenDisplayParametersEnabled = true;
-			m_overridenDisplayParameters = params;
-		}
-		else
-		{
-			m_overridenDisplayParametersEnabled = false;
-			ccGui::Set(params);
-		}
-	}
+	void setDisplayParameters(const ccGui::ParamStruct& params, bool thisWindowOnly = false);
 
 	//! Whether display parameters are overidden for this window
 	bool hasOverridenDisplayParameters() const { return m_overridenDisplayParametersEnabled; }
@@ -669,7 +657,7 @@ protected slots:
 signals:
 
 	//! Signal emitted when an entity is selected in the 3D view
-	void entitySelectionChanged(ccHObject*);
+	void entitySelectionChanged(ccHObject* entity);
 	//! Signal emitted when multiple entities are selected in the 3D view
 	void entitiesSelectionChanged(std::unordered_set<int> entIDs);
 
@@ -709,13 +697,13 @@ signals:
 	void baseViewMatChanged(const ccGLMatrixd& newViewMat);
 
 	//! Signal emitted when the pixel size is changed
-	void pixelSizeChanged(float);
+	void pixelSizeChanged(float pixelSize);
 
 	//! Signal emitted when the f.o.v. changes
-	void fovChanged(float);
+	void fovChanged(float fov);
 
 	//! Signal emitted when the zNear coef changes
-	void zNearCoefChanged(float);
+	void zNearCoefChanged(float coef);
 
 	//! Signal emitted when the pivot point is changed
 	void pivotPointChanged(const CCVector3d&);
@@ -734,23 +722,23 @@ signals:
 	//! Signal emitted when the left mouse button is cliked on the window
 	/** See INTERACT_SIG_LB_CLICKED.
 		Arguments correspond to the clicked point coordinates (x,y) in
-		pixels and relatively to the window corner!
+		pixels relative to the window corner!
 	**/
-	void leftButtonClicked(int, int);
+	void leftButtonClicked(int x, int y);
 
 	//! Signal emitted when the right mouse button is cliked on the window
 	/** See INTERACT_SIG_RB_CLICKED.
 		Arguments correspond to the clicked point coordinates (x,y) in
-		pixels and relatively to the window corner!
+		pixels relative to the window corner!
 	**/
-	void rightButtonClicked(int, int);
+	void rightButtonClicked(int x, int y);
 
 	//! Signal emitted when the mouse is moved
 	/** See INTERACT_SIG_MOUSE_MOVED.
 		The two first arguments correspond to the current cursor coordinates (x,y)
-		relatively to the window corner!
+		relative to the window corner!
 	**/
-	void mouseMoved(int, int, Qt::MouseButtons);
+	void mouseMoved(int x, int y, Qt::MouseButtons buttons);
 
 	//! Signal emitted when a mouse button is released (cursor on the window)
 	/** See INTERACT_SIG_BUTTON_RELEASED.
@@ -764,13 +752,13 @@ signals:
 	void drawing3D();
 
 	//! Signal emitted when files are dropped on the window
-	void filesDropped(QStringList);
+	void filesDropped(QStringList files);
 
 	//! Signal emitted when a new label is created
 	void newLabel(ccHObject* obj);
 
 	//! Signal emitted when the exclusive fullscreen is toggled
-	void exclusiveFullScreenToggled(bool);
+	void exclusiveFullScreenToggled(bool exclusive);
 
 protected: //rendering
 
@@ -1176,16 +1164,16 @@ protected: //members
 	//! Display capturing mode options
 	struct CaptureModeOptions
 	{
-		bool enabled;
-		float zoomFactor;
-		bool renderOverlayItems;
-
 		//! Default constructor
 		CaptureModeOptions()
 			: enabled(false)
 			, zoomFactor(1.0f)
 			, renderOverlayItems(false)
 		{}
+
+		bool enabled;
+		float zoomFactor;
+		bool renderOverlayItems;
 	};
 
 	//! Display capturing mode options
@@ -1194,6 +1182,12 @@ protected: //members
 	//! Temporary Message to display in the lower-left corner
 	struct MessageToDisplay
 	{
+		MessageToDisplay()
+			: messageValidity_sec(0)
+			, position(LOWER_LEFT_MESSAGE)
+			, type(CUSTOM_MESSAGE)
+		{}
+		
 		//! Message
 		QString message;
 		//! Message end time (sec)
@@ -1208,7 +1202,7 @@ protected: //members
 	std::list<MessageToDisplay> m_messagesToDisplay;
 
 	//! Last click time (msec)
-	int m_lastClickTime_ticks;
+	qint64 m_lastClickTime_ticks;
 
 	//! Sun light position
 	/** Relative to screen.
@@ -1236,12 +1230,13 @@ protected: //members
 					LEAVE_FULLSCREEN_MODE,
 		};
 
+		ClickableItem(): role(NO_ROLE) {}
+		ClickableItem(Role _role, QRect _area) : role(_role), area(_area) {}
+
 		Role role;
 		QRect area;
-		
-		ClickableItem() : role(NO_ROLE) {}
-		ClickableItem(Role _role, QRect _area) : role(_role), area(_area) {}
 	};
+	
 	//! Currently displayed clickable items
 	std::vector<ClickableItem> m_clickableItems;
 

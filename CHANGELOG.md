@@ -1,10 +1,14 @@
 CloudCompare version history
 ============================
 
-v2.9.alpha - XX/XX/XXXX
+v2.9.beta - XX/XX/XXXX
 ----------------------
 
 - New features:
+
+	* New plugin: qCompass
+		- structural geology toolbox for the interpretation and analysis of virtual outcrop models (by Sam Thiele)
+		- see http://www.cloudcompare.org/doc/wiki/index.php?title=Compass_(plugin)
 
 	* New shortcut: P (pick rotation center)
 
@@ -57,6 +61,8 @@ v2.9.alpha - XX/XX/XXXX
 
 	* Trace polyline tool
 		- the tool now works on meshes
+		- Holding CTRL while pressing the right mouse button will pan the view instead of closing the polyline
+		- new 'Continue' button, in case the user has mistakenly closed the polyline and wants to continue
 
 	* Command line mode
 		- the Rasterize tool is now accessible via the command line:
@@ -83,9 +89,13 @@ v2.9.alpha - XX/XX/XXXX
 			* for now the local model is 'Height Function' and no default orientation is specified
 		- Clear normals
 			* '-CLEAR_NORMALS'
+		- New mesh merging option
+			* '-MERGE_MESHES'
 		- Other improvements:
 			* the progress bar shouldn't appear anymore when loading / saving a file with 'SILENT' mode enabled
 			* the ASCII loading dialog shouldn't appear anymore in 'SILENT' mode (only if CC really can't guess anything)
+			* the default timestamp resolution has been increased (with milliseconds) in order to avoid overwriting files
+				when saving very small file (too quickly!)
 
 	* Rasterize tool
 		- new option to re-project contour lines computed on a scalar field (i.e. a layer other than the altitudes)
@@ -130,12 +140,27 @@ v2.9.alpha - XX/XX/XXXX
 		- the 'kernel size' parameter is replaced by 'the minimum angle of triangles' used in the internal triangulation process
 		- Plane and Quadric mode increase the radius adaptively to reach minimum number of points
 
+	* Edit the scalar value of a single point
+		- create a label on the point (SHIFT + click)
+		- make sure a scalar field is active
+		- right click on the label entry in the DB tree and select 'Edit scalar value'
+
+	* DXF export
+		- now based on dxflib 3.17.0
+		- see fixed bugs below
+
+	* Merge (clouds)
+		- new option to generate a scalar field with the index of the original cloud for each point
+
 	* Other
 		- color scales are now listed in alphabetical order
 		- the DXF format can now be used to export point clouds (their size should be very limited!)
 		- polylines exported from the 'Interactive Segmentation' tool will now use the same Global Shift as the segmented entity(ies)
 		- when changing the dip and dip direction of plane parallel with XY, the resulting plane shouldn't rotate in an arbitrary way anymore
 		- the filter and single-button plugin toolbars are now on the right side of the window by default (to reset to the default layouts, use "Reset all GUI element positions" at the bottom of the Display menu)
+		- the Plane edition dialog now lest the user specify the normal plane in addition to its dip and dip direction
+		- new 'Clone' icon with a colored background so as to more clearly spot when the icon is enabled (Nyan sheep!)
+		- now using PoissonRecon 9.011
 
 - Bug fixes:
 	* STL files are now output by default in BINARY mode in command line mode (no more annoying dialog)
@@ -153,6 +178,11 @@ v2.9.alpha - XX/XX/XXXX
 		- deleting a point would remove all the detected spheres
 	* The FARO I/O plugin was associating a wrong transformation to the scan grids, resulting in weird results when computing normals or constructing a mesh based on scan grids
 	* When editing only the dip / dip direction of a plane, the rotation was not made about the plane center
+	* qSRA plugin: profile polyline automatically generated from cylinders or cone were shifted (half of the cylinder/cone height), resulting in a 'shifted' distance map
+		(half of the cloud was 'ignored')
+	* DXF export
+		- the I/O filter was mistakenly exporting the vertices of polylines and meshes as separate clouds
+		- the I/O filter was not exporting the shifted point clouds at the right location
 
 v2.8.1 - 16/02/2017
 ----------------------

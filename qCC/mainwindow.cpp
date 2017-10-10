@@ -1176,7 +1176,7 @@ void MainWindow::applyTransformation(const ccGLMatrixd& mat)
 
 	bool firstCloud = true;
 
-	for (ccHObject *entity : selectedEntities) //warning, getSelectedEntites may change durring this loop!
+	for (ccHObject *entity : selectedEntities) //warning, getSelectedEntites may change during this loop!
 	{
 		//we don't test primitives (it's always ok while the 'vertices lock' test would fail)
 		if (!entity->isKindOf(CC_TYPES::PRIMITIVE))
@@ -1336,7 +1336,7 @@ void MainWindow::doActionApplyScale()
 		bool testBigCoordinates = true;
 		//size_t processNum = 0;
 
-		for (ccHObject *entity : selectedEntities) //warning, getSelectedEntites may change durring this loop!
+		for (ccHObject *entity : selectedEntities) //warning, getSelectedEntites may change during this loop!
 		{
 			bool lockedVertices;
 			//try to get the underlying cloud (or the vertices set for a mesh)
@@ -1371,9 +1371,9 @@ void MainWindow::doActionApplyScale()
 				CCVector3 bbMin = bbox.minCorner();
 				CCVector3 bbMax = bbox.maxCorner();
 
-				double maxx = std::max(fabs(bbMin.x), fabs(bbMax.x));
-				double maxy = std::max(fabs(bbMin.y), fabs(bbMax.y));
-				double maxz = std::max(fabs(bbMin.z), fabs(bbMax.z));
+				double maxx = std::max(std::abs(bbMin.x), std::abs(bbMax.x));
+				double maxy = std::max(std::abs(bbMin.y), std::abs(bbMax.y));
+				double maxz = std::max(std::abs(bbMin.z), std::abs(bbMax.z));
 
 				const double maxCoord = ccGlobalShiftManager::MaxCoordinateAbsValue();
 				bool oldCoordsWereTooBig = (	maxx > maxCoord
@@ -1382,9 +1382,9 @@ void MainWindow::doActionApplyScale()
 
 				if (!oldCoordsWereTooBig)
 				{
-					maxx = std::max(fabs((bbMin.x - C.x) * scales.x + C.x), fabs((bbMax.x - C.x) * scales.x + C.x));
-					maxy = std::max(fabs((bbMin.y - C.y) * scales.y + C.y), fabs((bbMax.y - C.y) * scales.y + C.y));
-					maxz = std::max(fabs((bbMin.z - C.z) * scales.z + C.z), fabs((bbMax.z - C.z) * scales.z + C.z));
+					maxx = std::max(std::abs((bbMin.x - C.x) * scales.x + C.x), std::abs((bbMax.x - C.x) * scales.x + C.x));
+					maxy = std::max(std::abs((bbMin.y - C.y) * scales.y + C.y), std::abs((bbMax.y - C.y) * scales.y + C.y));
+					maxz = std::max(std::abs((bbMin.z - C.z) * scales.z + C.z), std::abs((bbMax.z - C.z) * scales.z + C.z));
 
 					bool newCoordsAreTooBig = (	maxx > maxCoord
 											||	maxy > maxCoord
@@ -1537,7 +1537,7 @@ void MainWindow::doActionEditGlobalShiftAndScale()
 				if (uniqueShift)
 					uniqueShift = ((shifted->getGlobalShift() - shift).norm() < ZERO_TOLERANCE);
 				if (uniqueScale)
-					uniqueScale = (fabs(shifted->getGlobalScale() - scale) < ZERO_TOLERANCE);
+					uniqueScale = (std::abs(shifted->getGlobalScale() - scale) < ZERO_TOLERANCE);
 			}
 
 			shiftedEntities.push_back(std::pair<ccShiftedObject*, ccHObject*>(shifted, entity));
@@ -1599,7 +1599,7 @@ void MainWindow::doActionEditGlobalShiftAndScale()
 				assert(shifted->getGlobalScale() > 0);
 				double scaleCoef = scale / shifted->getGlobalScale();
 
-				if (T.norm() > ZERO_TOLERANCE || fabs(scaleCoef - 1.0) > ZERO_TOLERANCE)
+				if (T.norm() > ZERO_TOLERANCE || std::abs(scaleCoef - 1.0) > ZERO_TOLERANCE)
 				{
 					ccGLMatrix transMat;
 					transMat.toIdentity();
@@ -1641,7 +1641,7 @@ void MainWindow::doComputeBestFitBB()
 	//backup selected entities as removeObjectTemporarilyFromDBTree can modify them
 	ccHObject::Container selectedEntities = getSelectedEntities();
 
-	for (ccHObject *entity : selectedEntities) //warning, getSelectedEntites may change durring this loop!
+	for (ccHObject *entity : selectedEntities) //warning, getSelectedEntites may change during this loop!
 	{
 		ccGenericPointCloud* cloud = ccHObjectCaster::ToGenericPointCloud(entity);
 
@@ -1972,7 +1972,7 @@ void MainWindow::doActionComputeScatteringAngles()
 
 		//compute the angle
 		PointCoordinateType cosTheta = ray.dot(normal);
-		ScalarType theta = static_cast<ScalarType>(acos(std::min<PointCoordinateType>(fabs(cosTheta), 1)));
+		ScalarType theta = std::acos(std::min(std::abs(cosTheta), 1.0f));
 
 		if (toDegreeFlag)
 			theta *= static_cast<ScalarType>(CC_RAD_TO_DEG);
@@ -3334,6 +3334,10 @@ void MainWindow::doActionMerge()
 		ccPointCloud* firstCloud = nullptr;
 		ccHObjectContext firstCloudContext;
 
+		//whether to generate the 'original cloud index' scalar field or not
+		CCLib::ScalarField* ocIndexSF = nullptr;
+		size_t cloudIndex = 0;
+
 		for (size_t i = 0; i < clouds.size(); ++i)
 		{
 			ccPointCloud* pc = clouds[i];
@@ -3344,6 +3348,26 @@ void MainWindow::doActionMerge()
 				//we still have to temporarily detach the first cloud, as it may undergo
 				//"severe" modifications (octree deletion, etc.) --> see ccPointCloud::operator +=
 				firstCloudContext = removeObjectTemporarilyFromDBTree(firstCloud);
+
+				if (QMessageBox::question(this, "Original cloud index", "Do you want to generate a scalar field with the original cloud index?") == QMessageBox::Yes)
+				{
+					int sfIdx = pc->getScalarFieldIndexByName(CC_ORIGINAL_CLOUD_INDEX_SF_NAME);
+					if (sfIdx < 0)
+					{
+						sfIdx = pc->addScalarField(CC_ORIGINAL_CLOUD_INDEX_SF_NAME);
+					}
+					if (sfIdx < 0)
+					{
+						ccConsole::Error("Couldn't allocate a new scalar field for storing the original cloud index! Try to free some memory ...");
+						return;
+					}
+					else
+					{
+						ocIndexSF = pc->getScalarField(sfIdx);
+						ocIndexSF->fill(0);
+						firstCloud->setCurrentDisplayedScalarField(sfIdx);
+					}
+				}
 			}
 			else
 			{
@@ -3365,6 +3389,15 @@ void MainWindow::doActionMerge()
 						toRemove = pc;
 
 					AddToRemoveList(toRemove, toBeRemoved);
+
+					if (ocIndexSF)
+					{
+						ScalarType index = static_cast<ScalarType>(++cloudIndex);
+						for (unsigned i = 0; i < countAdded; ++i)
+						{
+							ocIndexSF->setValue(countBefore + i, index);
+						}
+					}
 				}
 				else
 				{
@@ -3373,6 +3406,12 @@ void MainWindow::doActionMerge()
 				}
 				pc = nullptr;
 			}
+		}
+
+		if (ocIndexSF)
+		{
+			ocIndexSF->computeMinAndMax();
+			firstCloud->showSF(true);
 		}
 
 		//something to remove?
@@ -3397,7 +3436,7 @@ void MainWindow::doActionMerge()
 	else if (!meshes.empty())
 	{
 		bool createSubMeshes = true;
-		//createSubMeshes = (QMessageBox::question(this,"Create sub-meshes","Do you want to create sub-mesh entities corresponding to each source mesh? (requires more memory)",QMessageBox::Yes,QMessageBox::No) == QMessageBox::Yes);
+		//createSubMeshes = (QMessageBox::question(this, "Create sub-meshes", "Do you want to create sub-mesh entities corresponding to each source mesh? (requires more memory)", QMessageBox::Yes, QMessageBox::No) == QMessageBox::Yes);
 
 		//meshes are merged
 		ccPointCloud* baseVertices = new ccPointCloud("vertices");
@@ -3406,44 +3445,17 @@ void MainWindow::doActionMerge()
 		baseMesh->addChild(baseVertices);
 		baseVertices->setEnabled(false);
 
-		for ( ccMesh *mesh : meshes )
+		for (ccMesh *mesh : meshes)
 		{
 			//if (mesh->isA(CC_TYPES::PRIMITIVE))
 			//{
 			//	mesh = mesh->ccMesh::cloneMesh(); //we want a clone of the mesh part, not the primitive!
 			//}
 
-			unsigned sizeBefore = baseMesh->size();
-			if (!baseMesh->merge(mesh))
+			if (!baseMesh->merge(mesh, createSubMeshes))
 			{
 				ccConsole::Error("Fusion failed! (not enough memory?)");
 				break;
-			}
-			unsigned sizeAfter = baseMesh->size();
-
-			//create corresponding sub-mesh
-			if (createSubMeshes)
-			{
-				ccSubMesh* subMesh = new ccSubMesh(baseMesh);
-				if (subMesh->reserve(sizeAfter-sizeBefore))
-				{
-					subMesh->addTriangleIndex(sizeBefore,sizeAfter);
-					subMesh->setName(mesh->getName());
-					subMesh->showMaterials(baseMesh->materialsShown());
-					subMesh->showNormals(baseMesh->normalsShown());
-					subMesh->showTriNorms(baseMesh->triNormsShown());
-					subMesh->showColors(baseMesh->colorsShown());
-					subMesh->showWired(baseMesh->isShownAsWire());
-					subMesh->enableStippling(baseMesh->stipplingEnabled());
-					subMesh->setEnabled(false);
-					baseMesh->addChild(subMesh);
-				}
-				else
-				{
-					ccConsole::Warning(QString("[Merge] Not enough memory to create the sub-mesh corresponding to mesh '%1'!").arg(mesh->getName()));
-					delete subMesh;
-					subMesh = nullptr;
-				}
 			}
 		}
 
@@ -4443,9 +4455,9 @@ void MainWindow::doConvertPolylinesToMesh()
 
 void MainWindow::doCompute2HalfDimVolume()
 {
-	if (!haveOneSelection())
+	if (m_selectedEntities.size() != 2)
 	{
-		ccConsole::Error("Select only one point cloud!");
+		ccConsole::Error("Select two point clouds!");
 		return;
 	}
 
@@ -4847,7 +4859,7 @@ void MainWindow::doActionComputeDistanceMap()
 				{
 					for (unsigned k = 0; k < steps; ++k)
 					{
-						ScalarType d = sqrt(static_cast<ScalarType>(cdt.getValue(i, j, k))) * cellDim;
+						ScalarType d = std::sqrt(static_cast<ScalarType>(cdt.getValue(i, j, k))) * cellDim;
 
 						if (!filterRange || (d >= range[0] && d <= range[1]))
 						{
@@ -5137,7 +5149,7 @@ void MainWindow::doActionMatchBBCenters()
 	ccHObject* refEnt = selectedEntities[0];
 	CCVector3 refCenter = refEnt->getBB_recursive().getCenter();
 
-	for (ccHObject *entity : selectedEntities) //warning, getSelectedEntites may change durring this loop!
+	for (ccHObject *entity : selectedEntities) //warning, getSelectedEntites may change during this loop!
 	{
 		CCVector3 center = entity->getBB_recursive().getCenter();
 
@@ -7729,7 +7741,7 @@ void MainWindow::doComputePlaneOrientation(bool fitFacet)
 	ccHObject::Container selectedEntities = getSelectedEntities();
 	bool firstEntity = true;
 	
-	for (ccHObject *entity : selectedEntities) //warning, getSelectedEntites may change durring this loop!
+	for (ccHObject *entity : selectedEntities) //warning, getSelectedEntites may change during this loop!
 	{
 		ccShiftedObject* shifted = nullptr;
 		CCLib::GenericIndexedCloudPersist* cloud = nullptr;
@@ -8100,9 +8112,9 @@ void MainWindow::doActionComputeBestICPRmsMatrix()
 		//init all possible transformations
 		static const double angularStep_deg = 45.0;
 		unsigned phiSteps = static_cast<unsigned>(360.0 / angularStep_deg);
-		assert(fabs(360.0 - phiSteps * angularStep_deg) < ZERO_TOLERANCE);
+		assert(std::abs(360.0 - phiSteps * angularStep_deg) < ZERO_TOLERANCE);
 		unsigned thetaSteps = static_cast<unsigned>(180.0 / angularStep_deg);
-		assert(fabs(180.0 - thetaSteps * angularStep_deg) < ZERO_TOLERANCE);
+		assert(std::abs(180.0 - thetaSteps * angularStep_deg) < ZERO_TOLERANCE);
 		unsigned rotCount = phiSteps * (thetaSteps - 1) + 2;
 		matrices.reserve(rotCount);
 		matrixAngles.reserve(rotCount);
@@ -8402,7 +8414,7 @@ void MainWindow::doActionExportCloudsInfo()
 				csvStream << validCount << ";" /*"SF valid values;"*/;
 				double mean = sfSum/validCount;
 				csvStream << mean << ";" /*"SF mean;"*/;
-				csvStream << sqrt(fabs(sfSum2/validCount - mean*mean)) << ";" /*"SF std.dev.;"*/;
+				csvStream << sqrt(std::abs(sfSum2/validCount - mean*mean)) << ";" /*"SF std.dev.;"*/;
 				csvStream << sfSum << ";" /*"SF sum;"*/;
 			}
 			csvStream << endl;
