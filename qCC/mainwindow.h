@@ -188,7 +188,7 @@ public:
 	void putObjectBackIntoDBTree(ccHObject* obj, const ccHObjectContext& context);
 
 	//! Dispatches the (loaded) plugins in the UI
-	void dispatchPlugins(const tPluginInfoList& plugins, const QStringList& pluginPaths);
+	void setupPluginDispatch(const tPluginInfoList& plugins, const QStringList& pluginPaths);
 
 	//! Updates the 'Properties' view
 	void updatePropertiesView();
@@ -269,7 +269,7 @@ private slots:
 	void updateMenus();
 	void on3DViewActivated(QMdiSubWindow*);
 	void updateUIWithSelection();
-	void addToDBAuto(QStringList);
+	void addToDBAuto(const QStringList& filenames);
 
 	void echoMouseWheelRotate(float);
 	void echoCameraDisplaced(float ddx, float ddy);
@@ -451,8 +451,10 @@ private slots:
 	//! Removes all entities currently loaded in the DB tree
 	void closeAll();
 
-	//! Batch export some pieces of info from a set of selected clouds
-	void doActionExportCloudsInfo();
+	//! Batch export some info from a set of selected clouds
+	void doActionExportCloudInfo();
+	//! Batch export some info from a set of selected planes
+	void doActionExportPlaneInfo();
 
 	//! Generates a matrix with the best (registration) RMS for all possible couple among the selected entities
 	void doActionComputeBestICPRmsMatrix();
