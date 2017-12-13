@@ -48,4 +48,4 @@ copydlldeps.sh -c -F ./CloudCompare -d ./CloudCompare -R /usr/lib/mxe
 name=cloudcompare-${TRAVIS_BRANCH}-${COMPILER}-${TRAVIS_COMMIT}
 mv CloudCompare ${name}
 tar -zcvf ${name}.tar.gz ${name}
-curl -X PUT -u ${WEBDAV_USER}:${WEBDAV_PASSWORD} "${WEBDAV_URL}/${name}.tar.gz" --data-binary @"${name}.tar.gz" --insecure
+curl -X PUT -u '${WEBDAV_USER}:${WEBDAV_PASSWORD}' '${WEBDAV_URL}/${name}.tar.gz' --data-binary @"${name}.tar.gz" --insecure
