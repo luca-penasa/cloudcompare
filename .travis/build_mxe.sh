@@ -28,15 +28,15 @@ $cmakename -DCMAKE_BUILD_TYPE=Release .. \
 -DINSTALL_QCSF_PLUGIN=ON \
 -DINSTALL_QPHOTOSCAN_IO_PLUGIN=ON \
 -DINSTALL_QM3C2_PLUGIN=ON \
--DINSTALL_QPCV_PLUGIN=ON 
+-DINSTALL_QPCV_PLUGIN=ON
 
 
 
-if [ $TRAVIS_BRANCH = 'to_vombat' ]; then 
+if [ $TRAVIS_BRANCH = 'to_vombat' ]; then
       echo "on branch ${TRAVIS_BRANCH}"
       $cmakename ..  \
       -DCMAKE_INSTALL_PREFIX=${TRAVIS_BUILD_DIR} \
-      -DINSTALL_vombat_PLUGIN=ON 
+      -DINSTALL_vombat_PLUGIN=ON
 fi
 
 
@@ -48,4 +48,4 @@ copydlldeps.sh -c -F ./CloudCompare -d ./CloudCompare -R /usr/lib/mxe
 name=cloudcompare-${TRAVIS_BRANCH}-${COMPILER}-${TRAVIS_COMMIT}
 mv CloudCompare ${name}
 tar -zcvf ${name}.tar.gz ${name}
-curl -X PUT -u ${OWNCLOUD_USER}:${OWNCLOUD_PASSWORD} "https://ns392452.ip-176-31-109.eu/owncloud/remote.php/webdav/cloudcompare-builds/${name}.tar.gz" --data-binary @"${name}.tar.gz" --insecure
+curl -X PUT -u ${WEBDAV_USER}:${WEBDAV_PASSWORD} "${WEBDAV_URL}/${name}.tar.gz" --data-binary @"${name}.tar.gz" --insecure
