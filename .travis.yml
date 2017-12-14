@@ -31,8 +31,8 @@ matrix:
       #- os: osx
       #  osx_image: xcode7.3
 
-      - os: osx
-        osx_image: xcode8
+      #- os: osx
+      #  osx_image: xcode8.3
         
 before_script: 
   - echo -e "Host ns392452.ip-176-31-109.eu\n\tStrictHostKeyChecking no\n" >> ~/.ssh/config
