@@ -54,13 +54,13 @@ name=cloudcompare-${TRAVIS_BRANCH}-${COMPILER}-${TRAVIS_COMMIT}
 mv CloudCompare ${name}
 tar -zcvf ${name}.tar.gz ${name}
 
-echo "${WEBDAV_USER}"
-echo "${WEBDAV_URL}"
+#echo "${WEBDAV_USER}"
+#echo "${WEBDAV_URL}"
 
-curl -X PUT -u "${WEBDAV_USER}:${WEBDAV_PASSWORD}" "${WEBDAV_URL}/${name}.tar.gz" --data-binary @"${name}.tar.gz" --insecure
+#curl -X PUT -u "${WEBDAV_USER}:${WEBDAV_PASSWORD}" "${WEBDAV_URL}/${name}.tar.gz" --data-binary @"${name}.tar.gz" --insecure
 
 wget "https://docs.google.com/uc?id=0B3X9GlR6EmbnQ0FtZmJJUXEyRTA&export=download" -O gdrive
-chmod u+x gdrive
+chmod u+x gdrive    
 
 ./gdrive upload --refresh-token ${GDRIVE_REFRESH_TOKEN} --parent ${GDRIVE_FOLDER} "${name}.tar.gz"
     
