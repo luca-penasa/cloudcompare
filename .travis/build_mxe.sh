@@ -5,6 +5,11 @@ echo "compiler ${CXX}, and ${CC}"
 
 echo "compiling for win on mxe"
 echo "travis build dir is ${TRAVIS_BUILD_DIR}"
+
+echo "user ${WEBDAV_USER}"
+echo "url ${WEBDAV_URL}"
+
+
 cd ${TRAVIS_BUILD_DIR}
 mkdir build
 cd build
