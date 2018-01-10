@@ -6,6 +6,24 @@ v2.10.alpha - XX/XX/201X
 
 - enhancements:
 
+	* The M3C2 plugin can now be called from the command line:
+		- the first time you'll need the configuration file saved with the GUI tool
+			(Use the 'Save parameters to file' button in the bottom-left corner of the M3C2 dialog --> the floppy icon)
+		- then load 2 files (cloud 1 and cloud2)
+		- optionally load a 3rd cloud that will be used as core points
+		- and eventually call the -M3C2 option with the parameter file as argument:
+			CloudCompare -O cloud1 -O cloud2 (-O core_points) -M3C2 parameters_file
+
+	* The "Classify" option of the Canupo plugin can now be called from the command line:
+		- you'll need a trained classifier (.prm file)
+		- main option: -CANUPO_CLASSIFY classifier.prm
+		- confidence threshold:
+			* -USE_CONFIDENCE {threshold}  (threshold must be between 0 and 1)
+			* (use the 'SET_ACTIVE_SF' after loading a cloud to set the active scalar field if
+				you want it to be used to refine the classification)
+		- syntax:
+			CloudCompare -O cloud1 ... -O cloudN -CANUPO_CLASSIFY (-USE_CONFIDENCE 0.9) classifier.prm
+
 	* Labels can now be imported from ASCII files:
 		- new column role in the ASCII loading dialog: "Labels"
 		- labels can be created from textual or numerical columns
@@ -16,7 +34,13 @@ v2.10.alpha - XX/XX/201X
 		- default FBX units are 'cm'
 		- if a FBX file with other units is imported, CC will now store this information as meta-data and will set it correctly
 			if the corresponding meshes are exported as FBX again
-	
+
+	* Command line mode:
+		- Scalar field convert to RGB:
+			* '-SF_CONVERT_TO_RGB {mixWithExistingColors bool}'
+		- Scalar field set color scale:
+			* '-SF_COLOR_SCALE {filename}'
+
 - Bug fix:
 
 	* Subsampling with a radius dependent on the active scalar field could make CC stall when dealing with negative values
