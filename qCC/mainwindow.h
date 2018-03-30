@@ -23,10 +23,8 @@
 
 //Local
 #include "ccEntityAction.h"
+#include "ccMainAppInterface.h"
 #include "ccPickingListener.h"
-
-//qCC_plugins
-#include <ccPluginInfo.h>
 
 //CCLib
 #include <AutoSegmentationTools.h>
@@ -51,7 +49,7 @@ class ccGraphicalSegmentationTool;
 class ccGraphicalTransformationTool;
 class ccHObject;
 class ccOverlayDialog;
-class ccPluginInterface;
+class ccPluginUIManager;
 class ccPointListPickingDlg;
 class ccPointPairRegistrationDlg;
 class ccPointPropertiesDlg;
@@ -151,6 +149,8 @@ public:
 												 double minVal, double maxVal,
 												 QString title, QString xAxisLabel) override;
 	virtual ccPickingHub* pickingHub() override { return m_pickingHub; }
+	virtual ccHObjectContext removeObjectTemporarilyFromDBTree(ccHObject* obj) override;
+	virtual void putObjectBackIntoDBTree(ccHObject* obj, const ccHObjectContext& context) override;
 
 	//! Inherited from ccPickingListener
 	virtual void onItemPicked(const PickedItem& pi) override;
@@ -164,31 +164,8 @@ public:
 	**/
 	void  addEditPlaneAction( QMenu &menu ) const;
 	
-	//! Backup "context" for an object
-	/** Used with removeObjectTemporarilyFromDBTree/putObjectBackIntoDBTree.
-	**/
-	struct ccHObjectContext
-	{
-		ccHObjectContext() : parent(0), childFlags(0), parentFlags(0) {}
-		ccHObject* parent;
-		int childFlags;
-		int parentFlags;
-	};
-
-	//! Removes object temporarily from DB tree
-	/** This method must be called before any modification to the db tree
-		WARNING: may change 'selectedEntities' container!
-	**/
-	ccHObjectContext removeObjectTemporarilyFromDBTree(ccHObject* obj);
-
-	//! Adds back object to DB tree
-	/** This method should be called once modifications to the db tree are finished
-		(see removeObjectTemporarilyFromDBTree).
-	**/
-	void putObjectBackIntoDBTree(ccHObject* obj, const ccHObjectContext& context);
-
-	//! Dispatches the (loaded) plugins in the UI
-	void setupPluginDispatch(const tPluginInfoList& plugins, const QStringList& pluginPaths);
+	//! Sets up the UI (menus and toolbars) based on loaded plugins
+	void initPlugins();
 
 	//! Updates the 'Properties' view
 	void updatePropertiesView();
@@ -205,8 +182,6 @@ private slots:
 
 	//! Displays 'help' dialog
 	void doActionShowHelpDialog();
-	//! Displays 'about plugins' dialog
-	void doActionShowAboutPluginsDialog();
 	//! Displays file open dialog
 	void doActionLoadFile();
 	//! Displays file save dialog
@@ -247,7 +222,7 @@ private slots:
 	virtual void increasePointSize() override;
 	virtual void decreasePointSize() override;
 
-	void toggleRotationAboutVertAxis();
+	void toggleLockRotationAxis();
 	void doActionEnableBubbleViewMode();
 	void setPivotAlwaysOn();
 	void setPivotRotationOnly();
@@ -325,7 +300,8 @@ private slots:
 	void doAction4pcsRegister(); //Aurelien BEY le 13/11/2008
 	void doActionSubsample(); //Aurelien BEY le 4/12/2008
 	void doActionStatisticalTest();
-	void doActionSamplePoints();
+	void doActionSamplePointsOnMesh();
+	void doActionSamplePointsOnPolyline();
 	void doActionConvertTextureToColor();
 	void doActionLabelConnectedComponents();
 	void doActionComputeStatParams();
@@ -401,8 +377,6 @@ private slots:
 	//Shaders & plugins
 	void doActionLoadShader();
 	void doActionDeleteShader();
-	void doEnableGLFilter();
-	void doDisableGLFilter();
 
 	void doActionFindBiggestInnerRectangle();
 
@@ -623,11 +597,8 @@ private:
 	ccPrimitiveFactoryDlg* m_pfDlg;
 
 	/*** plugins ***/
-	QStringList m_pluginPaths;
-	tPluginInfoList m_pluginInfoList;
-	QList<ccStdPluginInterface*> m_stdPlugins;
-	QList<QToolBar*> m_stdPluginsToolbars;
-	QActionGroup m_glFilterActions;
+	//! Manages plugins - menus, toolbars, and the about dialog
+	ccPluginUIManager	*m_pluginUIManager;
 };
 
 #endif

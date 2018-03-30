@@ -174,7 +174,7 @@ void ReferenceCloud::setPointIndex(unsigned localIndex, unsigned globalIndex)
 	invalidateBoundingBox();
 }
 
-void ReferenceCloud::forEach(genericPointAction& action)
+void ReferenceCloud::forEach(genericPointAction action)
 {
 	assert(m_theAssociatedCloud);
 
@@ -221,8 +221,8 @@ bool ReferenceCloud::add(const ReferenceCloud& cloud)
 		return false;
 
 	//copy new indexes (warning: no duplicate check!)
-	for (unsigned i=0; i<newCount; ++i)
-		(*m_theIndexes)[count+i] = (*cloud.m_theIndexes)[i];
+	for (unsigned i = 0; i < newCount; ++i)
+		(*m_theIndexes)[count + i] = (*cloud.m_theIndexes)[i];
 
 	invalidateBoundingBox();
 	return true;

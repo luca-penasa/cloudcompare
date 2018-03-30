@@ -16,6 +16,7 @@ include_directories( ${EXTERNAL_LIBS_INCLUDE_DIR} )
 file( GLOB header_list *.h)
 file( GLOB source_list *.cpp)
 # force the link with ccStdPluginInterface.cpp
+list( APPEND source_list ${CloudComparePlugins_SOURCE_DIR}/ccDefaultPluginInterface.cpp )
 list( APPEND source_list ${CloudComparePlugins_SOURCE_DIR}/ccStdPluginInterface.cpp )
 file( GLOB ui_list *.ui )
 file( GLOB qrc_list *.qrc )
@@ -102,7 +103,10 @@ endif()
 
 #'GL filter' plugins specifics
 if( CC_SHADER_FOLDER )
-    #copy the shader files
+	# copy shader dirs into our shadow build directory
+	file( COPY shaders DESTINATION "${CMAKE_BINARY_DIR}" )
+
+	# install the shader files
     file( GLOB shaderFiles shaders/${CC_SHADER_FOLDER}/*.frag shaders/${CC_SHADER_FOLDER}/*.vert )
     foreach( filename ${shaderFiles} )
         if( APPLE )

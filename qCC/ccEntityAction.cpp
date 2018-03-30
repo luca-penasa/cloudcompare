@@ -374,7 +374,7 @@ namespace ccEntityAction
 	}
 
 	//! Interpolate scalar fields from on entity and transfer them to another one
-	bool	interpolateSFs(const ccHObject::Container &selectedEntities, ccMainAppInterface* app = 0)
+	bool	interpolateSFs(const ccHObject::Container &selectedEntities, ccMainAppInterface* app)
 	{
 		if (selectedEntities.size() != 2)
 		{
@@ -1183,6 +1183,10 @@ namespace ccEntityAction
 				return true; //true because we want the UI to be updated anyway
 			}
 
+			if (entity != pc)
+			{
+				entity->showSF(true); //for meshes
+			}
 			entity->prepareDisplayForRefresh_recursive();
 		}
 		

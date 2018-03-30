@@ -21,13 +21,7 @@
 //CLOUDS
 #include "BinFilter.h"
 #include "SimpleBinFilter.h"
-#include "IcmFilter.h"
 #include "AsciiFilter.h"
-#include "SoiFilter.h"
-#include "PNFilter.h"
-#include "PVFilter.h"
-#include "PovFilter.h"
-#include "BundlerFilter.h"
 #include "VTKFilter.h"
 #include "STLFilter.h"
 #include "LASFilter.h"
@@ -48,8 +42,6 @@
 #include "DxfFilter.h"
 #include "ShpFilter.h"
 #include "MascaretFilter.h"
-#include "SinusxFilter.h"
-#include "SalomeHydroFilter.h"
 #include "HeightProfileFilter.h"
 
 //Qt
@@ -68,7 +60,19 @@
 /** Filters are uniquely recognized by their 'file filter' string.
 	We use a std::vector so as to keep the insertion ordering!
 **/
-FileIOFilter::FilterContainer s_ioFilters;
+static FileIOFilter::FilterContainer s_ioFilters;
+
+static unsigned s_sessionCounter = 0;
+
+void FileIOFilter::ResetSesionCounter()
+{
+	s_sessionCounter = 0;
+}
+
+unsigned FileIOFilter::IncreaseSesionCounter()
+{
+	return ++s_sessionCounter;
+}
 
 void FileIOFilter::InitInternalFilters()
 {
@@ -103,19 +107,10 @@ void FileIOFilter::InitInternalFilters()
 #ifdef CC_GDAL_SUPPORT
 	Register(Shared(new RasterGridFilter()));
 #endif
-	Register(Shared(new BundlerFilter()));
 	Register(Shared(new ImageFileFilter()));
-	//secondary formats (are they even used anymore?!)
-	Register(Shared(new PNFilter()));
-	Register(Shared(new PVFilter()));
-	Register(Shared(new SoiFilter()));
 	Register(Shared(new MAFilter()));
-	Register(Shared(new PovFilter()));
-	Register(Shared(new IcmFilter()));
 	Register(Shared(new DepthMapFileFilter()));
 	Register(Shared(new MascaretFilter()));
-	Register(Shared(new SinusxFilter()));
-	Register(Shared(new SalomeHydroFilter()));
 	Register(Shared(new HeightProfileFilter()));
 }
 
@@ -171,7 +166,7 @@ void FileIOFilter::UnregisterAll()
 	s_ioFilters.clear();
 }
 
-FileIOFilter::Shared FileIOFilter::GetFilter(QString fileFilter, bool onImport)
+FileIOFilter::Shared FileIOFilter::GetFilter(const QString& fileFilter, bool onImport)
 {
 	if (!fileFilter.isEmpty())
 	{
@@ -191,13 +186,13 @@ const FileIOFilter::FilterContainer& FileIOFilter::GetFilters()
 	return s_ioFilters;
 }
 
-FileIOFilter::Shared FileIOFilter::FindBestFilterForExtension(QString ext)
+FileIOFilter::Shared FileIOFilter::FindBestFilterForExtension(const QString& ext)
 {
-	ext = ext.toUpper();
+	const QString upperExt = ext.toUpper();
 
 	for (FilterContainer::const_iterator it=s_ioFilters.begin(); it!=s_ioFilters.end(); ++it)
 	{
-		if ((*it)->canLoadExtension(ext))
+		if ((*it)->canLoadExtension(upperExt))
 			return *it;
 	}
 
@@ -229,17 +224,24 @@ ccHObject* FileIOFilter::LoadFromFile(	const QString& filename,
 	//load file
 	ccHObject* container = new ccHObject();
 	result = CC_FERR_NO_ERROR;
+	
+	//we start a new 'action' inside the current sessions
+	unsigned sessionCounter = IncreaseSesionCounter();
+	loadParameters.sessionStart = (sessionCounter == 1);
+
 	try
 	{
 		result = filter->loadFile(	filename,
 									*container,
 									loadParameters);
 	}
-	catch(...)
+	catch (...)
 	{
 		ccLog::Warning(QString("[I/O] CC has caught an unhandled exception while loading file '%1'").arg(filename));
 		if (container)
+		{
 			container->removeAllChildren();
+		}
 		result = CC_FERR_CONSOLE_ERROR;
 	}
 
@@ -324,7 +326,7 @@ ccHObject* FileIOFilter::LoadFromFile(	const QString& filename,
 
 CC_FILE_ERROR FileIOFilter::SaveToFile(	ccHObject* entities,
 										const QString& filename,
-										SaveParameters& parameters,
+										const SaveParameters& parameters,
 										Shared filter)
 {
 	if (!entities || filename.isEmpty() || !filter)
@@ -360,8 +362,8 @@ CC_FILE_ERROR FileIOFilter::SaveToFile(	ccHObject* entities,
 
 CC_FILE_ERROR FileIOFilter::SaveToFile(	ccHObject* entities,
 										const QString& filename,
-										SaveParameters& parameters,
-										QString fileFilter)
+										const SaveParameters& parameters,
+										const QString& fileFilter)
 {
 	if (fileFilter.isEmpty())
 		return CC_FERR_BAD_ARGUMENT;
@@ -448,7 +450,7 @@ void FileIOFilter::DisplayErrorMessage(CC_FILE_ERROR err, const QString& action,
 		ccLog::Error(outputString);
 }
 
-bool FileIOFilter::CheckForSpecialChars(QString filename)
+bool FileIOFilter::CheckForSpecialChars(const QString& filename)
 {
 	return (filename.normalized(QString::NormalizationForm_D) != filename);
 }

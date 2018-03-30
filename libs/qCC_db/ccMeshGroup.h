@@ -64,8 +64,8 @@ public:
 
 	//inherited methods (GenericIndexedMesh)
 	virtual unsigned size() const override { return 0; }
-	virtual void forEach(genericTriangleAction& action) override {}
-	virtual void placeIteratorAtBegining() override {}
+	virtual void forEach(genericTriangleAction action) override {}
+	virtual void placeIteratorAtBeginning() override {}
 	virtual CCLib::GenericTriangle* _getNextTriangle() override { return 0; }
 	virtual CCLib::GenericTriangle* _getTriangle(unsigned index) override { return 0; }
 	virtual CCLib::VerticesIndexes* getNextTriangleVertIndexes() override { return 0; }

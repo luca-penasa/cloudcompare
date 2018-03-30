@@ -38,7 +38,7 @@
 //System
 #include <string.h>
 
-bool STLFilter::canLoadExtension(QString upperCaseExt) const
+bool STLFilter::canLoadExtension(const QString& upperCaseExt) const
 {
 	return (upperCaseExt == "STL");
 }
@@ -54,7 +54,7 @@ bool STLFilter::canSave(CC_CLASS_ENUM type, bool& multiple, bool& exclusive) con
 	return false;
 }
 
-CC_FILE_ERROR STLFilter::saveToFile(ccHObject* entity, QString filename, SaveParameters& parameters)
+CC_FILE_ERROR STLFilter::saveToFile(ccHObject* entity, const QString& filename, const SaveParameters& parameters)
 {
 	if (!entity)
 		return CC_FERR_BAD_ARGUMENT;
@@ -143,7 +143,7 @@ CC_FILE_ERROR STLFilter::saveToBINFile(ccGenericMesh* mesh, FILE *theFile, QWidg
 		ccLog::Warning("[STL] Global shift information can't be restored in STL Binary format! (too low precision)");
 	}
 
-	mesh->placeIteratorAtBegining();
+	mesh->placeIteratorAtBeginning();
 	for (unsigned i = 0; i < faceCount; ++i)
 	{
 		CCLib::VerticesIndexes*tsi = mesh->getNextTriangleVertIndexes();
@@ -218,7 +218,7 @@ CC_FILE_ERROR STLFilter::saveToASCIIFile(ccGenericMesh* mesh, FILE *theFile, QWi
 	//vertices
 	ccGenericPointCloud* vertices = mesh->getAssociatedCloud();
 
-	mesh->placeIteratorAtBegining();
+	mesh->placeIteratorAtBeginning();
 	for (unsigned i = 0; i < faceCount; ++i)
 	{
 		CCLib::VerticesIndexes*tsi = mesh->getNextTriangleVertIndexes();
@@ -345,7 +345,7 @@ static bool TagDuplicatedVertices(	const CCLib::DgmOctree::octreeCell& cell,
 	return true;
 }
 
-CC_FILE_ERROR STLFilter::loadFile(QString filename, ccHObject& container, LoadParameters& parameters)
+CC_FILE_ERROR STLFilter::loadFile(const QString& filename, ccHObject& container, LoadParameters& parameters)
 {
 	ccLog::Print(QString("[STL] Loading '%1'").arg(filename));
 

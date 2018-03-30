@@ -64,9 +64,6 @@
 #include "ccInnerRect2DFinder.h"
 #include "ccHistogramWindow.h"
 
-//shaders & Filters
-#include <ccShader.h>
-
 //dialogs
 #include "ccAboutDialog.h"
 #include "ccAdjustZoomDlg.h"
@@ -92,7 +89,6 @@
 #include "ccPickingHub.h"
 #include "ccPickOneElementDlg.h"
 #include "ccPlaneEditDlg.h"
-#include "ccPluginDlg.h"
 #include "ccPointListPickingDlg.h"
 #include "ccPointPairRegistrationDlg.h"
 #include "ccPointPropertiesDlg.h" //Aurelien BEY
@@ -115,10 +111,12 @@
 
 //other
 #include "ccCropTool.h"
+#include "ccGLFilterPluginInterface.h"
 #include "ccPersistentSettings.h"
 #include "ccRecentFiles.h"
 #include "ccRegistrationTools.h"
 #include "ccUtils.h"
+#include "pluginManager/ccPluginUIManager.h"
 
 //3D mouse handler
 #ifdef CC_3DXWARE_SUPPORT
@@ -180,11 +178,12 @@ MainWindow::MainWindow()
 	, m_plpDlg(nullptr)
 	, m_pprDlg(nullptr)
 	, m_pfDlg(nullptr)
-	, m_glFilterActions(this)
 {
 	m_UI->setupUi( this );
 
-	m_glFilterActions.setExclusive( true );
+	setWindowTitle(QStringLiteral("CloudCompare v") + ccCommon::GetCCVersion(false));
+	
+	m_pluginUIManager = new ccPluginUIManager( this, this );
 	
 #ifdef Q_OS_MAC
 	m_UI->actionAbout->setMenuRole( QAction::AboutRole );
@@ -194,13 +193,12 @@ MainWindow::MainWindow()
 	m_UI->actionFullScreen->setShortcut( QKeySequence( Qt::CTRL + Qt::META + Qt::Key_F ) );
 #endif
 
+	// Set up dynamic menus
 	m_UI->menuFile->insertMenu(m_UI->actionSave, m_recentFiles->menu());
-
+	
 	//Console
 	ccConsole::Init(m_UI->consoleWidget, this, this);
 	m_UI->actionEnableQtWarnings->setChecked(ccConsole::QtMessagesEnabled());
-
-	setWindowTitle(QString("CloudCompare v") + ccCommon::GetCCVersion(false));
 
 	//advanced widgets not handled by QDesigner
 	{
@@ -327,207 +325,30 @@ MainWindow::~MainWindow()
 	ccConsole::ReleaseInstance();
 }
 
-void MainWindow::setupPluginDispatch(const tPluginInfoList& plugins, const QStringList& pluginPaths)
+void MainWindow::initPlugins( )
 {
-	m_UI->menuPlugins->setEnabled(false);
-	m_UI->menuShadersAndFilters->setEnabled(false);
-	m_UI->toolBarPluginTools->setVisible(false);
-	m_UI->toolBarGLFilters->setVisible(false);
-
-	m_pluginInfoList = plugins;
-	m_pluginPaths = pluginPaths;
-
-	for ( const tPluginInfo &plugin : plugins )
+	m_pluginUIManager->init( ccPluginManager::pluginList() );
+	
+	// Set up dynamic tool bars
+	addToolBar( Qt::RightToolBarArea, m_pluginUIManager->glFiltersToolbar() );
+	addToolBar( Qt::RightToolBarArea, m_pluginUIManager->mainPluginToolbar() );
+	
+	for ( QToolBar *toolbar : m_pluginUIManager->additionalPluginToolbars() )
 	{
-		if (!plugin.object)
-		{
-			assert(false);
-			continue;
-		}
-
-		QString pluginName = plugin.object->getName();
-		if (pluginName.isEmpty())
-		{
-			ccLog::Warning(QString("[Plugin] Plugin '%1' has an invalid (empty) name!").arg(plugin.filename));
-			continue;
-		}
-
-		CC_PLUGIN_TYPE type = plugin.object->getType();
-		switch (type)
-		{
-
-		case CC_STD_PLUGIN: //standard plugin
-		{
-			plugin.qObject->setParent(this);
-			ccStdPluginInterface* stdPlugin = static_cast<ccStdPluginInterface*>(plugin.object);
-			stdPlugin->setMainAppInterface(this);
-
-			QMenu* destMenu = nullptr;
-			QToolBar* destToolBar = nullptr;
-
-			QActionGroup actions(this);
-			stdPlugin->getActions(actions);
-			if (actions.actions().size() > 1) //more than one action? We create it's own menu and toolbar
-			{
-				destMenu = (m_UI->menuPlugins ? m_UI->menuPlugins->addMenu(pluginName) : 0);
-				if (destMenu)
-					destMenu->setIcon(stdPlugin->getIcon());
-				destToolBar = addToolBar(pluginName + QString(" toolbar"));
-
-				if (destToolBar)
-				{
-					m_stdPluginsToolbars.push_back(destToolBar);
-					//not sure why but it seems that we must specifically set the object name.
-					//if not the QSettings thing will complain about an unset name
-					//when saving settings of qCC mainwindow
-					destToolBar->setObjectName(pluginName);
-				}
-			}
-			else //default destination
-			{
-				destMenu = m_UI->menuPlugins;
-				destToolBar = m_UI->toolBarPluginTools;
-			}
-
-			//add actions
-			const QList<QAction *>	actionList = actions.actions();
-			
-			for (QAction* action : actionList)
-			{
-				//add to menu (if any)
-				if (destMenu)
-				{
-					destMenu->addAction(action);
-					destMenu->setEnabled(true);
-				}
-				//add to toolbar
-				if (destToolBar)
-				{
-					destToolBar->addAction(action);
-					destToolBar->setVisible(true);
-					destToolBar->setEnabled(true);
-				}
-			}
-
-			//add to std. plugins list
-			m_stdPlugins.push_back(stdPlugin);
-
-			//last but not least: update the current plugin state
-			stdPlugin->onNewSelection(m_selectedEntities);
-		}
-		break;
-
-		case CC_GL_FILTER_PLUGIN: //GL filter
-		{
-			//(auto)create action
-			plugin.qObject->setParent(this);
-			
-			QAction* action = new QAction(pluginName, plugin.qObject);
-			action->setToolTip(plugin.object->getDescription());
-			action->setIcon(plugin.object->getIcon());
-			action->setCheckable( true );
-			
-			connect(action, &QAction::triggered, this, &MainWindow::doEnableGLFilter);
-
-			m_UI->menuShadersAndFilters->addAction(action);
-			m_UI->menuShadersAndFilters->setEnabled(true);
-			m_UI->toolBarGLFilters->addAction(action);
-			m_UI->toolBarGLFilters->setVisible(true);
-			m_UI->toolBarGLFilters->setEnabled(true);
-
-			//add to GL filter (actions) list
-			m_glFilterActions.addAction(action);
-		}
-		break;
-
-		case CC_IO_FILTER_PLUGIN: //I/O filter
-		{
-			//not handled by the MainWindow instance
-		}
-		break;
-
-		default:
-			assert(false);
-			continue;
-		}
+		addToolBar( Qt::TopToolBarArea, toolbar );
 	}
+	
+	// Set up dynamic menus
+	m_UI->menubar->insertMenu( m_UI->menu3DViews->menuAction(), m_pluginUIManager->pluginMenu() );
+	m_UI->menuDisplay->insertMenu( m_UI->menuActiveScalarField->menuAction(), m_pluginUIManager->shaderAndFilterMenu() );
 
-	if (m_UI->menuPlugins)
-	{
-		m_UI->menuPlugins->setEnabled(!m_stdPlugins.empty());
-	}
-
-	if (m_UI->toolBarPluginTools->isEnabled())
-	{
-		m_UI->actionDisplayPluginTools->setEnabled(true);
-		m_UI->actionDisplayPluginTools->setChecked(true);
-	}
-	else
-	{
-		//DGM: doesn't work :(
-		//actionDisplayPluginTools->setChecked(false);
-	}
-
-	if (m_UI->toolBarGLFilters->isEnabled())
-	{
-		m_UI->actionDisplayGLFiltersTools->setEnabled(true);
-		m_UI->actionDisplayGLFiltersTools->setChecked(true);
-	}
-	else
-	{
-		//DGM: doesn't work :(
-		//actionDisplayGLFiltersTools->setChecked(false);
-	}
-}
-
-void MainWindow::doActionShowAboutPluginsDialog()
-{
-	ccPluginDlg ccpDlg(m_pluginPaths, m_pluginInfoList, this);
-	ccpDlg.exec();
+	m_UI->menuToolbars->addAction( m_pluginUIManager->actionShowMainPluginToolbar() );
+	m_UI->menuToolbars->addAction( m_pluginUIManager->actionShowGLFilterToolbar() );
 }
 
 void MainWindow::doEnableQtWarnings(bool state)
 {
 	ccConsole::EnableQtMessages(state);
-}
-
-void MainWindow::doEnableGLFilter()
-{
-	ccGLWindow* win = getActiveGLWindow();
-	if (!win)
-	{
-		ccLog::Warning("[GL filter] No active 3D view!");
-		return;
-	}
-
-	QAction *action = qobject_cast<QAction*>(sender());
-	ccPluginInterface* ccPlugin = ccPlugins::ToValidPlugin(action ? action->parent() : 0);
-	if (!ccPlugin)
-		return;
-
-	if (ccPlugin->getType() != CC_GL_FILTER_PLUGIN)
-		return;
-
-	if (win->areGLFiltersEnabled())
-	{
-		ccGlFilter* filter = static_cast<ccGLFilterPluginInterface*>(ccPlugin)->getFilter();
-		if (filter)
-		{
-			win->setGlFilter(filter);
-			
-			m_UI->actionNoFilter->setEnabled( true );
-			
-			ccConsole::Print("Note: go to << Display > Shaders & Filters > No filter >> to disable GL filter");
-		}
-		else
-		{
-			ccConsole::Error("Can't load GL filter (an error occurred)!");
-		}
-	}
-	else
-	{
-		ccConsole::Error("GL filters not supported!");
-	}
 }
 
 void MainWindow::increasePointSize()
@@ -676,7 +497,7 @@ void MainWindow::connectActions()
 	connect(m_UI->actionMeshTwoPolylines,			&QAction::triggered, this, &MainWindow::doMeshTwoPolylines);
 	connect(m_UI->actionMeshScanGrids,				&QAction::triggered, this, &MainWindow::doActionMeshScanGrids);
 	connect(m_UI->actionConvertTextureToColor,		&QAction::triggered, this, &MainWindow::doActionConvertTextureToColor);
-	connect(m_UI->actionSamplePoints,				&QAction::triggered, this, &MainWindow::doActionSamplePoints);
+	connect(m_UI->actionSamplePointsOnMesh,			&QAction::triggered, this, &MainWindow::doActionSamplePointsOnMesh);
 	connect(m_UI->actionSmoothMeshLaplacian,		&QAction::triggered, this, &MainWindow::doActionSmoothMeshLaplacian);
 	connect(m_UI->actionSubdivideMesh,				&QAction::triggered, this, &MainWindow::doActionSubdivideMesh);
 	connect(m_UI->actionMeasureMeshSurface,			&QAction::triggered, this, &MainWindow::doActionMeasureMeshSurface);
@@ -685,6 +506,8 @@ void MainWindow::connectActions()
 	//"Edit > Mesh > Scalar Field" menu
 	connect(m_UI->actionSmoothMeshSF,				&QAction::triggered, this, &MainWindow::doActionSmoothMeshSF);
 	connect(m_UI->actionEnhanceMeshSF,				&QAction::triggered, this, &MainWindow::doActionEnhanceMeshSF);
+	//"Edit > Polyline" menu
+	connect(m_UI->actionSamplePointsOnPolyline,		&QAction::triggered, this, &MainWindow::doActionSamplePointsOnPolyline);
 	//"Edit > Plane" menu
 	connect(m_UI->actionCreatePlane,				&QAction::triggered, this, &MainWindow::doActionCreatePlane);
 	connect(m_UI->actionEditPlane,					&QAction::triggered, this, &MainWindow::doActionEditPlane);
@@ -810,7 +633,7 @@ void MainWindow::connectActions()
 	connect(m_UI->actionToggleCenteredPerspective,		&QAction::triggered, this, &MainWindow::toggleActiveWindowCenteredPerspective);
 	connect(m_UI->actionToggleViewerBasedPerspective,	&QAction::triggered, this, &MainWindow::toggleActiveWindowViewerBasedPerspective);
 	connect(m_UI->actionShowCursor3DCoordinates,		&QAction::toggled, this, &MainWindow::toggleActiveWindowShowCursorCoords);
-	connect(m_UI->actionLockRotationVertAxis,			&QAction::triggered, this, &MainWindow::toggleRotationAboutVertAxis);
+	connect(m_UI->actionLockRotationAxis,				&QAction::triggered, this, &MainWindow::toggleLockRotationAxis);
 	connect(m_UI->actionEnterBubbleViewMode,			&QAction::triggered, this, &MainWindow::doActionEnableBubbleViewMode);
 	connect(m_UI->actionEditCamera,						&QAction::triggered, this, &MainWindow::doActionEditCamera);
 	connect(m_UI->actionAdjustZoom,						&QAction::triggered, this, &MainWindow::doActionAdjustZoom);
@@ -824,7 +647,6 @@ void MainWindow::connectActions()
 	//"Display > Shaders & filters" menu
 	connect(m_UI->actionLoadShader,					&QAction::triggered, this, &MainWindow::doActionLoadShader);
 	connect(m_UI->actionDeleteShader,				&QAction::triggered, this, &MainWindow::doActionDeleteShader);
-	connect(m_UI->actionNoFilter,					&QAction::triggered, this, &MainWindow::doDisableGLFilter);
 
 	//"Display > Active SF" menu
 	connect(m_UI->actionToggleActiveSFColorScale,	&QAction::triggered, this, &MainWindow::doActionToggleActiveSFColorScale);
@@ -848,7 +670,7 @@ void MainWindow::connectActions()
 
 	//"About" menu entry
 	connect(m_UI->actionHelp,						&QAction::triggered, this, &MainWindow::doActionShowHelpDialog);
-	connect(m_UI->actionAboutPlugins,				&QAction::triggered, this, &MainWindow::doActionShowAboutPluginsDialog);
+	connect(m_UI->actionAboutPlugins,				&QAction::triggered, m_pluginUIManager, &ccPluginUIManager::showAboutDialog);
 	connect(m_UI->actionEnableQtWarnings,			&QAction::toggled, this, &MainWindow::doEnableQtWarnings);
 
 	connect(m_UI->actionAbout,	&QAction::triggered, this, [this] () {
@@ -1400,7 +1222,7 @@ void MainWindow::doActionApplyScale()
 						if (QMessageBox::question(
 							this,
 							"Big coordinates",
-							"Resutling coordinates will be too big (original precision may be lost!). Proceeed anyway?",
+							"Resutling coordinates will be too big (original precision may be lost!). Proceed anyway?",
 							QMessageBox::Yes,
 							QMessageBox::No) == QMessageBox::Yes)
 						{
@@ -2670,7 +2492,7 @@ void MainWindow::doActionConvertTextureToColor()
 	updateUI();
 }
 
-void MainWindow::doActionSamplePoints()
+void MainWindow::doActionSamplePointsOnMesh()
 {
 	static unsigned s_ptsSamplingCount = 1000000;
 	static double s_ptsSamplingDensity = 10.0;
@@ -2692,12 +2514,11 @@ void MainWindow::doActionSamplePoints()
 	bool withNormals = dlg.generateNormals();
 	bool withRGB = dlg.interpolateRGB();
 	bool withTexture = dlg.interpolateTexture();
-	bool useDensity = dlg.useDensity();
+	s_useDensity = dlg.useDensity();
 	assert(dlg.getPointsNumber() >= 0);
 	s_ptsSamplingCount = static_cast<unsigned>(dlg.getPointsNumber());
 	s_ptsSamplingDensity = dlg.getDensityValue();
 	s_ptsSampleNormals = withNormals;
-	s_useDensity = useDensity;
 
 	bool errors = false;
 
@@ -2709,8 +2530,8 @@ void MainWindow::doActionSamplePoints()
 		ccGenericMesh* mesh = ccHObjectCaster::ToGenericMesh(entity);
 		assert(mesh);
 		
-		ccPointCloud* cloud = mesh->samplePoints(	useDensity,
-													useDensity ? s_ptsSamplingDensity : s_ptsSamplingCount,
+		ccPointCloud* cloud = mesh->samplePoints(	s_useDensity,
+													s_useDensity ? s_ptsSamplingDensity : s_ptsSamplingCount,
 													withNormals,
 													withRGB,
 													withTexture,
@@ -2727,7 +2548,59 @@ void MainWindow::doActionSamplePoints()
 	}
 
 	if (errors)
-		ccLog::Error("[doActionSamplePoints] Errors occurred during the process! Result may be incomplete!");
+		ccLog::Error("[doActionSamplePointsOnMesh] Errors occurred during the process! Result may be incomplete!");
+
+	refreshAll();
+}
+
+void MainWindow::doActionSamplePointsOnPolyline()
+{
+	static unsigned s_ptsSamplingCount = 1000;
+	static double s_ptsSamplingDensity = 10.0;
+	static bool s_useDensity = false;
+
+	ccPtsSamplingDlg dlg(this);
+	//restore last parameters
+	dlg.setPointsNumber(s_ptsSamplingCount);
+	dlg.setDensityValue(s_ptsSamplingDensity);
+	dlg.setUseDensity(s_useDensity);
+	dlg.optionsFrame->setVisible(false);
+	if (!dlg.exec())
+		return;
+
+	assert(dlg.getPointsNumber() >= 0);
+	s_ptsSamplingCount = static_cast<unsigned>(dlg.getPointsNumber());
+	s_ptsSamplingDensity = dlg.getDensityValue();
+	s_useDensity = dlg.useDensity();
+
+	bool errors = false;
+
+	for (ccHObject *entity : getSelectedEntities())
+	{
+		if (!entity->isKindOf(CC_TYPES::POLY_LINE))
+			continue;
+
+		ccPolyline* poly = ccHObjectCaster::ToPolyline(entity);
+		assert(poly);
+
+		ccPointCloud* cloud = poly->samplePoints(	s_useDensity,
+													s_useDensity ? s_ptsSamplingDensity : s_ptsSamplingCount,
+													true);
+
+		if (cloud)
+		{
+			addToDB(cloud);
+		}
+		else
+		{
+			errors = true;
+		}
+	}
+
+	if (errors)
+	{
+		ccLog::Error("[doActionSamplePointsOnPolyline] Errors occurred during the process! Result may be incomplete!");
+	}
 
 	refreshAll();
 }
@@ -4464,9 +4337,9 @@ void MainWindow::doConvertPolylinesToMesh()
 
 void MainWindow::doCompute2HalfDimVolume()
 {
-	if (m_selectedEntities.size() != 2)
+	if (m_selectedEntities.empty() || m_selectedEntities.size() > 2)
 	{
-		ccConsole::Error("Select two point clouds!");
+		ccConsole::Error("Select one or two point clouds!");
 		return;
 	}
 
@@ -5500,7 +5373,6 @@ void MainWindow::doActionUnroll()
 
 	ccUnrollDlg::Type mode = unrollDlg.getType();
 	PointCoordinateType radius = static_cast<PointCoordinateType>(unrollDlg.getRadius());
-	double angle_deg = unrollDlg.getAngle();
 	unsigned char dim = static_cast<unsigned char>(unrollDlg.getAxisDimension());
 	bool exportDeviationSF = unrollDlg.exportDeviationSF();
 	CCVector3* pCenter = nullptr;
@@ -5519,14 +5391,32 @@ void MainWindow::doActionUnroll()
 	switch (mode)
 	{
 	case ccUnrollDlg::CYLINDER:
-		output = pc->unrollOnCylinder(radius, dim, pCenter, exportDeviationSF, &pDlg);
-		break;
+	{
+		double startAngle_deg = 0.0, stopAngle_deg = 360.0;
+		unrollDlg.getAngleRange(startAngle_deg, stopAngle_deg);
+		if (startAngle_deg >= stopAngle_deg)
+		{
+			QMessageBox::critical(this, "Error", "Invalid angular range");
+			return;
+		}
+		output = pc->unrollOnCylinder(radius, dim, pCenter, exportDeviationSF, startAngle_deg, stopAngle_deg, &pDlg);
+	}
+	break;
+
 	case ccUnrollDlg::CONE:
-		output = pc->unrollOnCone(angle_deg, center, dim, false, 0, exportDeviationSF, &pDlg);
-		break;
+	{
+		double coneHalfAngle_deg = unrollDlg.getConeHalfAngle();
+		output = pc->unrollOnCone(coneHalfAngle_deg, center, dim, false, 0, exportDeviationSF, &pDlg);
+	}
+	break;
+	
 	case ccUnrollDlg::STRAIGHTENED_CONE:
-		output = pc->unrollOnCone(angle_deg, center, dim, true, radius, exportDeviationSF, &pDlg);
-		break;
+	{
+		double coneHalfAngle_deg = unrollDlg.getConeHalfAngle();
+		output = pc->unrollOnCone(coneHalfAngle_deg, center, dim, true, radius, exportDeviationSF, &pDlg);
+	}
+	break;
+	
 	default:
 		assert(false);
 		break;
@@ -5981,16 +5871,13 @@ void MainWindow::freezeUI(bool state)
 	//freeze standard plugins
 	m_UI->toolBarMainTools->setDisabled(state);
 	m_UI->toolBarSFTools->setDisabled(state);
-	m_UI->toolBarPluginTools->setDisabled(state);
-	//toolBarGLFilters->setDisabled(state);
-	//toolBarView->setDisabled(state);
+	
+	m_pluginUIManager->mainPluginToolbar()->setDisabled(state);
 
 	//freeze plugin toolbars
+	for ( QToolBar *toolbar : m_pluginUIManager->additionalPluginToolbars() )
 	{
-		for ( QToolBar *toolbar : m_stdPluginsToolbars )
-		{
-			toolbar->setDisabled(state);
-		}
+		toolbar->setDisabled(state);
 	}
 
 	m_UI->DockableDBTree->setDisabled(state);
@@ -8893,19 +8780,31 @@ void MainWindow::toggleActiveWindowViewerBasedPerspective()
 	}
 }
 
-void MainWindow::toggleRotationAboutVertAxis()
+void MainWindow::toggleLockRotationAxis()
 {
 	ccGLWindow* win = getActiveGLWindow();
 	if (win)
 	{
-		bool wasLocked = win->isVerticalRotationLocked();
+		bool wasLocked = win->isRotationAxisLocked();
 		bool isLocked = !wasLocked;
 
-		win->lockVerticalRotation(isLocked);
+		static CCVector3d s_lastAxis(0.0, 0.0, 1.0);
+		if (isLocked)
+		{
+			ccAskThreeDoubleValuesDlg axisDlg("x", "y", "z", -1.0e12, 1.0e12, s_lastAxis.x, s_lastAxis.y, s_lastAxis.z, 4, "Lock rotation axis", this);
+			if (axisDlg.buttonBox->button(QDialogButtonBox::Ok))
+				axisDlg.buttonBox->button(QDialogButtonBox::Ok)->setFocus();
+			if (!axisDlg.exec())
+				return;
+			s_lastAxis.x = axisDlg.doubleSpinBox1->value();
+			s_lastAxis.y = axisDlg.doubleSpinBox2->value();
+			s_lastAxis.z = axisDlg.doubleSpinBox3->value();
+		}
+		win->lockRotationAxis(isLocked, s_lastAxis);
 
-		m_UI->actionLockRotationVertAxis->blockSignals(true);
-		m_UI->actionLockRotationVertAxis->setChecked(isLocked);
-		m_UI->actionLockRotationVertAxis->blockSignals(false);
+		m_UI->actionLockRotationAxis->blockSignals(true);
+		m_UI->actionLockRotationAxis->setChecked(isLocked);
+		m_UI->actionLockRotationAxis->blockSignals(false);
 
 		if (isLocked)
 		{
@@ -8967,20 +8866,6 @@ void MainWindow::doActionDeleteShader()
 	ccGLWindow* win = getActiveGLWindow();
 	if (win)
 		win->setShader(0);
-}
-
-void MainWindow::doDisableGLFilter()
-{
-	ccGLWindow* win = getActiveGLWindow();
-	if (win)
-	{
-		win->setGlFilter(nullptr);
-		win->redraw(false);
-		
-		m_UI->actionNoFilter->setEnabled( false );
-		
-		m_glFilterActions.checkedAction()->setChecked( false );
-	}
 }
 
 void MainWindow::removeFromDB(ccHObject* obj, bool autoDelete/*=true*/)
@@ -9152,6 +9037,9 @@ void MainWindow::addToDB(	const QStringList& filenames,
 	//the same for 'addToDB' (if the first one is not supported, or if the scale remains too big)
 	CCVector3d addCoordinatesShift(0, 0, 0);
 
+	const ccOptions& options = ccOptions::Instance();
+	FileIOFilter::ResetSesionCounter();
+
 	for ( const QString &filename : filenames )
 	{
 		CC_FILE_ERROR result = CC_FERR_NO_ERROR;
@@ -9159,6 +9047,20 @@ void MainWindow::addToDB(	const QStringList& filenames,
 
 		if (newGroup)
 		{
+			if (!options.normalsDisplayedByDefault)
+			{
+				//disable the normals on all loaded clouds!
+				ccHObject::Container clouds;
+				newGroup->filterChildren(clouds, true, CC_TYPES::POINT_CLOUD);
+				for (ccHObject* cloud : clouds)
+				{
+					if (cloud)
+					{
+						static_cast<ccGenericPointCloud*>(cloud)->showNormals(false);
+					}
+				}
+			}
+			
 			if (destWin)
 			{
 				newGroup->setDisplay_recursive(destWin);
@@ -9279,7 +9181,7 @@ void MainWindow::doActionLoadFile()
 		currentOpenDlgFilter.clear(); //this way FileIOFilter will try to guess the file type automatically!
 
 	//load files
-	addToDB(selectedFiles,currentOpenDlgFilter);
+	addToDB(selectedFiles, currentOpenDlgFilter);
 }
 
 //Helper: check for a filename validity
@@ -9521,7 +9423,7 @@ void MainWindow::doActionSaveFile()
 	//ignored items
 	if (hasOther)
 	{
-		ccConsole::Warning("[I/O] The following selected entites won't be saved:");
+		ccConsole::Warning("[I/O] The following selected entities won't be saved:");
 		for (unsigned i = 0; i < other.getChildrenNumber(); ++i)
 		{
 			ccConsole::Warning(QString("\t- %1s").arg(other.getChild(i)->getName()));
@@ -9604,9 +9506,9 @@ void MainWindow::on3DViewActivated(QMdiSubWindow* mdiWin)
 		updateViewModePopUpMenu(win);
 		updatePivotVisibilityPopUpMenu(win);
 
-		m_UI->actionLockRotationVertAxis->blockSignals(true);
-		m_UI->actionLockRotationVertAxis->setChecked(win->isVerticalRotationLocked());
-		m_UI->actionLockRotationVertAxis->blockSignals(false);
+		m_UI->actionLockRotationAxis->blockSignals(true);
+		m_UI->actionLockRotationAxis->setChecked(win->isRotationAxisLocked());
+		m_UI->actionLockRotationAxis->blockSignals(false);
 
 		m_UI->actionEnableStereo->blockSignals(true);
 		m_UI->actionEnableStereo->setChecked(win->stereoModeIsEnabled());
@@ -9625,7 +9527,7 @@ void MainWindow::on3DViewActivated(QMdiSubWindow* mdiWin)
 		m_UI->actionAutoPickRotationCenter->blockSignals(false);
 	}
 
-	m_UI->actionLockRotationVertAxis->setEnabled(win != nullptr);
+	m_UI->actionLockRotationAxis->setEnabled(win != nullptr);
 	m_UI->actionEnableStereo->setEnabled(win != nullptr);
 	m_UI->actionExclusiveFullScreen->setEnabled(win != nullptr);
 }
@@ -9746,11 +9648,7 @@ void MainWindow::updateMenus()
 	m_UI->actionToggleViewerBasedPerspective->setEnabled(hasMdiChild);
 
 	//plugins
-	const QList<QAction*> actionList = m_glFilterActions.actions();
-	for (QAction* action : actionList)
-	{
-		action->setEnabled(hasMdiChild);
-	}
+	m_pluginUIManager->updateMenus();
 }
 
 void MainWindow::update3DViewsMenu()
@@ -9959,7 +9857,7 @@ void MainWindow::enableUIItems(dbTreeSelectionInfo& selInfo)
 	m_UI->actionSetSFAsCoord->setEnabled(atLeastOneSF && atLeastOneCloud);
 	m_UI->actionInterpolateSFs->setEnabled(atLeastOneCloud || atLeastOneMesh);
 
-	m_UI->actionSamplePoints->setEnabled(atLeastOneMesh);
+	m_UI->actionSamplePointsOnMesh->setEnabled(atLeastOneMesh);
 	m_UI->actionMeasureMeshSurface->setEnabled(atLeastOneMesh);
 	m_UI->actionMeasureMeshVolume->setEnabled(atLeastOneMesh);
 	m_UI->actionFlagMeshVertices->setEnabled(atLeastOneMesh);
@@ -9993,6 +9891,7 @@ void MainWindow::enableUIItems(dbTreeSelectionInfo& selInfo)
 	bool exactlyOneCameraSensor = (selInfo.cameraSensorCount == 1);
 
 	m_UI->actionConvertPolylinesToMesh->setEnabled(atLeastOnePolyline || exactlyOneGroup);
+	m_UI->actionSamplePointsOnPolyline->setEnabled(atLeastOnePolyline);
 	m_UI->actionMeshTwoPolylines->setEnabled(selInfo.selCount == 2 && selInfo.polylineCount == 2);
 	m_UI->actionCreateSurfaceBetweenTwoPolylines->setEnabled(m_UI->actionMeshTwoPolylines->isEnabled()); //clone of actionMeshTwoPolylines
 	m_UI->actionModifySensor->setEnabled(exactlyOneSensor);
@@ -10052,10 +9951,7 @@ void MainWindow::enableUIItems(dbTreeSelectionInfo& selInfo)
 	m_UI->actionMatchScales->setEnabled(atLeastTwoEntities);
 
 	//standard plugins
-	for (ccStdPluginInterface* plugin : m_stdPlugins)
-	{
-		plugin->onNewSelection(m_selectedEntities);
-	}
+	m_pluginUIManager->handleSelectionChanged();
 }
 
 void MainWindow::echoMouseWheelRotate(float wheelDelta_deg)

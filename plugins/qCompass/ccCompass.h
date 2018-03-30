@@ -19,10 +19,12 @@
 #define CC_COMPASS_HEADER
 
 #include <QObject>
+#include <QXmlStreamWriter>
 
 //qCC
 #include "../ccStdPluginInterface.h"
 #include <ccPickingListener.h>
+#include <qbuffer.h>
 
 class ccCompassDlg;
 class ccFitPlaneTool;
@@ -36,12 +38,11 @@ class ccTool;
 class ccTopologyTool;
 class ccTraceTool;
 
-
 class ccCompass : public QObject, public ccStdPluginInterface, public ccPickingListener
 {
 	Q_OBJECT
 		Q_INTERFACES(ccStdPluginInterface)
-		Q_PLUGIN_METADATA(IID "cccorp.cloudcompare.plugin.ccCompass")
+		Q_PLUGIN_METADATA(IID "cccorp.cloudcompare.plugin.ccCompass" FILE "info.json")
 
 public:
 	//! Default constructor
@@ -51,9 +52,6 @@ public:
 	~ccCompass();
 
 	//inherited from ccPluginInterface
-	virtual QString getName() const override { return "Compass"; }
-	virtual QString getDescription() const override { return "A virtual 'compass' for measuring outcrop orientations"; }
-	virtual QIcon getIcon() const override;
 	virtual void stop() override { stopMeasuring(); m_dlg = nullptr; ccStdPluginInterface::stop(); } //called when the plugin is being stopped
 
 	//inherited from ccStdPluginInterface
@@ -110,14 +108,18 @@ protected slots:
 	void recalculateSelectedTraces(); //recalculate any selected traces (for updating with a different cost function)
 	void mergeGeoObjects(); //merges the selected GeoObjects
 	void fitPlaneToGeoObject(); //calculates best-fit plane for the upper and lower surfaces of the selected GeoObject
+	void recalculateFitPlanes(); //recalcs fit planes for traces and GeoObjects
+	void convertToPointCloud(); //converts selected traces or geoObjects to point clouds
+	void distributeSelection(); //distributes selected objects into GeoObjects with the same name
 	void exportToSVG(); //exports current view to SVG
 
 	//map mode dialog
 	void writeToInterior(); //new digitization will be added to the GeoObjects interior
 	void writeToUpper(); //new digitization will be added to the GeoObjects upper boundary
 	void writeToLower(); //new digitiziation will be added to the GeoObjects lower boundary
-	void addGeoObject(); //creates a new GeoObject
-	
+	void addGeoObject(bool singleSurface=false); //creates a new GeoObject
+	void addGeoObjectSS(); //creates a new single surface GeoObject
+
 	//drawing options
 	void hideAllPointClouds(ccHObject* o); //hides all point clouds and adds them to the m_hiddenObjects list
 	void toggleStipple(bool checked);
@@ -185,7 +187,12 @@ protected:
 	int writePlanes(ccHObject* object, QTextStream* out, QString parentName = QString());
 	int writeTraces(ccHObject* object, QTextStream* out, QString parentName = QString());
 	int writeLineations(ccHObject* object, QTextStream* out, QString parentName = QString(), bool thickness=false); //if thickness is true this will write "thickness lineations" rather than orientation lineations
-	int writeTracesSVG(ccHObject* object, QTextStream* out, int height);
+	
+	int writeTracesSVG(ccHObject* object, QTextStream* out, int height, float zoom);
+
+	int writeToXML(QString filename); //exports Compass interpretation tree to xml
+	int writeObjectXML(ccHObject* object, QXmlStreamWriter* out); //writes the provided object (recursive)
+
 	//checks if an object was made by this app (i.e. returns true if we are responsible for a given layer)
 	bool madeByMe(ccHObject* object);
 

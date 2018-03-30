@@ -56,11 +56,11 @@ PCVContext::PCVContext()
 	: m_vertices(0)
 	, m_mesh(0)
 	, m_zoom(1)
-	, m_pixBuffer(0)
+	, m_pixBuffer(nullptr)
 	, m_width(0)
 	, m_height(0)
-	, m_snapZ(0)
-	, m_snapC(0)
+	, m_snapZ(nullptr)
+	, m_snapC(nullptr)
 	, m_meshIsClosed(false)
 {
 	memset(m_viewMat, 0, sizeof(float)*OPENGL_MATRIX_SIZE);
@@ -218,7 +218,7 @@ void PCVContext::drawEntity()
 	if (m_mesh)
 	{
 		unsigned nTri = m_mesh->size();
-		m_mesh->placeIteratorAtBegining();
+		m_mesh->placeIteratorAtBeginning();
 
 		glBegin(GL_TRIANGLES);
 		for (unsigned i = 0; i < nTri; ++i)
@@ -233,7 +233,7 @@ void PCVContext::drawEntity()
 	else
 	{
 		unsigned nPts = m_vertices->size();
-		m_vertices->placeIteratorAtBegining();
+		m_vertices->placeIteratorAtBeginning();
 
 		glBegin(GL_POINTS);
 		for (unsigned i = 0; i < nPts; ++i)
@@ -312,7 +312,7 @@ int PCVContext::GLAccumPixel(std::vector<int>& visibilityCount)
 	int sx4 = (m_width << 2);
 
 	unsigned nVert = m_vertices->size();
-	m_vertices->placeIteratorAtBegining();
+	m_vertices->placeIteratorAtBeginning();
 	for (unsigned i = 0; i < nVert; ++i)
 	{
 		const CCVector3* P = m_vertices->getNextPoint();

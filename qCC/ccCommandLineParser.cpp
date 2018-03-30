@@ -4,6 +4,7 @@
 #include "ccCommandLineCommands.h"
 #include "ccCommandCrossSection.h"
 #include "ccCommandRaster.h"
+#include "ccPluginInterface.h"
 
 //qCC_db
 #include <ccProgressDialog.h>
@@ -59,7 +60,7 @@ bool ccCommandLineParser::error(const QString& message) const
 	return false;
 }
 
-int ccCommandLineParser::Parse(int nargs, char** args, tPluginInfoList* plugins/*=0*/)
+int ccCommandLineParser::Parse(int nargs, char** args, ccPluginInterfaceList& plugins)
 {
 	if (!args || nargs < 2)
 	{
@@ -97,18 +98,15 @@ int ccCommandLineParser::Parse(int nargs, char** args, tPluginInfoList* plugins/
 	}
 
 	//load the plugins commands
-	if (plugins)
+	for ( ccPluginInterface *plugin : plugins )
 	{
-		for (tPluginInfo &pluginInfo : *plugins)
+		if (!plugin)
 		{
-			if (!pluginInfo.object)
-			{
-				assert(false);
-				continue;
-			}
-			ccPluginInterface* plugin = static_cast<ccPluginInterface*>(pluginInfo.object);
-			plugin->registerCommands(parser.data());
+			assert(false);
+			continue;
 		}
+
+		plugin->registerCommands(parser.data());
 	}
 
 	//parse input
@@ -155,6 +153,7 @@ ccCommandLineParser::ccCommandLineParser()
 	registerCommand(Command::Shared(new CommandMergeMeshes));
 	registerCommand(Command::Shared(new CommandSetActiveSF));
 	registerCommand(Command::Shared(new CommandRemoveAllSF));
+	registerCommand(Command::Shared(new CommandRemoveScanGrids));
 	registerCommand(Command::Shared(new CommandMatchBBCenters));
 	registerCommand(Command::Shared(new CommandMatchBestFitPlane));
 	registerCommand(Command::Shared(new CommandOrientNormalsMST));
@@ -165,7 +164,6 @@ ccCommandLineParser::ccCommandLineParser()
 	registerCommand(Command::Shared(new CommandCrop2D));
 	registerCommand(Command::Shared(new CommandCoordToSF));
 	registerCommand(Command::Shared(new CommandColorBanding));
-	registerCommand(Command::Shared(new CommandBundler));
 	registerCommand(Command::Shared(new CommandC2MDist));
 	registerCommand(Command::Shared(new CommandC2CDist));
 	registerCommand(Command::Shared(new CommandStatTest));
@@ -195,9 +193,6 @@ ccCommandLineParser::ccCommandLineParser()
 	registerCommand(Command::Shared(new CommandComputeMeshVolume));
 	registerCommand(Command::Shared(new CommandSFColorScale));
 	registerCommand(Command::Shared(new CommandSFConvertToRGB));
-	//registerCommand(Command::Shared(new XXX));
-	//registerCommand(Command::Shared(new XXX));
-	//registerCommand(Command::Shared(new XXX));
 }
 
 ccCommandLineParser::~ccCommandLineParser()
@@ -518,7 +513,7 @@ bool ccCommandLineParser::importFile(QString filename, FileIOFilter::Shared filt
 	return true;
 }
 
-bool ccCommandLineParser::saveClouds(QString suffix/*=QString()*/, bool allAtOnce/*=false*/)
+bool ccCommandLineParser::saveClouds(QString suffix/*=QString()*/, bool allAtOnce/*=false*/, const QString* allAtOnceFileName/*=0*/)
 {
 	//all-at-once: all clouds in a single file
 	if (allAtOnce)
@@ -543,6 +538,11 @@ bool ccCommandLineParser::saveClouds(QString suffix/*=QString()*/, bool allAtOnc
 
 			//save output
 			CLGroupDesc desc(&tempContainer, "AllClouds", m_clouds.front().path);
+			if (allAtOnceFileName)
+			{
+				CommandSave::SetFileDesc(desc, *allAtOnceFileName);
+			}
+
 			QString errorStr = exportEntity(desc, suffix, 0, true);
 			if (!errorStr.isEmpty())
 				return error(errorStr);
@@ -570,7 +570,7 @@ bool ccCommandLineParser::saveClouds(QString suffix/*=QString()*/, bool allAtOnc
 	return true;
 }
 
-bool ccCommandLineParser::saveMeshes(QString suffix/*=QString()*/, bool allAtOnce/*=false*/)
+bool ccCommandLineParser::saveMeshes(QString suffix/*=QString()*/, bool allAtOnce/*=false*/, const QString* allAtOnceFileName/*=0*/)
 {
 	//all-at-once: all meshes in a single file
 	if (allAtOnce)
@@ -590,8 +590,14 @@ bool ccCommandLineParser::saveMeshes(QString suffix/*=QString()*/, bool allAtOnc
 				for (size_t i = 0; i < m_meshes.size(); ++i)
 					tempContainer.addChild(m_meshes[i].getEntity(), ccHObject::DP_NONE);
 			}
+
 			//save output
 			CLGroupDesc desc(&tempContainer, "AllMeshes", m_meshes.front().path);
+			if (allAtOnceFileName)
+			{
+				CommandSave::SetFileDesc(desc, *allAtOnceFileName);
+			}
+
 			QString errorStr = exportEntity(desc, suffix, 0, false);
 			if (!errorStr.isEmpty())
 				return error(errorStr);

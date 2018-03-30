@@ -35,7 +35,9 @@
 #include <ccPointCloud.h>
 
 //plugins
-#include <ccPluginInfo.h>
+#include "ccGLFilterPluginInterface.h"
+#include "ccIOFilterPluginInterface.h"
+#include "pluginManager/ccPluginManager.h"
 
 //3D mouse handler
 #ifdef CC_3DXWARE_SUPPORT
@@ -197,87 +199,49 @@ void ccViewer::loadPlugins()
 {
 	ui.menuPlugins->setEnabled(false);
 
-	QString	appPath = QCoreApplication::applicationDirPath();
-	QStringList	filters;
-	
-#if defined(Q_OS_MAC)
+	ccPluginManager::loadPlugins();
 
-	filters << "*.dylib";
-
-	// plugins are in the bundle
-	appPath.remove( "MacOS" );
-	
-	appPath += "Plugins/ccViewerPlugins";
-
-#elif defined(Q_OS_WIN)
-
-	filters << "*.dll";
-
-	//plugins are in bin/plugins
-	appPath += "/plugins";
-
-#elif defined(Q_OS_LINUX)	
-
-	filters << "*.so";
-
-	// Plugins are relative to the bin directory where the executable is found
-	QDir  binDir( appPath );
-	
-	if ( binDir.dirName() == "bin" )
+	for ( ccPluginInterface *plugin : ccPluginManager::pluginList() )
 	{
-		binDir.cdUp();
-		
-		appPath = (binDir.absolutePath() + "/lib/cloudcompare/plugins");
-	}
-	else
-	{
-		// Choose a reasonable default to look in
-		appPath = "/usr/lib/cloudcompare/plugins";
-	}
-	
-#else
-#warning Need to specify the plugin path for this OS.
-#endif
-
-	tPluginInfoList	plugins;
-	ccPlugins::LoadPlugins(plugins, QStringList(appPath), filters);
-
-	for ( const tPluginInfo &plugin : plugins )
-	{
-		if (!plugin.object)
+		if ( plugin == nullptr )
 		{
-			assert(false);
+			Q_ASSERT( false );
 			continue;
 		}
-		
-		assert(plugin.qObject);
-		plugin.qObject->setParent(this);
 
-		//is this a GL plugin?
-		if (plugin.object->getType() == CC_GL_FILTER_PLUGIN)
+		// is this a GL plugin?
+		if ( plugin->getType() == CC_GL_FILTER_PLUGIN )
 		{
-			QString pluginName = plugin.object->getName();
-			if (pluginName.isEmpty())
+			ccGLFilterPluginInterface *glPlugin = static_cast<ccGLFilterPluginInterface*>( plugin );
+			
+			const QString pluginName = glPlugin->getName();
+			
+			Q_ASSERT( !pluginName.isEmpty() );
+			
+			if ( pluginName.isEmpty() )
 			{
-				ccLog::Warning("Plugin has an invalid (empty) name!");
+				// should be unreachable - we have already checked for this in ccPlugins::Find()
 				continue;
 			}
-			ccLog::Print(QString("Plugin name: [%1] (GL filter)").arg(pluginName));
+			
+			ccLog::Print( QStringLiteral( "Plugin name: [%1] (GL filter)" ).arg( pluginName ) );
 
-			//(auto)create action
-			QAction* action = new QAction(pluginName, plugin.qObject);
-			action->setToolTip(plugin.object->getDescription());
-			action->setIcon(plugin.object->getIcon());
-			//connect default signal
-			connect(action, SIGNAL(triggered()), this, SLOT(doEnableGLFilter()));
+			QAction* action = new QAction( pluginName, this );
+			action->setToolTip( glPlugin->getDescription() );
+			action->setIcon( glPlugin->getIcon() );
+			
+			// store the plugin's interface pointer in the QAction data so we can access it in doEnableGLFilter()
+			QVariant v;
+	  
+			v.setValue( glPlugin );
+	  
+			action->setData( v );
 
-			ui.menuPlugins->addAction(action);
-			ui.menuPlugins->setEnabled(true);
-			ui.menuPlugins->setVisible(true);
-		}
-		else
-		{
-			//ignored
+			connect(action, &QAction::triggered, this, &ccViewer::doEnableGLFilter);
+
+			ui.menuPlugins->addAction( action );
+			ui.menuPlugins->setEnabled( true );
+			ui.menuPlugins->setVisible( true );
 		}
 	}
 }
@@ -300,28 +264,40 @@ void ccViewer::doEnableGLFilter()
 	}
 
 	QAction *action = qobject_cast<QAction*>(sender());
-	if (!action)
-		return;
-	ccGLFilterPluginInterface* ccPlugin = qobject_cast<ccGLFilterPluginInterface*>(action->parent());
-	if (!ccPlugin)
-		return;
 
-	assert(ccPlugin->getType() == CC_GL_FILTER_PLUGIN);
-
-	ccGlFilter* filter = ccPlugin->getFilter();
-	if (filter)
+	if ( action == nullptr )
 	{
-		if (m_glWindow->areGLFiltersEnabled())
+		Q_ASSERT( false );
+		return;
+	}
+	
+	ccGLFilterPluginInterface	*plugin = action->data().value<ccGLFilterPluginInterface *>();
+	
+	if ( plugin == nullptr )
+	{
+		return;
+	}
+
+	Q_ASSERT( plugin->getType() == CC_GL_FILTER_PLUGIN );
+
+	ccGlFilter* filter = plugin->getFilter();
+	
+	if ( filter != nullptr )
+	{
+		if ( m_glWindow->areGLFiltersEnabled() )
 		{
-			m_glWindow->setGlFilter(filter);
-			ccLog::Print("Note: go to << Display > Shaders & Filters > No filter >> to disable GL filter");
+			m_glWindow->setGlFilter( filter );
+			
+			ccLog::Print( "Note: go to << Display > Shaders & Filters > No filter >> to disable GL filter" );
 		}
 		else
-			ccLog::Error("GL filters not supported!");
+		{
+			ccLog::Error( "GL filters not supported" );
+		}
 	}
 	else
 	{
-		ccLog::Error("Can't load GL filter (an error occurred)!");
+		ccLog::Error( "Can't load GL filter (an error occurred)!" );
 	}
 }
 
@@ -512,20 +488,37 @@ void ccViewer::addToDB(QStringList filenames)
 	parameters.shiftHandlingMode = ccGlobalShiftManager::NO_DIALOG_AUTO_SHIFT;
 	parameters.parentWidget = this;
 
+	const ccOptions& options = ccOptions::Instance();
+	FileIOFilter::ResetSesionCounter();
+
 	for (int i = 0; i < filenames.size(); ++i)
 	{
 		CC_FILE_ERROR result = CC_FERR_NO_ERROR;
-		ccHObject* newEntities = FileIOFilter::LoadFromFile(filenames[i], parameters, result);
+		ccHObject* newGroup = FileIOFilter::LoadFromFile(filenames[i], parameters, result);
 
-		if (newEntities)
+		if (newGroup)
 		{
-			addToDB(newEntities);
+			if (!options.normalsDisplayedByDefault)
+			{
+				//disable the normals on all loaded clouds!
+				ccHObject::Container clouds;
+				newGroup->filterChildren(clouds, true, CC_TYPES::POINT_CLOUD);
+				for (ccHObject* cloud : clouds)
+				{
+					if (cloud)
+					{
+						static_cast<ccGenericPointCloud*>(cloud)->showNormals(false);
+					}
+				}
+			}
+
+			addToDB(newGroup);
 
 			if (!scaleAlreadyDisplayed)
 			{
-				for (unsigned i = 0; i < newEntities->getChildrenNumber(); ++i)
+				for (unsigned i = 0; i < newGroup->getChildrenNumber(); ++i)
 				{
-					ccHObject* ent = newEntities->getChild(i);
+					ccHObject* ent = newGroup->getChild(i);
 					if (ent->isA(CC_TYPES::POINT_CLOUD))
 					{
 						ccPointCloud* pc = static_cast<ccPointCloud*>(ent);
@@ -853,10 +846,10 @@ void ccViewer::toggleRotationAboutVertAxis()
 	if (!m_glWindow)
 		return;
 
-	bool wasLocked = m_glWindow->isVerticalRotationLocked();
+	bool wasLocked = m_glWindow->isRotationAxisLocked();
 	bool isLocked = !wasLocked;
 
-	m_glWindow->lockVerticalRotation(isLocked);
+	m_glWindow->lockRotationAxis(isLocked, CCVector3d(0.0, 0.0, 1.0));
 
 	ui.actionLockRotationVertAxis->blockSignals(true);
 	ui.actionLockRotationVertAxis->setChecked(isLocked);

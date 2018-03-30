@@ -4,7 +4,15 @@ CloudCompare version history
 v2.10.alpha - XX/XX/201X
 ----------------------
 
+- new features:
+
+	* Edit > Polyline > Sample points
+		- to regularly samples points on one or several polylines
+
 - enhancements:
+
+	* The 'Display > Lock vertical rotation' option has been renamed 'Display > Lock rotation about an axis' (Shortcut: L)
+		- CC will now ask for the rotation axis to be locked (default: Z)
 
 	* The M3C2 plugin can now be called from the command line:
 		- the first time you'll need the configuration file saved with the GUI tool
@@ -40,8 +48,48 @@ v2.10.alpha - XX/XX/201X
 			* '-SF_CONVERT_TO_RGB {mixWithExistingColors bool}'
 		- Scalar field set color scale:
 			* '-SF_COLOR_SCALE {filename}'
+		- Extract all loaded mesh vertices as standalone 'clouds' (the mesh is discarded)
+			* '-EXTRACT_VERTICES'
+		- Remove all scan grids
+			* '-REMOVE_SCAN_GRIDS'
+		- New sub-option of 'SAVE_CLOUDS' to set the output filename(s) (e.g. -SAVE_CLOUDS FILE "cloud1.bin cloud2.bin ..."
 
-- Bug fix:
+	* Unroll tool:
+		- the cylindrical unrolling can be performed inside an arbitrary angular range (between -3600 and +3600 degrees)
+		- this means that the shape can be unrolled on more than 360 degrees, and from an arbitrary orientation
+
+	* New option:
+		- the user can now control whether normals should be enabled on loaded clouds by default or not (default state is now 'off')
+
+	* New behavior:
+		- Some load dialogs 'Apply all' button will only apply to the set of selected files (ASCII, PLY and LAS)
+
+	* PCV:
+		- the PCV plugin can now be applied on several clouds (batch mode)
+
+	* LAS I/O:
+		- CloudCompare can now read and save extra dimensions (for any file version) - see https://github.com/CloudCompare/CloudCompare/pull/666
+
+	* E57:
+		- the E57 plugin now uses [libE57Format](https://github.com/asmaloney/libE57Format) which is a fork of the old E57RefImpl 
+		- if you compile CloudCompare with the E57 plugin, you will need to use this new lib and change some CMake options to point at it - specifically **OPTION_USE_LIBE57FORMAT** and **LIBE57FORMAT_INSTALL_DIR**
+		- the E57 plugin is now available on macOS
+
+	* Plugins (General):
+		- The "About Plugins" dialog was rewritten to provide more information about installed plugins and to include I/O and GL plugins.
+		- Added several fields to the plugin interface: authors, maintainers, and reference links.
+		- I/O plugins now have the option to return a list of filters using a new method *getFilters()* (so one plugin can handle multiple file extensions)
+		- Moved support for several less frequently used file formats to a new plugin called qAdditionalIO
+			- Snavely's Bundler output (*.out)
+			- Clouds + calibrated images [meta][ascii] (*.icm)
+			- Point + Normal cloud (*.pn)
+			- Clouds + sensor info. [meta][ascii] (*.pov)
+			- Point + Value cloud (*.pv)
+			- Salome Hydro polylines (*.poly)
+			- SinusX curve (*.sx)
+			- Mensi Soisic cloud (*.soi)
+
+- bug fixes:
 
 	* Subsampling with a radius dependent on the active scalar field could make CC stall when dealing with negative values
 	* Point picking was performed on each click, even when double-clicking. This could actually prevent the double-click from
@@ -50,6 +98,15 @@ v2.10.alpha - XX/XX/201X
 	* Point picking on a mesh (i.e. mainly in the point-pair based registration tool) could select the wrong point on the triangle, or even a wrong triangle
 	* Raster I/O: when importing a raster file, the corresponding point cloud was shifted of half a pixel
 	* The RASTERIZE command line could make CC crash at the end of the process
+	* Hitting the 'Apply all' button of the ASCII open dialog would not restore the previous load configuration correctly in all cases
+		(the header line may not be extracted the second time, etc.)
+	* Align tool: large coordinates of manually input points were rounded off (only when displayed)
+	* When applying an orthographic viewport while the 'stereo' mode is enabled, the stereo mode was broken (now a warning message is disabled and
+		the stereo mode is automatically disabled)
+	* The global shift along vertical dimension (e.g. Z) was not applied when exporting a raster grid to a raster file (geotiff)
+	* The 2.5D Volume calculation tool was ignoring the strategy for filling the empty cells of the 'ceil' cloud (it was always using the 'ground' setting)
+	* [macOS] Fixed the squished text in the Matrix and Axis/Angle sections of the transformation history section of the properties
+	* [macOS] Fixed squished menus in the properties editor
 
 v2.9.1 - 11/03/2017
 ----------------------

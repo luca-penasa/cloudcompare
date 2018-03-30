@@ -25,19 +25,51 @@
 
 //Qt
 #include <QtGui>
-#include <QApplication>
 #include <QMainWindow>
 
-qAnimation::qAnimation(QObject* parent/*=0*/)
-	: QObject(parent)
-	, m_action(0)
+typedef std::vector<cc2DViewportObject*> ViewPortList;
+
+static ViewPortList sGetSelectedViewPorts( const ccHObject::Container &selectedEntities )
+{
+	ViewPortList viewports;
+	
+	for ( ccHObject *object : selectedEntities )
+	{
+		if ( object->getClassID() == CC_TYPES::VIEWPORT_2D_OBJECT )
+		{
+			viewports.push_back( static_cast<cc2DViewportObject*>(object) );
+		}
+	}
+	
+	return viewports;
+}
+
+qAnimation::qAnimation(QObject* parent) :
+	QObject( parent )
+  , ccStdPluginInterface( ":/CC/plugin/qAnimation/info.json" )
+  , m_action( nullptr )
 {
 }
 
 void qAnimation::onNewSelection(const ccHObject::Container& selectedEntities)
 {
-	if (m_action)
-		m_action->setEnabled(!selectedEntities.empty());
+	if ( m_action == nullptr )
+	{
+		return;
+	}
+	
+	ViewPortList viewports = sGetSelectedViewPorts( selectedEntities );
+	
+	if ( viewports.size() >= 2 )
+	{
+		m_action->setEnabled( true );
+		m_action->setToolTip( getDescription() );
+	}
+	else
+	{
+		m_action->setEnabled( false );
+		m_action->setToolTip( tr( "%1\nAt least 2 viewports must be selected.").arg( getDescription() ) );
+	}
 }
 
 void qAnimation::getActions(QActionGroup& group)
@@ -49,7 +81,7 @@ void qAnimation::getActions(QActionGroup& group)
 		m_action->setToolTip(getDescription());
 		m_action->setIcon(getIcon());
 
-		connect(m_action, SIGNAL(triggered()), this, SLOT(doAction()));
+		connect(m_action, &QAction::triggered, this, &qAnimation::doAction);
 	}
 
 	group.addAction(m_action);
@@ -72,42 +104,19 @@ void qAnimation::doAction()
 		return;
 	}
 
-	//get the selected viewpots
-	std::vector<cc2DViewportObject*> selectedViewports;
-	try
-	{
-		for ( ccHObject *object : m_app->getSelectedEntities() )
-		{
-			if (object->getClassID() == CC_TYPES::VIEWPORT_2D_OBJECT)
-			{
-				selectedViewports.push_back(static_cast<cc2DViewportObject*>(object));
-			}
-		}
-	}
-	catch (const std::bad_alloc&)
-	{
-		m_app->dispToConsole("Not enough memory!");
-		return;
-	}
+	ViewPortList viewports = sGetSelectedViewPorts( m_app->getSelectedEntities() );
 
-	//we need at least two viewports!
-	if (selectedViewports.size() < 2)
-	{
-		m_app->dispToConsole("Animation plugin requires at least two selected viewports to function!", ccMainAppInterface::ERR_CONSOLE_MESSAGE);
-		return;
-	}
-	m_app->dispToConsole(QString("[qAnimation] Selected viewports: %1").arg(selectedViewports.size()));
+	Q_ASSERT( viewports.size() >= 2 ); // action will not be active unless we have at least 2 viewports
+
+	m_app->dispToConsole(QString("[qAnimation] Selected viewports: %1").arg(viewports.size()));
 
 	qAnimationDlg videoDlg(glWindow, m_app->getMainWindow());
-	if (!videoDlg.init(selectedViewports))
+	
+	if (!videoDlg.init(viewports))
 	{
 		m_app->dispToConsole("Failed to initialize the plugin dialog (not enough memory?)", ccMainAppInterface::ERR_CONSOLE_MESSAGE);
 		return;
 	}
+	
 	videoDlg.exec();
-}
-
-QIcon qAnimation::getIcon() const
-{
-	return QIcon(":/CC/plugin/qAnimation/animation.png");
 }

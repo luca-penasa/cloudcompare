@@ -46,11 +46,11 @@ void ChunkedPointCloud::clear()
 {
 	m_points->clear();
 	deleteAllScalarFields();
-	placeIteratorAtBegining();
+	placeIteratorAtBeginning();
 	invalidateBoundingBox();
 }
 
-void ChunkedPointCloud::forEach(genericPointAction& action)
+void ChunkedPointCloud::forEach(genericPointAction action)
 {
 	//there's no point of calling forEach if there's no activated scalar field!
 	ScalarField* currentOutScalarFieldArray = getCurrentOutScalarField();
@@ -84,7 +84,7 @@ void ChunkedPointCloud::invalidateBoundingBox()
 	m_validBB = false;
 }
 
-void ChunkedPointCloud::placeIteratorAtBegining()
+void ChunkedPointCloud::placeIteratorAtBeginning()
 {
 	m_currentPointIndex = 0;
 }

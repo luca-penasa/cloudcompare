@@ -16,30 +16,23 @@ include_directories( ${CMAKE_CURRENT_SOURCE_DIR} )
 include_directories( ${CMAKE_CURRENT_SOURCE_DIR}/../qCC )
 include_directories( ${CMAKE_CURRENT_BINARY_DIR} )
 
-set( QCC_HEADERS ../qCC/ccOverlayDialog.h ../qCC/ccCameraParamEditDlg.h ../qCC/ccDisplayOptionsDlg.h ../qCC/ccMouse3DContextMenu.h ../qCC/ccStereoModeDlg.h ../qCC/ccPickOneElementDlg.h ../qCC/ccPickingHub.h )
-set( QCC_SOURCES ../qCC/ccOverlayDialog.cpp ../qCC/ccCameraParamEditDlg.cpp ../qCC/ccDisplayOptionsDlg.cpp ../qCC/ccMouse3DContextMenu.cpp ../qCC/ccStereoModeDlg.cpp ../qCC/ccPickOneElementDlg.cpp ../qCC/ccPickingHub.cpp )
-set( QCC_DIALOGS ../qCC/ui_templates/cameraParamDlg.ui ../qCC/ui_templates/displayOptionsDlg.ui ../qCC/ui_templates/stereoModeDlg.ui ../qCC/ui_templates/pickOneElementDlg.ui )
+file( GLOB header_list *.h )
+file( GLOB source_list *.cpp )
 
-file( GLOB header_list *.h ${QCC_HEADERS} )
-file( GLOB source_list *.cpp ${QCC_SOURCES} )
-file( GLOB ui_list ui_templates/*.ui ${QCC_DIALOGS} )
+file( GLOB ui_list ui_templates/*.ui )
 file( GLOB qrc_list ../qCC/*.qrc )
 file( GLOB rc_list ../qCC/*.rc )
 
+include( CMakeIncludeQCCFiles.cmake )
+
 # 3DX support (3dConnexion devices)
 if ( ${OPTION_SUPPORT_3DCONNEXION_DEVICES} )
-	file( GLOB 3DX_header_list ../qCC/devices/3dConnexion/*.h )
-	file( GLOB 3DX_source_list ../qCC/devices/3dConnexion/*.cpp )
-	list( APPEND header_list ${3DX_header_list} )
-	list( APPEND source_list ${3DX_source_list} )
+	add_subdirectory( ../qCC/devices/3dConnexion devices/3dConnexion )
 endif()	
 
 # Gamepad support (requires Qt 5.7+)
 if ( ${OPTION_SUPPORT_GAMEPADS} )
-	file( GLOB gamepad_header_list ../qCC/devices/gamepad/*.h )
-	file( GLOB gamepad_source_list ../qCC/devices/gamepad/*.cpp )
-	list( APPEND header_list ${gamepad_header_list} )
-	list( APPEND source_list ${gamepad_source_list} )
+	add_subdirectory( ../qCC/devices/gamepad devices/gamepad )
 endif()	
 
 qt5_wrap_ui( generated_ui_list ${ui_list} )
@@ -73,7 +66,7 @@ endif()
 if ( APPLE )
 	target_link_contrib( ${PROJECT_NAME} ${CLOUDCOMPARE_MAC_FRAMEWORK_DIR} )
 elseif( UNIX )
-  target_link_contrib( ${PROJECT_NAME} lib/cloudcompare )
+	target_link_contrib( ${PROJECT_NAME} lib/cloudcompare )
 else()
 	target_link_contrib( ${PROJECT_NAME} ${CCVIEWER_DEST_FOLDER} )
 endif()
@@ -82,6 +75,7 @@ endif()
 if ( ${OPTION_SUPPORT_3DCONNEXION_DEVICES} )
 	target_link_3DXWARE( ${PROJECT_NAME} )
 endif()
+
 # Gamepad support (requires Qt 5.7+)
 if ( ${OPTION_SUPPORT_GAMEPADS} )
 	target_link_GAMEPADS( ${PROJECT_NAME} )
@@ -123,28 +117,28 @@ endif()
 
 # Install auxiliary files
 if(APPLE OR WIN32) # For Linux it's already installed in by qCC
-foreach( filename ${auxFiles} )
-	install_ext( FILES ${filename} ${CCVIEWER_DEST_FOLDER} )
-endforeach()
+	foreach( filename ${auxFiles} )
+		install_ext( FILES ${filename} ${CCVIEWER_DEST_FOLDER} )
+	endforeach()
 endif()
 
 # Put together our App bundle on Mac OS X
 if( APPLE )
-   set_target_properties( ${PROJECT_NAME} PROPERTIES
-       INSTALL_RPATH "@executable_path/../Frameworks"
-       MACOSX_BUNDLE_INFO_PLIST ${CMAKE_CURRENT_SOURCE_DIR}/Mac/ccViewer.plist )
+	set_target_properties( ${PROJECT_NAME} PROPERTIES
+		INSTALL_RPATH "@executable_path/../Frameworks"
+		MACOSX_BUNDLE_INFO_PLIST ${CMAKE_CURRENT_SOURCE_DIR}/Mac/ccViewer.plist )
 
-   set( MACOSX_BUNDLE_ICON_FILE cc_viewer_icon.icns )
-   set( MACOSX_BUNDLE_SHORT_VERSION_STRING "${PROJECT_VERSION}" )
-   set( MACOSX_BUNDLE_LONG_VERSION_STRING "${PROJECT_VERSION}" )
-   set( MACOSX_BUNDLE_BUNDLE_VERSION "${PROJECT_VERSION}" )
+	set( MACOSX_BUNDLE_ICON_FILE cc_viewer_icon.icns )
+	set( MACOSX_BUNDLE_SHORT_VERSION_STRING "${PROJECT_VERSION}" )
+	set( MACOSX_BUNDLE_LONG_VERSION_STRING "${PROJECT_VERSION}" )
+	set( MACOSX_BUNDLE_BUNDLE_VERSION "${PROJECT_VERSION}" )
 
-   add_subdirectory( Mac )
+	add_subdirectory( Mac )
 endif( APPLE )
 
 # Export common shader files to all install destinations
 if( APPLE )
-   install( FILES ${CMAKE_CURRENT_SOURCE_DIR}/../qCC/shaders/ColorRamp/color_ramp.frag DESTINATION ${CCVIEWER_MAC_BASE_DIR}/Contents/Shaders/ColorRamp )
+	install( FILES ${CMAKE_CURRENT_SOURCE_DIR}/../qCC/shaders/ColorRamp/color_ramp.frag DESTINATION ${CCVIEWER_MAC_BASE_DIR}/Contents/Shaders/ColorRamp )
 elseif( WIN32 ) # For Linux it's already installed in by qCC
-   install_ext( FILES ${CMAKE_CURRENT_SOURCE_DIR}/../qCC/shaders/ColorRamp/color_ramp.frag ${CCVIEWER_DEST_FOLDER} /shaders/ColorRamp )
+	install_ext( FILES ${CMAKE_CURRENT_SOURCE_DIR}/../qCC/shaders/ColorRamp/color_ramp.frag ${CCVIEWER_DEST_FOLDER} /shaders/ColorRamp )
 endif()

@@ -51,7 +51,8 @@
 #include "ccPersistentSettings.h"
 
 //plugins
-#include <ccPluginInfo.h>
+#include "ccPluginInterface.h"
+#include "pluginManager/ccPluginManager.h"
 
 #ifdef USE_VLD
 //VLD
@@ -224,63 +225,7 @@ int main(int argc, char **argv)
 	ccColorScalesManager::GetUniqueInstance(); //force pre-computed color tables initialization
 
 	//load the plugins
-	tPluginInfoList plugins;
-	QStringList dirFilters;
-	QStringList pluginPaths;
-	{
-		QString appPath = QCoreApplication::applicationDirPath();
-
-#if defined(Q_OS_MAC)
-		dirFilters << "*.dylib";
-
-		// plugins are in the bundle
-		appPath.remove("MacOS");
-
-		pluginPaths += (appPath + "PlugIns/ccPlugins");
-#if defined(CC_MAC_DEV_PATHS)
-		// used for development only - this is the path where the plugins are built
-		// this avoids having to install into the application bundle when developing
-		pluginPaths += (appPath + "../../../ccPlugins");
-#endif
-#elif defined(Q_OS_WIN)
-		dirFilters << "*.dll";
-
-		//plugins are in bin/plugins
-		pluginPaths << (appPath + "/plugins");
-#elif defined(Q_OS_LINUX)
-		dirFilters << "*.so";
-
-		// Plugins are relative to the bin directory where the executable is found
-		QDir  binDir(appPath);
-
-		if (binDir.dirName() == "bin")
-		{
-			binDir.cdUp();
-
-			pluginPaths << (binDir.absolutePath() + "/lib/cloudcompare/plugins");
-		}
-		else
-		{
-			// Choose a reasonable default to look in
-			pluginPaths << "/usr/lib/cloudcompare/plugins";
-		}
-#else
-		#warning Need to specify the plugin path for this OS.
-#endif
-
-#ifdef Q_OS_MAC
-		// Add any app data paths
-		// Plugins in these directories take precendence over the included ones
-		QStringList appDataPaths = QStandardPaths::standardLocations(QStandardPaths::AppDataLocation);
-
-		for (const QString &appDataPath : appDataPaths)
-		{
-			pluginPaths << (appDataPath + "/plugins");
-		}
-#endif
-	}
-
-	ccPlugins::LoadPlugins(plugins, pluginPaths, dirFilters);
+	ccPluginManager::loadPlugins();
 	
 	int result = 0;
 
@@ -288,7 +233,7 @@ int main(int argc, char **argv)
 	if (commandLine)
 	{
 		//command line processing (no GUI)
-		result = ccCommandLineParser::Parse(argc, argv, &plugins);
+		result = ccCommandLineParser::Parse(argc, argv, ccPluginManager::pluginList());
 	}
 	else
 	{
@@ -299,7 +244,7 @@ int main(int argc, char **argv)
 			QMessageBox::critical(0, "Error", "Failed to initialize the main application window?!");
 			return EXIT_FAILURE;
 		}
-		mainWindow->setupPluginDispatch(plugins, pluginPaths);
+		mainWindow->initPlugins();
 		mainWindow->show();
 		QApplication::processEvents();
 
@@ -329,15 +274,15 @@ int main(int argc, char **argv)
 					QString pluginNameUpper = pluginName.toUpper();
 					//look for this plugin
 					bool found = false;
-					for (const tPluginInfo &plugin : plugins)
+					for ( ccPluginInterface *plugin : ccPluginManager::pluginList() )
 					{
-						if (plugin.object->getName().replace(' ', '_').toUpper() == pluginNameUpper)
+						if (plugin->getName().replace(' ', '_').toUpper() == pluginNameUpper)
 						{
 							found = true;
-							bool success = plugin.object->start();
+							bool success = plugin->start();
 							if (!success)
 							{
-								ccLog::Error(QString("Failed to start the plugin '%1'").arg(plugin.object->getName()));
+								ccLog::Error(QString("Failed to start the plugin '%1'").arg(plugin->getName()));
 							}
 							break;
 						}
@@ -350,7 +295,7 @@ int main(int argc, char **argv)
 				}
 				else
 				{
-					filenames << arg;
+					filenames << QString::fromLocal8Bit(argv[i]);
 				}
 			}
 
@@ -378,15 +323,9 @@ int main(int argc, char **argv)
 		}
 
 		//release the plugins
-		for (tPluginInfo &plugin : plugins)
+		for ( ccPluginInterface *plugin : ccPluginManager::pluginList() )
 		{
-			plugin.object->stop(); //just in case
-			if (!plugin.qObject->parent())
-			{
-				delete plugin.object;
-				plugin.object = 0;
-				plugin.qObject = 0;
-			}
+			plugin->stop(); //just in case
 		}
 	}
 

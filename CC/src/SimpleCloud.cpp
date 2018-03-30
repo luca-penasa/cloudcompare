@@ -44,7 +44,7 @@ void SimpleCloud::clear()
 {
 	m_scalarField->clear();
 	m_points->clear();
-	placeIteratorAtBegining();
+	placeIteratorAtBeginning();
 	m_validBB=false;
 }
 
@@ -65,7 +65,7 @@ void SimpleCloud::addPoint(const PointCoordinateType P[])
 	m_validBB=false;
 }
 
-void SimpleCloud::forEach(genericPointAction& action)
+void SimpleCloud::forEach(genericPointAction action)
 {
 	unsigned n = m_points->currentSize();
 
@@ -129,7 +129,7 @@ bool SimpleCloud::resize(unsigned n)
 	return true;
 }
 
-void SimpleCloud::placeIteratorAtBegining()
+void SimpleCloud::placeIteratorAtBeginning()
 {
 	globalIterator = 0;
 }

@@ -50,7 +50,7 @@ unsigned SimpleMesh::size() const
     return m_triIndexes->currentSize();
 };
 
-void SimpleMesh::forEach(genericTriangleAction& action)
+void SimpleMesh::forEach(genericTriangleAction action)
 {
 	SimpleTriangle tri;
 	unsigned count = m_triIndexes->currentSize();
@@ -64,7 +64,7 @@ void SimpleMesh::forEach(genericTriangleAction& action)
 	}
 }
 
-void SimpleMesh::placeIteratorAtBegining()
+void SimpleMesh::placeIteratorAtBeginning()
 {
 	globalIterator = 0;
 }
@@ -130,7 +130,7 @@ void SimpleMesh::getBoundingBox(CCVector3& bbMin, CCVector3& bbMax)
         unsigned i,n=m_triIndexes->size();
         if (n>0)
         {
-            m_triIndexes->placeIteratorAtBegining();
+            m_triIndexes->placeIteratorAtBeginning();
             for (i=0;i<n;++i)
             {
                 const unsigned *ti = m_triIndexes->getCurrentValue();

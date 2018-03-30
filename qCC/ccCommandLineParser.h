@@ -5,7 +5,7 @@
 #include "../plugins/ccCommandLineInterface.h"
 
 //Local
-#include "ccPluginInfo.h"
+#include "pluginManager/ccPluginManager.h"
 
 class ccProgressDialog;
 class QDialog;
@@ -16,7 +16,7 @@ class ccCommandLineParser : public ccCommandLineInterface
 public:
 
 	//! Parses the input command
-	static int Parse(int nargs, char** args, tPluginInfoList* plugins = 0);
+	static int Parse(int nargs, char** args, ccPluginInterfaceList& plugins);
 
 	//! Destructor
 	virtual ~ccCommandLineParser();
@@ -41,8 +41,8 @@ public:
 	virtual void print(const QString& message) const override;
 	virtual void warning(const QString& message) const override;
 	virtual bool error(const QString& message) const override; //must always return false!
-	virtual bool saveClouds(QString suffix = QString(), bool allAtOnce = false) override;
-	virtual bool saveMeshes(QString suffix = QString(), bool allAtOnce = false) override;
+	virtual bool saveClouds(QString suffix = QString(), bool allAtOnce = false, const QString* allAtOnceFileName = 0) override;
+	virtual bool saveMeshes(QString suffix = QString(), bool allAtOnce = false, const QString* allAtOnceFileName = 0) override;
 	virtual bool importFile(QString filename, FileIOFilter::Shared filter = FileIOFilter::Shared(0)) override;
 	virtual QString cloudExportFormat() const override { return m_cloudExportFormat; }
 	virtual QString cloudExportExt() const override { return m_cloudExportExt; }
