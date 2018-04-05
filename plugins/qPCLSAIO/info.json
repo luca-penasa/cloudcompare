@@ -1,0 +1,21 @@
+{
+  "type": "I/O",
+  "name": "PCD Standalone file I/O",
+  "description": "Open PCD files (miniplc included library).",
+  "authors": [
+    {
+      "name": "Luca Penasa"
+    }
+  ],
+  "maintainers": [
+    {
+      "name": "Luca Penasa"
+    }
+  ],
+  "references": [
+    {
+      "text": "PCL library",
+      "url": "http://pointclouds.org/"
+    }
+  ]
+}
