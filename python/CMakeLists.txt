@@ -33,5 +33,32 @@ cmake_policy(SET CMP0071 OLD)
 message("flags ${PYQT_SIP_FLAGS}")
 #set(SIP_EXTRA_FILES_DEPEND python/core/cc.sip)
 #set(SIP_EXTRA_SOURCE_FILES python/PythonMessage.cpp)
-set(SIP_EXTRA_OPTIONS ${PYQT_SIP_FLAGS} -g -I ${PYQT5_SIP_DIR}) # -g means always release the GIL before calling C++ methods.
-add_sip_python_module(cc core/cc.sip QCC_DB_LIB QCC_IO_LIB)
+set(SIP_EXTRA_OPTIONS ${PYQT_SIP_FLAGS} -g) # -g means always release the GIL before calling C++ methods.
+set(SIP_INCLUDES ${PYQT5_SIP_DIR})
+add_sip_python_module(_cc cc/cc_mod.sip CC_CORE_LIB)
+add_sip_python_module(_db db/db_mod.sip QCC_DB_LIB CC_CORE_LIB)
+add_sip_python_module(_io io/io_mod.sip QCC_IO_LIB )
+
+MACRO(GENERATE_MODULE_INIT_FILE MODULE_NAME)
+    file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/pycc/${MODULE_NAME}/__init__.py "from pycc._${MODULE_NAME} import *")
+ENDMACRO()
+
+file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/pycc/__init__.py "")
+
+
+set(MODULES_NAMES cc db io)
+
+FOREACH(module ${MODULES_NAMES})
+    GENERATE_MODULE_INIT_FILE(cc)
+
+#    file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/pycc/${module}/__init__.py "import ${module}")
+
+    message("writing init for module ${module}")
+	file(APPEND ${CMAKE_CURRENT_BINARY_DIR}/pycc/__init__.py "import pycc.${module} \n")
+ENDFOREACH()
+
+
+
+
+
+#configure_file(__init__.py ${CMAKE_CURRENT_BINARY_DIR} COPYONLY)

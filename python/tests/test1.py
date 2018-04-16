@@ -1,14 +1,17 @@
 import sys
-sys.path.append("/home/luca/Code/cloudcompare-official.git/build-cloudcompare-official.git-clang-Default/python")
+sys.path.append("/run/media/luca/data/Code/cloudcompare.git/build-gcc-Default/python")
 
-import cc
-f = cc.BinFilter()
+import pycc
+from pycc.io import  BinFilter, FileIOFilter
+from pycc.db import ccHObject, ccPointCloud, ccHObjectCaster
 
-lpars = cc.FileIOFilter.LoadParameters()
+f = BinFilter()
 
-caster = cc.ccHObjectCaster()
+lpars = FileIOFilter.LoadParameters()
 
-out = cc.ccHObject("out")
+caster = ccHObjectCaster()
+
+out = ccHObject("out")
 
 fname = "/data/SciDataHub/projects/golarossamodels/offcuts_alltogether_third_clean.bin"
 
@@ -25,7 +28,7 @@ for id in range(nchilds):
     print(cloud)
     clouds.append(cloud)
 
-savepars = cc.FileIOFilter.SaveParameters()
+savepars = FileIOFilter.SaveParameters()
 
 for id, c in enumerate(clouds):
     print (c.size())
