@@ -7,3 +7,9 @@ Experimental python wrappings for cloudcompare
 
 
 SIP is used to expose classes
+
+the python module can be imported as
+
+```python
+import pycc
+```
