@@ -7,3 +7,6 @@
 [submodule "plugins/vombat"]
 	path = plugins/3rdParty/vombat
 	url = https://github.com/luca-penasa/vombat.git
+[submodule "plugins/3rdParty/vombat"]
+	path = plugins/3rdParty/vombat
+	url = https://github.com/luca-penasa/vombat.git
