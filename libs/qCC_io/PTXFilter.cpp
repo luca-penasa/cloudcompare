@@ -27,13 +27,12 @@
 #include <ccGriddedTools.h>
 
 //Qt
-#include <QFile>
 #include <QTextStream>
 #include <QMessageBox>
 
 //System
-#include <assert.h>
-#include <string.h>
+#include <cassert>
+#include <string>
 
 const char CC_PTX_INTENSITY_FIELD_NAME[] = "Intensity";
 
@@ -103,13 +102,14 @@ CC_FILE_ERROR PTXFilter::loadFile(	const QString& filename,
 
 	CCVector3d PshiftTrans(0, 0, 0);
 	CCVector3d PshiftCloud(0, 0, 0);
+	bool preserveCoordinateShift = true;
 
 	CC_FILE_ERROR result = CC_FERR_NO_LOAD;
 	ScalarType minIntensity = 0;
 	ScalarType maxIntensity = 0;
 
 	//progress dialog
-	QScopedPointer<ccProgressDialog> pDlg(0);
+	QScopedPointer<ccProgressDialog> pDlg(nullptr);
 	if (parameters.parentWidget)
 	{
 		pDlg.reset(new ccProgressDialog(true, parameters.parentWidget));
@@ -118,7 +118,7 @@ CC_FILE_ERROR PTXFilter::loadFile(	const QString& filename,
 	}
 
 	//progress dialog (for normals computation)
-	QScopedPointer<ccProgressDialog> normalsProgressDlg(0);
+	QScopedPointer<ccProgressDialog> normalsProgressDlg(nullptr);
 	if (parameters.parentWidget && parameters.autoComputeNormals)
 	{
 		normalsProgressDlg.reset(new ccProgressDialog(true, parameters.parentWidget));
@@ -158,7 +158,7 @@ CC_FILE_ERROR PTXFilter::loadFile(	const QString& filename,
 				if (tokens.size() != 3)
 					return CC_FERR_MALFORMED_FILE;
 
-				double* colDest = 0;
+				double* colDest = nullptr;
 				if (i == 0)
 				{
 					//Translation
@@ -203,7 +203,7 @@ CC_FILE_ERROR PTXFilter::loadFile(	const QString& filename,
 			//handle Global Shift directly on the first cloud's translation!
 			if (cloudIndex == 0)
 			{
-				if (HandleGlobalShift(cloudTransD.getTranslationAsVec3D(), PshiftTrans, parameters))
+				if (HandleGlobalShift(cloudTransD.getTranslationAsVec3D(), PshiftTrans, preserveCoordinateShift, parameters))
 				{
 					ccLog::Warning("[PTXFilter::loadFile] Cloud has be recentered! Translation: (%.2f ; %.2f ; %.2f)", PshiftTrans.x, PshiftTrans.y, PshiftTrans.z);
 				}
@@ -223,8 +223,9 @@ CC_FILE_ERROR PTXFilter::loadFile(	const QString& filename,
 		else
 		{
 			if (container.getChildrenNumber() == 1)
+			{
 				container.getChild(0)->setName("unnamed - Cloud 1"); //update previous cloud name!
-
+			}
 			cloud->setName(QString("unnamed - Cloud %1").arg(container.getChildrenNumber() + 1));
 		}
 
@@ -233,12 +234,15 @@ CC_FILE_ERROR PTXFilter::loadFile(	const QString& filename,
 		{
 			result = CC_FERR_NOT_ENOUGH_MEMORY;
 			delete cloud;
-			cloud = 0;
+			cloud = nullptr;
 			break;
 		}
 
 		//set global shift
-		cloud->setGlobalShift(PshiftTrans);
+		if (preserveCoordinateShift)
+		{
+			cloud->setGlobalShift(PshiftTrans);
+		}
 
 		//intensities
 		ccScalarField* intensitySF = new ccScalarField(CC_PTX_INTENSITY_FIELD_NAME);
@@ -246,7 +250,7 @@ CC_FILE_ERROR PTXFilter::loadFile(	const QString& filename,
 		{
 			ccLog::Warning("[PTX] Not enough memory to load intensities!");
 			intensitySF->release();
-			intensitySF = 0;
+			intensitySF = nullptr;
 		}
 
 		//grid structure
@@ -344,9 +348,12 @@ CC_FILE_ERROR PTXFilter::loadFile(	const QString& filename,
 							if (cloudIndex == 0 && !cloud->isShifted()) //in case the trans. matrix was ok!
 							{
 								CCVector3d P(Pd);
-								if (HandleGlobalShift(P, PshiftCloud, parameters))
+								if (HandleGlobalShift(P, PshiftCloud, preserveCoordinateShift, parameters))
 								{
-									cloud->setGlobalShift(PshiftCloud);
+									if (preserveCoordinateShift)
+									{
+										cloud->setGlobalShift(PshiftCloud);
+									}
 									ccLog::Warning("[PTXFilter::loadFile] Cloud has been recentered! Translation: (%.2f ; %.2f ; %.2f)", PshiftCloud.x, PshiftCloud.y, PshiftCloud.z);
 								}
 							}
@@ -417,7 +424,7 @@ CC_FILE_ERROR PTXFilter::loadFile(	const QString& filename,
 		if (cloud->size() == 0)
 		{
 			delete cloud;
-			cloud = 0;
+			cloud = nullptr;
 			if (intensitySF)
 				intensitySF->release();
 

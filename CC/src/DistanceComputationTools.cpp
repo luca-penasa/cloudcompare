@@ -21,20 +21,20 @@
 //local
 #include "ChunkedPointCloud.h"
 #include "DgmOctreeReferenceCloud.h"
+#include "FastMarchingForPropagation.h"
+#include "LocalModel.h"
 #include "ReferenceCloud.h"
 #include "SaitoSquaredDistanceTransform.h"
-#include "FastMarchingForPropagation.h"
-#include "ScalarFieldTools.h"
-#include "LocalModel.h"
-#include "SimpleTriangle.h"
 #include "ScalarField.h"
+#include "ScalarFieldTools.h"
+#include "SimpleTriangle.h"
 
 //system
-#include <assert.h>
+#include <cassert>
 
 
 #ifdef USE_QT
-#ifndef QT_DEBUG
+#ifndef CC_DEBUG
 //enables multi-threading handling
 #define ENABLE_CLOUD2MESH_DIST_MT
 #endif
@@ -88,9 +88,9 @@ namespace CCLib
 
 		//! Default constructor
 		OctreeAndMeshIntersection()
-			: octree(0)
-			, mesh(0)
-			, distanceTransform(0)
+			: octree(nullptr)
+			, mesh(nullptr)
+			, distanceTransform(nullptr)
 			, minFillIndexes(0,0,0)
 			, maxFillIndexes(0,0,0)
 		{}
@@ -111,7 +111,7 @@ namespace CCLib
 			if (distanceTransform)
 			{
 				delete distanceTransform;
-				distanceTransform = 0;
+				distanceTransform = nullptr;
 			}
 		}
 	};
@@ -246,12 +246,12 @@ int DistanceComputationTools::computeCloud2CloudDistance(	GenericIndexedCloudPer
 	if (comparedOctree && !compOctree)
 	{
 		delete comparedOctree;
-		comparedOctree = 0;
+		comparedOctree = nullptr;
 	}
 	if (referenceOctree && !refOctree)
 	{
 		delete referenceOctree;
-		referenceOctree = 0;
+		referenceOctree = nullptr;
 	}
 
 	return result;
@@ -342,7 +342,7 @@ DistanceComputationTools::SOReturnCode
 			if (octreeACreated)
 			{
 				delete comparedOctree;
-				comparedOctree = 0;
+				comparedOctree = nullptr;
 			}
 			return OUT_OF_MEMORY;
 		}
@@ -382,12 +382,12 @@ DistanceComputationTools::SOReturnCode
 			if (octreeACreated)
 			{
 				delete comparedOctree;
-				comparedOctree = 0;
+				comparedOctree = nullptr;
 			}
 			if (octreeBCreated)
 			{
 				delete referenceOctree;
-				referenceOctree = 0;
+				referenceOctree = nullptr;
 			}
 			return OUT_OF_MEMORY;
 		}
@@ -546,7 +546,7 @@ bool DistanceComputationTools::computeCellHausdorffDistanceWithLocalModel(	const
 				referenceCloud->getPoint(nNSS.theNearestPointIndex, nearestPoint);
 
 				//local model for the 'nearest point'
-				const LocalModel* lm = 0;
+				const LocalModel* lm = nullptr;
 
 				if (params->reuseExistingLocalModels)
 				{
@@ -660,7 +660,7 @@ bool DistanceComputationTools::computeCellHausdorffDistanceWithLocalModel(	const
 					{
 						//we don't need the local model anymore!
 						delete lm;
-						lm = 0;
+						lm = nullptr;
 					}
 
 					if (computeSplitDistances)
@@ -985,7 +985,7 @@ void ComparePointsAndTriangles(	ReferenceCloud& Yk,
 	bool firstComparisonDone = (trianglesToTestCount != 0);
 
 	CCVector3 nearestPoint;
-	CCVector3* _nearestPoint = params.CPSet ? &nearestPoint : 0;
+	CCVector3* _nearestPoint = params.CPSet ? &nearestPoint : nullptr;
 
 	//for each triangle
 	while (trianglesToTestCount != 0)
@@ -1083,16 +1083,14 @@ int ComputeMaxNeighborhoodLength(ScalarType maxSearchDist, PointCoordinateType c
 #include <QtConcurrentMap>
 
 /*** MULTI THREADING WRAPPER ***/
-
-static DgmOctree* s_octree_MT = 0;
-static NormalizedProgress* s_normProgressCb_MT = 0;
-static OctreeAndMeshIntersection* s_intersection_MT = 0;
+static DgmOctree* s_octree_MT = nullptr;
+static NormalizedProgress* s_normProgressCb_MT = nullptr;
+static OctreeAndMeshIntersection* s_intersection_MT = nullptr;
 static bool s_cellFunc_MT_success = true;
 static CCLib::DistanceComputationTools::Cloud2MeshDistanceComputationParams s_params_MT;
 
 //'processTriangles' mechanism (based on bit mask)
-#include <QtCore/QBitArray>
-static std::vector<QBitArray*> s_bitArrayPool_MT;
+static std::vector<std::vector<bool>*> s_bitArrayPool_MT;
 static bool s_useBitArrays_MT = true;
 static QMutex s_currentBitMaskMutex;
 
@@ -1177,15 +1175,14 @@ void cloudMeshDistCellFunc_MT(const DgmOctree::IndexAndCode& desc)
 	size_t trianglesToTestCapacity = 0;
 
 	//bit mask for efficient comparisons
-	QBitArray* bitArray = 0;
+	std::vector<bool>* bitArray = nullptr;
 	if (s_useBitArrays_MT)
 	{
+		const unsigned numTri = s_intersection_MT->mesh->size();
 		s_currentBitMaskMutex.lock();
 		if (s_bitArrayPool_MT.empty())
 		{
-			bitArray = new QBitArray();
-			bitArray->resize(s_intersection_MT->mesh->size());
-			//s_bitArrayPool_MT.push_back(bitArray);
+			bitArray = new std::vector<bool>(numTri);
 		}
 		else
 		{
@@ -1193,7 +1190,7 @@ void cloudMeshDistCellFunc_MT(const DgmOctree::IndexAndCode& desc)
 			s_bitArrayPool_MT.pop_back();
 		}
 		s_currentBitMaskMutex.unlock();
-		bitArray->fill(0);
+		bitArray->assign(numTri, false);
 	}
 
 	//for each point, we pre-compute its distance to the nearest cell border
@@ -1252,12 +1249,12 @@ void cloudMeshDistCellFunc_MT(const DgmOctree::IndexAndCode& desc)
 							{
 								if (bitArray)
 								{
-									unsigned indexTri = triList->indexes[p];
+									const unsigned indexTri = triList->indexes[p];
 									//if the triangles has not been processed yet
-									if (!bitArray->testBit(indexTri))
+									if (!(*bitArray)[indexTri])
 									{
 										trianglesToTest[trianglesToTestCount++] = indexTri;
-										bitArray->setBit(indexTri);
+										(*bitArray)[indexTri] = true;
 									}
 								}
 								else
@@ -1289,10 +1286,10 @@ void cloudMeshDistCellFunc_MT(const DgmOctree::IndexAndCode& desc)
 								{
 									const unsigned& indexTri = triList->indexes[p];
 									//if the triangles has not been processed yet
-									if (!bitArray->testBit(indexTri))
+									if (!(*bitArray)[indexTri])
 									{
 										trianglesToTest[trianglesToTestCount++] = indexTri;
-										bitArray->setBit(indexTri);
+										(*bitArray)[indexTri] = true;
 									}
 								}
 								else
@@ -1322,10 +1319,10 @@ void cloudMeshDistCellFunc_MT(const DgmOctree::IndexAndCode& desc)
 								{
 									const unsigned& indexTri = triList->indexes[p];
 									//if the triangles has not been processed yet
-									if (!bitArray->testBit(indexTri))
+									if (!(*bitArray)[indexTri])
 									{
 										trianglesToTest[trianglesToTestCount++] = indexTri;
-										bitArray->setBit(indexTri);
+										(*bitArray)[indexTri] = true;
 									}
 								}
 								else
@@ -1342,7 +1339,7 @@ void cloudMeshDistCellFunc_MT(const DgmOctree::IndexAndCode& desc)
 		ComparePointsAndTriangles(Yk, remainingPoints, s_intersection_MT->mesh, trianglesToTest, trianglesToTestCount, minDists, maxRadius, s_params_MT);
 	}
 
-	//release bit mask
+	//Save the bit mask
 	if (bitArray)
 	{
 		s_currentBitMaskMutex.lock();
@@ -1743,9 +1740,9 @@ int DistanceComputationTools::computeCloud2MeshDistanceWithOctree(	OctreeAndMesh
 		QThreadPool::globalInstance()->setMaxThreadCount(maxThreadCount);
 		QtConcurrent::blockingMap(cellsDescs, cloudMeshDistCellFunc_MT);
 
-		s_octree_MT = 0;
-		s_normProgressCb_MT = 0;
-		s_intersection_MT = 0;
+		s_octree_MT = nullptr;
+		s_normProgressCb_MT = nullptr;
+		s_intersection_MT = nullptr;
 
 		//clean acceleration structure
 		while (!s_bitArrayPool_MT.empty())
@@ -2335,7 +2332,7 @@ bool DistanceComputationTools::computeGeodesicDistances(GenericIndexedCloudPersi
 		result = fm.setPropagationTimingsAsDistances();
 
 	delete octree;
-	octree = 0;
+	octree = nullptr;
 
 	return result;
 }
@@ -2499,12 +2496,12 @@ int DistanceComputationTools::computeApproxCloud2CloudDistance(	GenericIndexedCl
 	if (!compOctree)
 	{
 		delete octreeA;
-		octreeA = 0;
+		octreeA = nullptr;
 	}
 	if (!refOctree)
 	{
 		delete octreeB;
-		octreeB = 0;
+		octreeB = nullptr;
 	}
 
 	return result;

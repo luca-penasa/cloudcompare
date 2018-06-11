@@ -16,6 +16,7 @@
 //##########################################################################
 
 #include "DxfFilter.h"
+#include "FileIO.h"
 
 //CCLib
 #include <ScalarField.h>
@@ -34,7 +35,7 @@
 #endif
 
 //system
-#include <assert.h>
+#include <cassert>
 
 bool DxfFilter::canLoadExtension(const QString& upperCaseExt) const
 {
@@ -63,12 +64,13 @@ public:
 	//! Default constructor
 	DxfImporter(ccHObject* root, FileIOFilter::LoadParameters& parameters)
 		: m_root(root)
-		, m_points(0)
-		, m_faces(0)
-		, m_poly(0)
-		, m_polyVertices(0)
+		, m_points(nullptr)
+		, m_faces(nullptr)
+		, m_poly(nullptr)
+		, m_polyVertices(nullptr)
 		, m_firstPoint(true)
 		, m_globalShift(0, 0, 0)
+		, m_preserveCoordinateShift(false)
 		, m_loadParameters(parameters)
 	{
 		assert(m_root);
@@ -79,7 +81,7 @@ public:
 		CCVector3d P(x, y, z);
 		if (m_firstPoint)
 		{
-			if (FileIOFilter::HandleGlobalShift(P, m_globalShift, m_loadParameters))
+			if (FileIOFilter::HandleGlobalShift(P, m_globalShift, m_preserveCoordinateShift, m_loadParameters))
 			{
 				ccLog::Warning("[DXF] All points/vertices will been recentered! Translation: (%.2f ; %.2f ; %.2f)", m_globalShift.x, m_globalShift.y, m_globalShift.z);
 			}
@@ -92,10 +94,13 @@ public:
 
 	void applyGlobalShift()
 	{
-		if (m_points)
-			m_points->setGlobalShift(m_globalShift);
-		if (m_polyVertices)
-			m_polyVertices->setGlobalShift(m_globalShift);
+		if (m_preserveCoordinateShift)
+		{
+			if (m_points)
+				m_points->setGlobalShift(m_globalShift);
+			if (m_polyVertices)
+				m_polyVertices->setGlobalShift(m_globalShift);
+		}
 	}
 
 	virtual void addLayer(const DL_LayerData& data)
@@ -160,8 +165,8 @@ public:
 		{
 			ccLog::Error("[DxfImporter] Not enough memory!");
 			delete m_poly;
-			m_polyVertices = 0;
-			m_poly = 0;
+			m_polyVertices = nullptr;
+			m_poly = nullptr;
 			return;
 		}
 		m_polyVertices->setEnabled(false);
@@ -219,7 +224,10 @@ public:
 			m_faces->setVisible(true);
 			vertices->setEnabled(false);
 			//vertices->setLocked(true);  //DGM: no need to lock it as it is only used by one mesh!
-			vertices->setGlobalShift(m_globalShift);
+			if (m_preserveCoordinateShift)
+			{
+				vertices->setGlobalShift(m_globalShift);
+			}
 
 			m_root->addChild(m_faces);
 		}
@@ -239,7 +247,7 @@ public:
 
 		//current face color
 		ccColor::Rgb col;
-		ccColor::Rgb* faceCol = 0;
+		ccColor::Rgb* faceCol = nullptr;
 		if (getCurrentColour(col))
 			faceCol = &col;
 
@@ -410,7 +418,10 @@ public:
 		polyVertices->addPoint(convertPoint(line.x1, line.y1, line.z1));
 		//add second point
 		polyVertices->addPoint(convertPoint(line.x2, line.y2, line.z2));
-		polyVertices->setGlobalShift(m_globalShift);
+		if (m_preserveCoordinateShift)
+		{
+			polyVertices->setGlobalShift(m_globalShift);
+		}
 
 		//flags
 		poly->setClosed(false);
@@ -480,6 +491,8 @@ private:
 
 	//! Global shift
 	CCVector3d m_globalShift;
+	//! Whether to preserve the global shift info or not
+	bool m_preserveCoordinateShift;
 
 	//! Load parameters
 	FileIOFilter::LoadParameters m_loadParameters;
@@ -613,6 +626,9 @@ CC_FILE_ERROR DxfFilter::saveToFile(ccHObject* root, const QString& filename, co
 
 	try
 	{
+		dxf.writeComment(*dw, FileIO::createdBy().toStdString() );
+		dxf.writeComment(*dw, FileIO::createdDateTime().toStdString() );
+
 		//write header
 		dxf.writeHeader(*dw);
 
@@ -861,7 +877,7 @@ CC_FILE_ERROR DxfFilter::saveToFile(ccHObject* root, const QString& filename, co
 	}
 
 	delete dw;
-	dw = 0;
+	dw = nullptr;
 
 	return result;
 

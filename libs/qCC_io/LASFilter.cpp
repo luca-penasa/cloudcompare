@@ -402,7 +402,7 @@ CC_FILE_ERROR LASFilter::saveToFile(ccHObject* entity, const QString& filename, 
 		if (ptsWritten == numberOfPoints)
 			return false;
 
-		if (pDlg->isCancelRequested())
+		if (pDlg && pDlg->isCancelRequested())
 		{
 			callbackError = CC_FERR_CANCELED_BY_USER;
 			return false;
@@ -1073,13 +1073,16 @@ CC_FILE_ERROR LASFilter::loadFile(const QString& filename, ccHObject& container,
 			QObject::connect(&reader, SIGNAL(finished()), pDlg.data(), SLOT(reset()));
 			reader.setFuture(QtConcurrent::run(prepareAndExecture));
 
-			pDlg->exec();
+			if (pDlg)
+			{
+				pDlg->exec();
+			}
 			reader.waitForFinished();
 		
 			PointViewSet viewSet = reader.result();
 			PointViewPtr pointView = *viewSet.begin();
 
-			if (parameters.parentWidget)
+			if (parameters.parentWidget && pDlg)
 			{
 				pDlg.reset(new ccProgressDialog(true, parameters.parentWidget)); //cancel available
 				pDlg->setMethodTitle(QObject::tr("Tiling points"));
@@ -1121,6 +1124,7 @@ CC_FILE_ERROR LASFilter::loadFile(const QString& filename, ccHObject& container,
 		ccPointCloud* loadedCloud = nullptr;
 		std::vector< LasField::Shared > fieldsToLoad;
 		CCVector3d Pshift(0, 0, 0);
+		bool preserveCoordinateShift = true;
 
 		unsigned int fileChunkSize = 0;
 		unsigned int nbPointsRead = 0;
@@ -1134,7 +1138,7 @@ CC_FILE_ERROR LASFilter::loadFile(const QString& filename, ccHObject& container,
 		CC_FILE_ERROR callbackError = CC_FERR_NO_ERROR;
 		auto ccProcessOne = [&](PointRef& point)
 		{
-			if (pDlg->isCancelRequested())
+			if (pDlg && pDlg->isCancelRequested())
 			{
 				callbackError = CC_FERR_CANCELED_BY_USER;
 				return false;
@@ -1154,7 +1158,10 @@ CC_FILE_ERROR LASFilter::loadFile(const QString& filename, ccHObject& container,
 					return false;
 				}
 
-				pointChunk.loadedCloud->setGlobalShift(Pshift);
+				if (preserveCoordinateShift)
+				{
+					pointChunk.loadedCloud->setGlobalShift(Pshift);
+				}
 
 				//save the Spatial reference as meta-data
 				SpatialReference srs = lasHeader.srs();
@@ -1198,9 +1205,12 @@ CC_FILE_ERROR LASFilter::loadFile(const QString& filename, ccHObject& container,
 						}
 				}
 
-				if (HandleGlobalShift(P, Pshift, parameters, useLasShift))
+				if (HandleGlobalShift(P, Pshift, preserveCoordinateShift, parameters, useLasShift))
 				{
-					loadedCloud->setGlobalShift(Pshift);
+					if (preserveCoordinateShift)
+					{
+						loadedCloud->setGlobalShift(Pshift);
+					}
 					ccLog::Warning("[LAS] Cloud has been recentered! Translation: (%.2f ; %.2f ; %.2f)", Pshift.x, Pshift.y, Pshift.z);
 				}
 

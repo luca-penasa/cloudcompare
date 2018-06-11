@@ -143,6 +143,8 @@ void ccPluginInfoDlg::setPluginList( const QList<ccPluginInterface *> &pluginLis
 	
 	if ( !pluginList.empty() )
 	{
+		m_ItemModel->sort( 0 );
+		
 		QModelIndex	index = m_ItemModel->index( 0, 0 );
 		
 		m_UI->mPluginListView->setCurrentIndex( index );
@@ -234,9 +236,13 @@ void ccPluginInfoDlg::updatePluginInfo( const ccPluginInterface *plugin )
 	if ( !referenceText.isEmpty() )
 	{
 		m_UI->mReferencesTextBrowser->setHtml( referenceText );
+		m_UI->mReferencesLabel->show();
+		m_UI->mReferencesTextBrowser->show();
 	}
 	else
 	{
+		m_UI->mReferencesLabel->hide();
+		m_UI->mReferencesTextBrowser->hide();
 		m_UI->mReferencesTextBrowser->clear();
 	}
 	

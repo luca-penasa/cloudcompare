@@ -16,13 +16,13 @@
 //#                                                                        #
 //##########################################################################
 
-#include "../include/Neighbourhood.h"
+#include "Neighbourhood.h"
 
 //local
-#include "Delaunay2dMesh.h"
-#include "ConjugateGradient.h"
-#include "DistanceComputationTools.h"
 #include "ChunkedPointCloud.h"
+#include "ConjugateGradient.h"
+#include "Delaunay2dMesh.h"
+#include "DistanceComputationTools.h"
 #include "SimpleMesh.h"
 
 //Eigenvalues decomposition
@@ -73,7 +73,7 @@ const CCVector3* Neighbourhood::getGravityCenter()
 {
 	if (!(m_structuresValidity & FLAG_GRAVITY_CENTER))
 		computeGravityCenter();
-	return ((m_structuresValidity & FLAG_GRAVITY_CENTER) ? &m_gravityCenter : 0);
+	return ((m_structuresValidity & FLAG_GRAVITY_CENTER) ? &m_gravityCenter : nullptr);
 }
 
 void Neighbourhood::setGravityCenter(const CCVector3& G)
@@ -86,7 +86,7 @@ const PointCoordinateType* Neighbourhood::getLSPlane()
 {
 	if (!(m_structuresValidity & FLAG_LS_PLANE))
 		computeLeastSquareBestFittingPlane();
-	return ((m_structuresValidity & FLAG_LS_PLANE) ? m_lsPlaneEquation : 0);
+	return ((m_structuresValidity & FLAG_LS_PLANE) ? m_lsPlaneEquation : nullptr);
 }
 
 void Neighbourhood::setLSPlane(	const PointCoordinateType eq[4],
@@ -106,21 +106,21 @@ const CCVector3* Neighbourhood::getLSPlaneX()
 {
 	if (!(m_structuresValidity & FLAG_LS_PLANE))
 		computeLeastSquareBestFittingPlane();
-	return ((m_structuresValidity & FLAG_LS_PLANE) ? m_lsPlaneVectors : 0);
+	return ((m_structuresValidity & FLAG_LS_PLANE) ? m_lsPlaneVectors : nullptr);
 }
 
 const CCVector3* Neighbourhood::getLSPlaneY()
 {
 	if (!(m_structuresValidity & FLAG_LS_PLANE))
 		computeLeastSquareBestFittingPlane();
-	return ((m_structuresValidity & FLAG_LS_PLANE) ? m_lsPlaneVectors + 1 : 0);
+	return ((m_structuresValidity & FLAG_LS_PLANE) ? m_lsPlaneVectors + 1 : nullptr);
 }
 
 const CCVector3* Neighbourhood::getLSPlaneNormal()
 {
 	if (!(m_structuresValidity & FLAG_LS_PLANE))
 		computeLeastSquareBestFittingPlane();
-	return ((m_structuresValidity & FLAG_LS_PLANE) ? m_lsPlaneVectors + 2 : 0);
+	return ((m_structuresValidity & FLAG_LS_PLANE) ? m_lsPlaneVectors + 2 : nullptr);
 }
 
 const PointCoordinateType* Neighbourhood::getQuadric(Tuple3ub* dims/*=0*/)
@@ -135,7 +135,7 @@ const PointCoordinateType* Neighbourhood::getQuadric(Tuple3ub* dims/*=0*/)
 		*dims = m_quadricEquationDirections;
 	}
 
-	return ((m_structuresValidity & FLAG_QUADRIC) ? m_quadricEquation : 0);
+	return ((m_structuresValidity & FLAG_QUADRIC) ? m_quadricEquation : nullptr);
 }
 
 void Neighbourhood::computeGravityCenter()
@@ -158,11 +158,11 @@ void Neighbourhood::computeGravityCenter()
 		Psum.z += P->z;
 	}
 
-	CCVector3 G(static_cast<PointCoordinateType>(Psum.x / count),
-				static_cast<PointCoordinateType>(Psum.y / count),
-				static_cast<PointCoordinateType>(Psum.z / count) );
-
-	setGravityCenter(G);
+	setGravityCenter( {
+						  static_cast<PointCoordinateType>(Psum.x / count),
+						  static_cast<PointCoordinateType>(Psum.y / count),
+						  static_cast<PointCoordinateType>(Psum.z / count)
+					  } );
 }
 
 CCLib::SquareMatrixd Neighbourhood::computeCovarianceMatrix()
@@ -186,7 +186,7 @@ CCLib::SquareMatrixd Neighbourhood::computeCovarianceMatrix()
 
 	for (unsigned i = 0; i < count; ++i)
 	{
-		CCVector3 P = *m_associatedCloud->getPoint(i) - *G;
+		const CCVector3 P = *m_associatedCloud->getPoint(i) - *G;
 
 		mXX += static_cast<double>(P.x)*P.x;
 		mYY += static_cast<double>(P.y)*P.y;
@@ -227,7 +227,7 @@ PointCoordinateType Neighbourhood::computeLargestRadius()
 	for (unsigned i=0; i<pointCount; ++i)
 	{
 		const CCVector3* P = m_associatedCloud->getPoint(i);
-		double d2 = (*P-*G).norm2();
+		const double d2 = (*P-*G).norm2();
 		if (d2 > maxSquareDist)
 			maxSquareDist = d2;
 	}
@@ -370,9 +370,9 @@ bool Neighbourhood::computeQuadric()
 
 	//get the best projection axis
 	Tuple3ub idx(0/*x*/,1/*y*/,2/*z*/); //default configuration: z is the "normal" direction, we use (x,y) as the base plane
-	PointCoordinateType nxx = lsPlane[0]*lsPlane[0];
-	PointCoordinateType nyy = lsPlane[1]*lsPlane[1];
-	PointCoordinateType nzz = lsPlane[2]*lsPlane[2];
+	const PointCoordinateType nxx = lsPlane[0]*lsPlane[0];
+	const PointCoordinateType nyy = lsPlane[1]*lsPlane[1];
+	const PointCoordinateType nzz = lsPlane[2]*lsPlane[2];
 	if (nxx > nyy)
 	{
 		if (nxx > nzz)
@@ -444,7 +444,7 @@ bool Neighbourhood::computeQuadric()
 	//conjugate gradient initialization
 	//we solve tA.A.X=tA.b
 	ConjugateGradient<6,double> cg;
-	CCLib::SquareMatrixd& tAA = cg.A();
+	const CCLib::SquareMatrixd& tAA = cg.A();
 	double* tAb = cg.b();
 
 	//compute tA.A and tA.b
@@ -549,7 +549,7 @@ bool Neighbourhood::computeQuadric()
 
 	//conjugate gradient iterations
 	{
-		double convergenceThreshold = lmax2 * 1.0e-8;  //max. error for convergence = 1e-8 of largest cloud dimension (empirical!)
+		const double convergenceThreshold = lmax2 * 1.0e-8;  //max. error for convergence = 1e-8 of largest cloud dimension (empirical!)
 		for (unsigned i=0; i<1500; ++i)
 		{
 			double lastError = cg.iterConjugateGradient(X0);
@@ -574,8 +574,6 @@ bool Neighbourhood::computeQuadric()
 
 	return true;
 }
-
-#include "Jacobi.h"
 
 bool Neighbourhood::compute3DQuadric(double quadricEquation[10])
 {
@@ -613,7 +611,7 @@ bool Neighbourhood::compute3DQuadric(double quadricEquation[10])
 		PointCoordinateType* _M = &(M[0]);
 		for (unsigned i=0; i<count; ++i)
 		{
-			CCVector3 P = *m_associatedCloud->getPoint(i) - *G;
+			const CCVector3 P = *m_associatedCloud->getPoint(i) - *G;
 
 			//we fill the ith line
 			(*_M++) = P.x * P.x;
@@ -636,7 +634,7 @@ bool Neighbourhood::compute3DQuadric(double quadricEquation[10])
 		for (unsigned c = 0; c < 10; ++c)
 		{
 			double sum = 0;
-			PointCoordinateType* _M = &(M[0]);
+			const PointCoordinateType* _M = &(M[0]);
 			for (unsigned i = 0; i < count; ++i, _M += 10)
 				sum += static_cast<double>(_M[l] * _M[c]);
 
@@ -687,17 +685,17 @@ GenericIndexedMesh* Neighbourhood::triangulateOnPlane(	bool duplicateVertices/*=
 		//can't compute LSF plane with less than 3 points!
 		if (errorStr)
 			strcpy(errorStr,"Not enough points");
-		return 0;
+		return nullptr;
 	}
 
 	//safety check: Triangle lib will crash if the points are all the same!
 	if (computeLargestRadius() < ZERO_TOLERANCE)
 	{
-		return 0;
+		return nullptr;
 	}
 
 	//project the points on this plane
-	GenericIndexedMesh* mesh = 0;
+	GenericIndexedMesh* mesh = nullptr;
 	std::vector<CCVector2> points2D;
 
 	if (projectPointsOn2DPlane<CCVector2>(points2D))
@@ -708,21 +706,21 @@ GenericIndexedMesh* Neighbourhood::triangulateOnPlane(	bool duplicateVertices/*=
 		if (!dm->buildMesh(points2D,0,errorStr))
 		{
 			delete dm;
-			return 0;
+			return nullptr;
 		}
 
 		//change the default mesh's reference
 		if (duplicateVertices)
 		{
 			ChunkedPointCloud* cloud = new ChunkedPointCloud();
-			unsigned count = m_associatedCloud->size();
+			const unsigned count = m_associatedCloud->size();
 			if (!cloud->reserve(count))
 			{
 				if (errorStr)
 					strcpy(errorStr,"Not enough memory");
 				delete dm;
 				delete cloud;
-				return 0;
+				return nullptr;
 			}
 			for (unsigned i=0; i<count; ++i)
 				cloud->addPoint(*m_associatedCloud->getPoint(i));
@@ -743,7 +741,7 @@ GenericIndexedMesh* Neighbourhood::triangulateOnPlane(	bool duplicateVertices/*=
 				if (errorStr)
 					strcpy(errorStr,"Not triangle left after pruning");
 				delete dm;
-				dm = 0;
+				dm = nullptr;
 			}
 		}
 		mesh = static_cast<GenericIndexedMesh*>(dm);
@@ -755,12 +753,12 @@ GenericIndexedMesh* Neighbourhood::triangulateOnPlane(	bool duplicateVertices/*=
 GenericIndexedMesh* Neighbourhood::triangulateFromQuadric(unsigned nStepX, unsigned nStepY)
 {
 	if (nStepX<2 || nStepY<2)
-		return 0;
+		return nullptr;
 
 	//qaudric fit
 	const PointCoordinateType* Q = getQuadric(); //Q: Z = a + b.X + c.Y + d.X^2 + e.X.Y + f.Y^2
 	if (!Q)
-		return 0;
+		return nullptr;
 
 	const PointCoordinateType& a = Q[0];
 	const PointCoordinateType& b = Q[1];
@@ -783,23 +781,23 @@ GenericIndexedMesh* Neighbourhood::triangulateFromQuadric(unsigned nStepX, unsig
 	CCVector3 bboxDiag = bbMax - bbMin;
 
 	//Sample points on Quadric and triangulate them!
-	PointCoordinateType spanX = bboxDiag.u[X];
-	PointCoordinateType spanY = bboxDiag.u[Y];
-	PointCoordinateType stepX = spanX/(nStepX-1);
-	PointCoordinateType stepY = spanY/(nStepY-1);
+	const PointCoordinateType spanX = bboxDiag.u[X];
+	const PointCoordinateType spanY = bboxDiag.u[Y];
+	const PointCoordinateType stepX = spanX/(nStepX-1);
+	const PointCoordinateType stepY = spanY/(nStepY-1);
 
 	ChunkedPointCloud* vertices = new ChunkedPointCloud();
 	if (!vertices->reserve(nStepX*nStepY))
 	{
 		delete vertices;
-		return 0;
+		return nullptr;
 	}
 
 	SimpleMesh* quadMesh = new SimpleMesh(vertices,true);
 	if (!quadMesh->reserve((nStepX-1)*(nStepY-1)*2))
 	{
 		delete quadMesh;
-		return 0;
+		return nullptr;
 	}
 
 	for (unsigned x=0; x<nStepX; ++x)
@@ -821,10 +819,10 @@ GenericIndexedMesh* Neighbourhood::triangulateFromQuadric(unsigned nStepX, unsig
 
 			if (x>0 && y>0)
 			{
-				unsigned iA = (x-1) * nStepY + y-1;
-				unsigned iB = iA+1;
-				unsigned iC = iA+nStepY;
-				unsigned iD = iB+nStepY;
+				const unsigned iA = (x-1) * nStepY + y-1;
+				const unsigned iB = iA+1;
+				const unsigned iC = iA+nStepY;
+				const unsigned iD = iB+nStepY;
 
 				quadMesh->addTriangle(iA,iC,iB);
 				quadMesh->addTriangle(iB,iC,iD);
@@ -851,7 +849,7 @@ ScalarType Neighbourhood::computeCurvature(unsigned neighbourIndex, CC_CURVATURE
 			const CCVector3* G = getGravityCenter();
 
 			//we compute curvature at the input neighbour position + we recenter it by the way
-			CCVector3 Q = *m_associatedCloud->getPoint(neighbourIndex) - *G;
+			const CCVector3 Q( *m_associatedCloud->getPoint(neighbourIndex) - *G );
 
 			const unsigned char X = m_quadricEquationDirections.x;
 			const unsigned char Y = m_quadricEquationDirections.y;
@@ -880,14 +878,14 @@ ScalarType Neighbourhood::computeCurvature(unsigned neighbourIndex, CC_CURVATURE
 			case GAUSSIAN_CURV:
 				{
 					//to sign the curvature, we need a normal!
-					PointCoordinateType K = fabs( fxx*fyy - fxy*fxy ) / (q*q);
+					const PointCoordinateType K = fabs( fxx*fyy - fxy*fxy ) / (q*q);
 					return static_cast<ScalarType>(K);
 				}
 
 			case MEAN_CURV:
 				{
 					//to sign the curvature, we need a normal!
-					PointCoordinateType H2 = fabs( ((1+fx2)*fyy - 2*fx*fy*fxy + (1+fy2)*fxx) ) / (2*sqrt(q)*q);
+					const PointCoordinateType H2 = fabs( ((1+fx2)*fyy - 2*fx*fy*fxy + (1+fy2)*fxx) ) / (2*sqrt(q)*q);
 					return static_cast<ScalarType>(H2);
 				}
 
@@ -937,13 +935,13 @@ ScalarType Neighbourhood::computeCurvature(unsigned neighbourIndex, CC_CURVATURE
 			e.y = eigValues[1];
 			e.z = eigValues[2];
 #endif
-			double sum = e.x + e.y + e.z; //we work with absolute values
+			const double sum = e.x + e.y + e.z; //we work with absolute values
 			if (sum < ZERO_TOLERANCE)
 			{
 				return NAN_VALUE;
 			}
 
-			double eMin = std::min(std::min(e.x, e.y), e.z);
+			const double eMin = std::min(std::min(e.x, e.y), e.z);
 			return static_cast<ScalarType>(eMin / sum);
 		}
 		break;

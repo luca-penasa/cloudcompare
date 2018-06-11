@@ -23,9 +23,9 @@
 #include <Jacobi.h>
 #include <MeshSamplingTools.h>
 #include <NormalDistribution.h>
+#include <ParallelSort.h>
 #include <ScalarFieldTools.h>
 #include <SimpleCloud.h>
-#include <SortAlgo.h>
 #include <StatisticalTestingTools.h>
 #include <WeibullDistribution.h>
 
@@ -67,6 +67,7 @@
 //dialogs
 #include "ccAboutDialog.h"
 #include "ccAdjustZoomDlg.h"
+#include "ccApplication.h"
 #include "ccAlignDlg.h" //Aurelien BEY
 #include "ccApplyTransformationDlg.h"
 #include "ccAskThreeDoubleValuesDlg.h"
@@ -128,6 +129,10 @@
 #include "devices/gamepad/ccGamepadManager.h"
 #endif
 
+#ifdef USE_TBB
+#include <tbb/tbb_stddef.h>
+#endif
+
 //Qt UI files
 #include <ui_distanceMapDlg.h>
 #include <ui_globalShiftSettingsDlg.h>
@@ -155,6 +160,16 @@ static std::vector<cc2DLabel*> s_levelLabels;
 static ccPointCloud* s_levelMarkersCloud = nullptr;
 static ccHObject* s_levelEntity = nullptr;
 
+static QFileDialog::Options CCFileDialogOptions()
+{
+	//dialog options
+	QFileDialog::Options dialogOptions = QFileDialog::Options();
+	if (!ccOptions::Instance().useNativeDialogs)
+	{
+		dialogOptions |= QFileDialog::DontUseNativeDialog;
+	}
+	return dialogOptions;
+}
 
 MainWindow::MainWindow()
 	: m_UI( new Ui::MainWindow )
@@ -181,13 +196,13 @@ MainWindow::MainWindow()
 {
 	m_UI->setupUi( this );
 
-	setWindowTitle(QStringLiteral("CloudCompare v") + ccCommon::GetCCVersion(false));
+	setWindowTitle(QStringLiteral("CloudCompare v") + ccApp->versionLongStr(false));
 	
 	m_pluginUIManager = new ccPluginUIManager( this, this );
 	
 #ifdef Q_OS_MAC
 	m_UI->actionAbout->setMenuRole( QAction::AboutRole );
-	m_UI->actionAboutPlugins->setMenuRole( QAction::NoRole );
+	m_UI->actionAboutPlugins->setMenuRole( QAction::ApplicationSpecificRole );
 
 	m_UI->actionFullScreen->setText( tr( "Enter Full Screen" ) );
 	m_UI->actionFullScreen->setShortcut( QKeySequence( Qt::CTRL + Qt::META + Qt::Key_F ) );
@@ -271,6 +286,12 @@ MainWindow::MainWindow()
 	updateUI();
 
 	QMainWindow::statusBar()->showMessage(QString("Ready"));
+	
+#ifdef USE_TBB
+	ccConsole::Print( QStringLiteral( "[TBB] Using Intel's Threading Building Blocks %1.%2" )
+					  .arg( QString::number( TBB_VERSION_MAJOR ), QString::number( TBB_VERSION_MINOR ) ) );
+#endif
+	
 	ccConsole::Print("CloudCompare started!");
 }
 
@@ -640,7 +661,7 @@ void MainWindow::connectActions()
 	connect(m_UI->actionSaveViewportAsObject,			&QAction::triggered, this, &MainWindow::doActionSaveViewportAsCamera);
 
 	//"Display > Lights & Materials" menu
-	connect(m_UI->actionDisplayOptions,				&QAction::triggered, this, &MainWindow::setLightsAndMaterials);
+	connect(m_UI->actionDisplayOptions,				&QAction::triggered, this, &MainWindow::showDisplayOptions);
 	connect(m_UI->actionToggleSunLight,				&QAction::triggered, this, &MainWindow::toggleActiveWindowSunLight);
 	connect(m_UI->actionToggleCustomLight,			&QAction::triggered, this, &MainWindow::toggleActiveWindowCustomLight);
 	connect(m_UI->actionRenderToFile,				&QAction::triggered, this, &MainWindow::doActionRenderToFile);
@@ -1059,6 +1080,7 @@ void MainWindow::applyTransformation(const ccGLMatrixd& mat)
 							sasDlg.showTitle(true);
 							sasDlg.setKeepGlobalPos(true);
 							sasDlg.showKeepGlobalPosCheckbox(false); //we don't want the user to mess with this!
+							sasDlg.showPreserveShiftOnSave(true);
 
 							//add "original" entry
 							int index = sasDlg.addShiftInfo(ccGlobalShiftManager::ShiftInfo("Original", globalShift, globalScale));
@@ -1239,7 +1261,7 @@ void MainWindow::doActionApplyScale()
 			}
 
 			assert(cloud);
-			candidates.push_back(EntityCloudAssociation(entity, cloud));
+			candidates.emplace_back(entity, cloud);
 		}
 	}
 
@@ -1367,7 +1389,7 @@ void MainWindow::doActionEditGlobalShiftAndScale()
 					uniqueScale = (std::abs(shifted->getGlobalScale() - scale) < ZERO_TOLERANCE);
 			}
 
-			shiftedEntities.push_back(std::pair<ccShiftedObject*, ccHObject*>(shifted, entity));
+			shiftedEntities.emplace_back(shifted, entity);
 		}
 
 		Pg = globalBBmin;
@@ -2319,7 +2341,13 @@ void MainWindow::doActionExportDepthBuffer()
 	settings.beginGroup(ccPS::SaveFile());
 	QString currentPath = settings.value(ccPS::CurrentPath(), ccFileUtils::defaultDocPath()).toString();
 
-	QString filename = QFileDialog::getSaveFileName(this, "Select output file", currentPath, DepthMapFileFilter::GetFileFilter());
+	QString filename = QFileDialog::getSaveFileName(this,
+													"Select output file",
+													currentPath,
+													DepthMapFileFilter::GetFileFilter(),
+													nullptr,
+													CCFileDialogOptions()
+	);
 	if (filename.isEmpty())
 	{
 		//process cancelled by user
@@ -2351,7 +2379,7 @@ void MainWindow::doActionExportDepthBuffer()
 	{
 		parameters.alwaysDisplaySaveDialog = true;
 	}
-	CC_FILE_ERROR result = DepthMapFileFilter().saveToFile(toSave,filename,parameters);
+	CC_FILE_ERROR result = DepthMapFileFilter().saveToFile(toSave, filename, parameters);
 
 	if (result != CC_FERR_NO_ERROR)
 	{
@@ -2718,8 +2746,8 @@ void MainWindow::doRemoveDuplicatePoints()
 
 void MainWindow::doActionFilterByValue()
 {
-	typedef std::pair<ccHObject*, ccPointCloud*> entityAndVerticesType;
-	std::vector<entityAndVerticesType> toFilter;
+	typedef std::pair<ccHObject*, ccPointCloud*> EntityAndVerticesType;
+	std::vector<EntityAndVerticesType> toFilter;
 	
 	for ( ccHObject *entity : getSelectedEntities() )
 	{
@@ -2731,7 +2759,7 @@ void MainWindow::doActionFilterByValue()
 			CCLib::ScalarField* sf = pc->getCurrentDisplayedScalarField();
 			if (sf)
 			{
-				toFilter.push_back(entityAndVerticesType(entity,pc));
+				toFilter.emplace_back(entity,pc);
 			}
 			else
 			{
@@ -3826,10 +3854,11 @@ void MainWindow::createComponentsClouds(ccGenericPointCloud* cloud,
 			unsigned compCount = static_cast<unsigned>(components.size());
 			for (unsigned i = 0; i < compCount; ++i)
 			{
-				sortedIndexes.push_back(ComponentIndexAndSize(i, components[i]->size()));
+				sortedIndexes.emplace_back(i, components[i]->size());
 			}
 
-			SortAlgo(sortedIndexes.begin(), sortedIndexes.end(), ComponentIndexAndSize::DescendingCompOperator);
+			ParallelSort(sortedIndexes.begin(), sortedIndexes.end(), ComponentIndexAndSize::DescendingCompOperator);
+			
 			_sortedIndexes = &sortedIndexes;
 		}
 	}
@@ -6677,16 +6706,14 @@ void MainWindow::testFrameRate()
 		win->startFrameRateTest();
 }
 
-void MainWindow::setLightsAndMaterials()
+void MainWindow::showDisplayOptions()
 {
-	ccDisplayOptionsDlg colorsDlg(this);
-	connect(&colorsDlg, &ccDisplayOptionsDlg::aspectHasChanged, this, [=] () {
-		redrawAll();
-	});
+	ccDisplayOptionsDlg displayOptionsDlg(this);
+	connect(&displayOptionsDlg, &ccDisplayOptionsDlg::aspectHasChanged, this, [=] () { redrawAll();	});
 			
-	colorsDlg.exec();
+	displayOptionsDlg.exec();
 
-	disconnect(&colorsDlg, 0, 0, 0);
+	disconnect(&displayOptionsDlg);
 }
 
 void MainWindow::doActionRenderToFile()
@@ -8192,7 +8219,13 @@ void MainWindow::doActionComputeBestICPRmsMatrix()
 		settings.beginGroup(ccPS::SaveFile());
 		QString currentPath = settings.value(ccPS::CurrentPath(), ccFileUtils::defaultDocPath()).toString();
 
-		QString outputFilename = QFileDialog::getSaveFileName(this, "Select output file", currentPath, "*.csv");
+		QString outputFilename = QFileDialog::getSaveFileName(	this,
+																"Select output file",
+																currentPath,
+																"*.csv",
+																nullptr,
+																CCFileDialogOptions());
+
 		if (outputFilename.isEmpty())
 			return;
 
@@ -8266,7 +8299,13 @@ void MainWindow::doActionExportPlaneInfo()
 	settings.beginGroup(ccPS::SaveFile());
 	QString currentPath = settings.value(ccPS::CurrentPath(), ccFileUtils::defaultDocPath()).toString();
 
-	QString outputFilename = QFileDialog::getSaveFileName(this, "Select output file", currentPath, "*.csv");
+	QString outputFilename = QFileDialog::getSaveFileName(	this,
+															"Select output file",
+															currentPath,
+															"*.csv",
+															nullptr,
+															CCFileDialogOptions());
+
 	if (outputFilename.isEmpty())
 	{
 		//process cancelled by the user
@@ -8363,7 +8402,12 @@ void MainWindow::doActionExportCloudInfo()
 	settings.beginGroup(ccPS::SaveFile());
 	QString currentPath = settings.value(ccPS::CurrentPath(), ccFileUtils::defaultDocPath()).toString();
 
-	QString outputFilename = QFileDialog::getSaveFileName(this, "Select output file", currentPath, "*.csv");
+	QString outputFilename = QFileDialog::getSaveFileName(	this,
+															"Select output file",
+															currentPath,
+															"*.csv",
+															nullptr,
+															CCFileDialogOptions());
 	if (outputFilename.isEmpty())
 	{
 		//process cancelled by the user
@@ -8910,9 +8954,10 @@ void MainWindow::addToDB(	ccHObject* obj,
 		CCVector3d P = CCVector3d::fromArray(center.u);
 		CCVector3d Pshift(0, 0, 0);
 		double scale = 1.0;
+		bool preserveCoordinateShift = true;
 		//here we must test that coordinates are not too big whatever the case because OpenGL
 		//really doesn't like big ones (even if we work with GLdoubles :( ).
-		if (ccGlobalShiftManager::Handle(P, diag, ccGlobalShiftManager::DIALOG_IF_NECESSARY, false, Pshift, &scale))
+		if (ccGlobalShiftManager::Handle(P, diag, ccGlobalShiftManager::DIALOG_IF_NECESSARY, false, Pshift, &preserveCoordinateShift, &scale))
 		{
 			bool needRescale = (scale != 1.0);
 			bool needShift = (Pshift.norm2() > 0);
@@ -8928,24 +8973,27 @@ void MainWindow::addToDB(	ccHObject* obj,
 			}
 
 			//update 'global shift' and 'global scale' for ALL clouds recursively
-			//FIXME: why don't we do that all the time by the way?!
-			ccHObject::Container children;
-			children.push_back(obj);
-			while (!children.empty())
+			if (preserveCoordinateShift)
 			{
-				ccHObject* child = children.back();
-				children.pop_back();
-
-				if (child->isKindOf(CC_TYPES::POINT_CLOUD))
+				//FIXME: why don't we do that all the time by the way?!
+				ccHObject::Container children;
+				children.push_back(obj);
+				while (!children.empty())
 				{
-					ccGenericPointCloud* pc = ccHObjectCaster::ToGenericPointCloud(child);
-					pc->setGlobalShift(pc->getGlobalShift() + Pshift);
-					pc->setGlobalScale(pc->getGlobalScale() * scale);
-				}
+					ccHObject* child = children.back();
+					children.pop_back();
 
-				for (unsigned i = 0; i < child->getChildrenNumber(); ++i)
-				{
-					children.push_back(child->getChild(i));
+					if (child->isKindOf(CC_TYPES::POINT_CLOUD))
+					{
+						ccGenericPointCloud* pc = ccHObjectCaster::ToGenericPointCloud(child);
+						pc->setGlobalShift(pc->getGlobalShift() + Pshift);
+						pc->setGlobalScale(pc->getGlobalScale() * scale);
+					}
+
+					for (unsigned i = 0; i < child->getChildrenNumber(); ++i)
+					{
+						children.push_back(child->getChild(i));
+					}
 				}
 			}
 		}
@@ -9161,13 +9209,8 @@ void MainWindow::doActionLoadFile()
 																"Open file(s)",
 																currentPath,
 																fileFilters.join(s_fileFilterSeparator),
-																&currentOpenDlgFilter
-#ifdef Q_OS_WIN
-//#ifdef QT_DEBUG
-																, QFileDialog::DontUseNativeDialog
-//#endif
-#endif
-															);
+																&currentOpenDlgFilter,
+																CCFileDialogOptions());
 	if (selectedFiles.isEmpty())
 		return;
 
@@ -9341,7 +9384,7 @@ void MainWindow::doActionSaveFile()
 					ccHObject* child = otherSerializable.getChild(j);
 					bool isExclusive = true;
 					bool multiple = false;
-					canExportSerializables &= (		filter->canSave(child->getUniqueID(), multiple, isExclusive)
+					canExportSerializables &= (		filter->canSave(child->getClassID(), multiple, isExclusive)
 												&&	(multiple || otherSerializable.getChildrenNumber() == 1) );
 					atLeastOneExclusive |= isExclusive;
 				}
@@ -9412,7 +9455,8 @@ void MainWindow::doActionSaveFile()
 															"Save file",
 															fullPathName,
 															fileFilters.join(s_fileFilterSeparator),
-															&selectedFilter);
+															&selectedFilter,
+															CCFileDialogOptions());
 
 	if (selectedFilename.isEmpty())
 	{

@@ -17,26 +17,15 @@
 
 #include "OFFFilter.h"
 
-//Qt
-#include <QApplication>
-#include <QFile>
-#include <QTextStream>
-
-#include <QFileInfo>
-#include <QStringList>
-#include <QString>
-#include <QMessageBox>
-#include <QPushButton>
-
 //qCC_db
 #include <ccLog.h>
 #include <ccMesh.h>
-#include <ccPointCloud.h>
 #include <ccNormalVectors.h>
 #include <ccOctree.h>
+#include <ccPointCloud.h>
 
 //System
-#include <string.h>
+#include <string>
 
 bool OFFFilter::canLoadExtension(const QString& upperCaseExt) const
 {
@@ -61,7 +50,7 @@ CC_FILE_ERROR OFFFilter::saveToFile(ccHObject* entity, const QString& filename, 
 
 	if (!entity->isKindOf(CC_TYPES::MESH))
 	{
-		ccLog::Warning("[OBJ] This filter can only save one mesh at a time!");
+		ccLog::Warning("[OFF] This filter can only save one mesh at a time!");
 		return CC_FERR_BAD_ENTITY_TYPE;
 	}
 
@@ -185,8 +174,8 @@ CC_FILE_ERROR OFFFilter::loadFile(const QString& filename, ccHObject& container,
 
 	//read vertices
 	{
-		CCVector3d Pshift(0,0,0);
-		for (unsigned i=0; i<vertCount; ++i)
+		CCVector3d Pshift(0, 0, 0);
+		for (unsigned i = 0; i < vertCount; ++i)
 		{
 			currentLine = GetNextLine(stream);
 			tokens = currentLine.split(QRegExp("\\s+"),QString::SkipEmptyParts);
@@ -197,7 +186,7 @@ CC_FILE_ERROR OFFFilter::loadFile(const QString& filename, ccHObject& container,
 			}
 
 			//read vertex
-			CCVector3d Pd(0,0,0);
+			CCVector3d Pd(0, 0, 0);
 			{
 				bool vertexIsOk = false;
 				Pd.x = tokens[0].toDouble(&vertexIsOk);
@@ -217,10 +206,14 @@ CC_FILE_ERROR OFFFilter::loadFile(const QString& filename, ccHObject& container,
 			//first point: check for 'big' coordinates
 			if (i == 0)
 			{
-				if (HandleGlobalShift(Pd,Pshift,parameters))
+				bool preserveCoordinateShift = true;
+				if (HandleGlobalShift(Pd, Pshift, preserveCoordinateShift, parameters))
 				{
-					vertices->setGlobalShift(Pshift);
-					ccLog::Warning("[OFF] Cloud has been recentered! Translation: (%.2f ; %.2f ; %.2f)",Pshift.x,Pshift.y,Pshift.z);
+					if (preserveCoordinateShift)
+					{
+						vertices->setGlobalShift(Pshift);
+					}
+					ccLog::Warning("[OFF] Cloud has been recentered! Translation: (%.2f ; %.2f ; %.2f)", Pshift.x, Pshift.y, Pshift.z);
 				}
 			}
 

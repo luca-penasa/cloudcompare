@@ -61,13 +61,13 @@ static const char s_deviationSFName[] = "Deviation";
 ccPointCloud::ccPointCloud(QString name) throw()
 	: ChunkedPointCloud()
 	, ccGenericPointCloud(name)
-	, m_rgbColors(0)
-	, m_normals(0)
+	, m_rgbColors(nullptr)
+	, m_normals(nullptr)
 	, m_sfColorScaleDisplayed(false)
-	, m_currentDisplayedScalarField(0)
+	, m_currentDisplayedScalarField(nullptr)
 	, m_currentDisplayedScalarFieldIndex(-1)
 	, m_visibilityCheckEnabled(false)
-	, m_lod(0)
+	, m_lod(nullptr)
 	, m_fwfData(0)
 {
 	showSF(false);
@@ -88,7 +88,7 @@ ccPointCloud* ccPointCloud::From(CCLib::GenericCloud* cloud, const ccGenericPoin
 		{
 			ccLog::Error("[ccPointCloud::From] Not enough memory to duplicate cloud!");
 			delete pc;
-			pc = 0;
+			pc = nullptr;
 		}
 		else
 		{
@@ -124,7 +124,7 @@ ccPointCloud* ccPointCloud::From(const CCLib::GenericIndexedCloud* cloud, const 
 		{
 			ccLog::Error("[ccPointCloud] Not enough memory to duplicate cloud!");
 			delete pc;
-			pc = 0;
+			pc = nullptr;
 		}
 		else
 		{
@@ -187,14 +187,14 @@ ccPointCloud* ccPointCloud::partialClone(const CCLib::ReferenceCloud* selection,
 	if (!selection || selection->getAssociatedCloud() != static_cast<const GenericIndexedCloud*>(this))
 	{
 		ccLog::Error("[ccPointCloud::partialClone] Invalid parameters");
-		return 0;
+		return nullptr;
 	}
 
 	unsigned n = selection->size();
 	if (n == 0)
 	{
 		ccLog::Warning("[ccPointCloud::partialClone] Selection is empty");
-		return 0;
+		return nullptr;
 	}
 
 	ccPointCloud* result = new ccPointCloud(getName() + QString(".extract"));
@@ -203,7 +203,7 @@ ccPointCloud* ccPointCloud::partialClone(const CCLib::ReferenceCloud* selection,
 	{
 		ccLog::Error("[ccPointCloud::partialClone] Not enough memory to duplicate cloud!");
 		delete result;
-		return 0;
+		return nullptr;
 	}
 
 	//import points
@@ -359,7 +359,9 @@ ccPointCloud* ccPointCloud::partialClone(const CCLib::ReferenceCloud* selection,
 			std::vector<int> newIndexMap(size(), -1);
 			{
 				for (unsigned i = 0; i < n; i++)
+				{
 					newIndexMap[selection->getPointGlobalIndex(i)] = i;
+				}
 			}
 
 			//duplicate the grid structure(s)
@@ -371,8 +373,7 @@ ccPointCloud* ccPointCloud::partialClone(const CCLib::ReferenceCloud* selection,
 					if (scanGrid->validCount != 0) //no need to copy empty grids!
 					{
 						//duplicate the grid
-						Grid::Shared newGrid(new Grid(*scanGrid));
-						newGrids.push_back(newGrid);
+						newGrids.push_back(Grid::Shared (new Grid(*scanGrid)));
 					}
 				}
 			}
@@ -437,7 +438,7 @@ ccPointCloud::~ccPointCloud()
 	if (m_lod)
 	{
 		delete m_lod;
-		m_lod = 0;
+		m_lod = nullptr;
 	}
 }
 
@@ -472,7 +473,7 @@ ccGenericPointCloud* ccPointCloud::clone(ccGenericPointCloud* destCloud/*=0*/, b
 	if (destCloud && !destCloud->isA(CC_TYPES::POINT_CLOUD))
 	{
 		ccLog::Error("[ccPointCloud::clone] Invalid destination cloud provided! Not a ccPointCloud...");
-		return 0;
+		return nullptr;
 	}
 
 	return cloneThis(static_cast<ccPointCloud*>(destCloud), ignoreChildren);
@@ -564,7 +565,7 @@ const ccPointCloud& ccPointCloud::append(ccPointCloud* addedCloud, unsigned poin
 			//if this cloud hadn't any color before
 			if (!hasColors())
 			{
-				//we try to resrve a new array
+				//we try to reserve a new array
 				if (reserveTheRGBTable())
 				{
 					for (unsigned i = 0; i < pointCountBefore; i++)
@@ -645,7 +646,7 @@ const ccPointCloud& ccPointCloud::append(ccPointCloud* addedCloud, unsigned poin
 			//we associate imported points with empty waveform
 			for (unsigned i = 0; i < addedPoints; i++)
 			{
-				m_fwfWaveforms.push_back(ccWaveform(0));
+				m_fwfWaveforms.emplace_back(0);
 			}
 		}
 		else //otherwise
@@ -660,7 +661,7 @@ const ccPointCloud& ccPointCloud::append(ccPointCloud* addedCloud, unsigned poin
 				{
 					for (unsigned i = 0; i < pointCountBefore; i++)
 					{
-						m_fwfWaveforms.push_back(ccWaveform(0));
+						m_fwfWaveforms.emplace_back(0);
 					}
 					//we will simply use the other cloud FWF data container
 					fwfData() = addedCloud->fwfData();
@@ -688,7 +689,7 @@ const ccPointCloud& ccPointCloud::append(ccPointCloud* addedCloud, unsigned poin
 				{
 					success = false;
 					delete mergedContainer;
-					mergedContainer = 0;
+					mergedContainer = nullptr;
 					ccLog::Warning("[ccPointCloud::fusion] Not enough memory: failed to merge waveform containers!");
 				}
 			}
@@ -773,7 +774,7 @@ const ccPointCloud& ccPointCloud::append(ccPointCloud* addedCloud, unsigned poin
 						}
 						else //the waveform is associated to a descriptor that couldn't be imported :(
 						{
-							m_fwfWaveforms.push_back(ccWaveform(0));
+							m_fwfWaveforms.emplace_back(0);
 							++lostWaveformCount;
 						}
 					}
@@ -1057,7 +1058,7 @@ void ccPointCloud::unallocateNorms()
 	if (m_normals)
 	{
 		m_normals->release();
-		m_normals = 0;
+		m_normals = nullptr;
 
 		//We should update the VBOs to gain some free space in VRAM
 		releaseVBOs();
@@ -1071,7 +1072,7 @@ void ccPointCloud::unallocateColors()
 	if (m_rgbColors)
 	{
 		m_rgbColors->release();
-		m_rgbColors = 0;
+		m_rgbColors = nullptr;
 
 		//We should update the VBOs to gain some free space in VRAM
 		releaseVBOs();
@@ -1114,7 +1115,7 @@ bool ccPointCloud::reserveTheRGBTable()
 	if (!m_rgbColors->reserve(m_points->capacity()))
 	{
 		m_rgbColors->release();
-		m_rgbColors = 0;
+		m_rgbColors = nullptr;
 
 		ccLog::Error("[ccPointCloud::reserveTheRGBTable] Not enough memory!");
 	}
@@ -1144,7 +1145,7 @@ bool ccPointCloud::resizeTheRGBTable(bool fillWithWhite/*=false*/)
 	if (!m_rgbColors->resize(m_points->currentSize(), fillWithWhite, fillWithWhite ? ccColor::white.rgba : 0))
 	{
 		m_rgbColors->release();
-		m_rgbColors = 0;
+		m_rgbColors = nullptr;
 
 		ccLog::Error("[ccPointCloud::resizeTheRGBTable] Not enough memory!");
 	}
@@ -1174,7 +1175,7 @@ bool ccPointCloud::reserveTheNormsTable()
 	if (!m_normals->reserve(m_points->capacity()))
 	{
 		m_normals->release();
-		m_normals = 0;
+		m_normals = nullptr;
 
 		ccLog::Error("[ccPointCloud::reserveTheNormsTable] Not enough memory!");
 	}
@@ -1203,7 +1204,7 @@ bool ccPointCloud::resizeTheNormsTable()
 	if (!m_normals->resize(m_points->currentSize(), true, 0))
 	{
 		m_normals->release();
-		m_normals = 0;
+		m_normals = nullptr;
 
 		ccLog::Error("[ccPointCloud::resizeTheNormsTable] Not enough memory!");
 	}
@@ -1340,14 +1341,14 @@ ccWaveformProxy ccPointCloud::waveformProxy(unsigned index) const
 			}
 			else
 			{
-				return ccWaveformProxy(w, invalidD, 0);
+				return ccWaveformProxy(w, invalidD, nullptr);
 			}
 		}
 	}
 
 	//if we are here, then something is wrong
 	assert(false);
-	return ccWaveformProxy(invalidW, invalidD, 0);
+	return ccWaveformProxy(invalidW, invalidD, nullptr);
 }
 
 bool ccPointCloud::resizeTheFWFTable()
@@ -1898,7 +1899,7 @@ void ccPointCloud::applyRigidTransformation(const ccGLMatrix& trans)
 			}
 			newNorms->clear();
 			newNorms->release();
-			newNorms = 0;
+			newNorms = nullptr;
 		}
 
 		//if there is less points than the compressed normals array size
@@ -2229,7 +2230,7 @@ void ccPointCloud::glChunkVertexPointer(const CC_DRAW_CONTEXT& context, unsigned
 		//we can use VBOs directly
 		if (m_vboManager.vbos[chunkIndex]->bind())
 		{
-			glFunc->glVertexPointer(3, GL_COORD_TYPE, decimStep * 3 * sizeof(PointCoordinateType), 0);
+			glFunc->glVertexPointer(3, GL_COORD_TYPE, decimStep * 3 * sizeof(PointCoordinateType), nullptr);
 			m_vboManager.vbos[chunkIndex]->release();
 		}
 		else
@@ -2280,7 +2281,7 @@ void ccPointCloud::glChunkNormalPointer(const CC_DRAW_CONTEXT& context, unsigned
 		//we can use VBOs directly
 		if (m_vboManager.vbos[chunkIndex]->bind())
 		{
-			const GLbyte* start = 0; //fake pointer used to prevent warnings on Linux
+			const GLbyte* start = nullptr; //fake pointer used to prevent warnings on Linux
 			int normalDataShift = m_vboManager.vbos[chunkIndex]->normalShift;
 			glFunc->glNormalPointer(GL_COORD_TYPE, decimStep * 3 * sizeof(PointCoordinateType), (const GLvoid*)(start + normalDataShift));
 			m_vboManager.vbos[chunkIndex]->release();
@@ -2334,7 +2335,7 @@ void ccPointCloud::glChunkColorPointer(const CC_DRAW_CONTEXT& context, unsigned 
 		//we can use VBOs directly
 		if (m_vboManager.vbos[chunkIndex]->bind())
 		{
-			const GLbyte* start = 0; //fake pointer used to prevent warnings on Linux
+			const GLbyte* start = nullptr; //fake pointer used to prevent warnings on Linux
 			int colorDataShift = m_vboManager.vbos[chunkIndex]->rgbShift;
 			glFunc->glColorPointer(3, GL_UNSIGNED_BYTE, decimStep * 3 * sizeof(ColorCompType), (const GLvoid*)(start + colorDataShift));
 			m_vboManager.vbos[chunkIndex]->release();
@@ -2374,7 +2375,7 @@ void ccPointCloud::glChunkSFPointer(const CC_DRAW_CONTEXT& context, unsigned chu
 		//we can use VBOs directly
 		if (m_vboManager.vbos[chunkIndex]->bind())
 		{
-			const GLbyte* start = 0; //fake pointer used to prevent warnings on Linux
+			const GLbyte* start = nullptr; //fake pointer used to prevent warnings on Linux
 			int colorDataShift = m_vboManager.vbos[chunkIndex]->rgbShift;
 			glFunc->glColorPointer(3, GL_UNSIGNED_BYTE, decimStep * 3 * sizeof(ColorCompType), (const GLvoid*)(start + colorDataShift));
 			m_vboManager.vbos[chunkIndex]->release();
@@ -2650,7 +2651,7 @@ void ccPointCloud::drawMeOnly(CC_DRAW_CONTEXT& context)
 							if (toDisplay.count == 0)
 							{
 								//nothing to draw at this level
-								toDisplay.indexMap = 0;
+								toDisplay.indexMap = nullptr;
 							}
 							else
 							{
@@ -2814,12 +2815,12 @@ void ccPointCloud::drawMeOnly(CC_DRAW_CONTEXT& context)
 					//color ramp shader is not compatible with VBOs (and VBOs are faster)
 					if (useVBOs)
 					{
-						colorRampShader = 0;
+						colorRampShader = nullptr;
 					}
 					//FIXME: color ramp shader doesn't support log scale yet!
 					if (m_currentDisplayedScalarField->logScale())
 					{
-						colorRampShader = 0;
+						colorRampShader = nullptr;
 					}
 				}
 
@@ -2838,7 +2839,7 @@ void ccPointCloud::drawMeOnly(CC_DRAW_CONTEXT& context)
 					if (steps > ccColorRampShader::MaxColorRampSize() || maxComponents < static_cast<GLint>(steps))
 					{
 						ccLog::WarningDebug("Color ramp steps exceed shader limits!");
-						colorRampShader = 0;
+						colorRampShader = nullptr;
 					}
 					else
 					{
@@ -2866,7 +2867,7 @@ void ccPointCloud::drawMeOnly(CC_DRAW_CONTEXT& context)
 							//An error occurred during shader initialization?
 							ccLog::WarningDebug("Failed to init ColorRamp shader!");
 							colorRampShader->release();
-							colorRampShader = 0;
+							colorRampShader = nullptr;
 						}
 						else if (glParams.showNorms)
 						{
@@ -3248,11 +3249,13 @@ void ccPointCloud::addColorRampInfo(CC_DRAW_CONTEXT& context)
 ccPointCloud* ccPointCloud::filterPointsByScalarValue(ScalarType minVal, ScalarType maxVal, bool outside/*=false*/)
 {
 	if (!getCurrentOutScalarField())
-		return 0;
+	{
+		return nullptr;
+	}
 
 	QSharedPointer<CCLib::ReferenceCloud> c(CCLib::ManualSegmentationTools::segment(this, minVal, maxVal, outside));
 
-	return (c ? partialClone(c.data()) : 0);
+	return (c ? partialClone(c.data()) : nullptr);
 }
 
 void ccPointCloud::hidePointsByScalarValue(ScalarType minVal, ScalarType maxVal)
@@ -3289,7 +3292,7 @@ ccGenericPointCloud* ccPointCloud::createNewCloudFromVisibilitySelection(bool re
 		if (!isVisibilityTableInstantiated())
 		{
 			ccLog::Error(QString("[Cloud %1] Visibility table not instantiated!").arg(getName()));
-			return 0;
+			return nullptr;
 		}
 		visTable = m_pointsVisibility;
 	}
@@ -3298,12 +3301,12 @@ ccGenericPointCloud* ccPointCloud::createNewCloudFromVisibilitySelection(bool re
 		if (visTable->currentSize() != size())
 		{
 			ccLog::Error(QString("[Cloud %1] Invalid input visibility table").arg(getName()));
-			return 0;
+			return nullptr;
 		}
 	}
 
 	//we create a new cloud with the "visible" points
-	ccPointCloud* result = 0;
+	ccPointCloud* result = nullptr;
 	{
 		//we create a temporary entity with the visible points only
 		CCLib::ReferenceCloud* rc = getTheVisiblePoints(visTable);
@@ -3311,7 +3314,7 @@ ccGenericPointCloud* ccPointCloud::createNewCloudFromVisibilitySelection(bool re
 		{
 			//a warning message has already been issued by getTheVisiblePoints!
 			//ccLog::Warning("[ccPointCloud] An error occurred during points selection!");
-			return 0;
+			return nullptr;
 		}
 		assert(rc->size() != 0);
 
@@ -3320,13 +3323,13 @@ ccGenericPointCloud* ccPointCloud::createNewCloudFromVisibilitySelection(bool re
 
 		//don't need this one anymore
 		delete rc;
-		rc = 0;
+		rc = nullptr;
 	}
 
 	if (!result)
 	{
 		ccLog::Warning("[ccPointCloud] Failed to generate a subset cloud");
-		return 0;
+		return nullptr;
 	}
 
 	result->setName(getName() + QString(".segmented"));
@@ -3887,13 +3890,13 @@ ccPointCloud* ccPointCloud::unrollOnCone(	double coneAngle_deg,
 		progressCb->start();
 	}
 
-	ccPointCloud* clone = const_cast<ccPointCloud*>(this)->cloneThis(0, true);
+	ccPointCloud* clone = const_cast<ccPointCloud*>(this)->cloneThis(nullptr, true);
 	if (!clone)
 	{
-		return 0;
+		return nullptr;
 	}
 
-	CCLib::ScalarField* deviationSF = 0;
+	CCLib::ScalarField* deviationSF = nullptr;
 	if (exportDeviationSF)
 	{
 		int sfIdx = clone->getScalarFieldIndexByName(s_deviationSFName);
@@ -4664,14 +4667,14 @@ CCLib::ReferenceCloud* ccPointCloud::crop(const ccBBox& box, bool inside/*=true*
 	if (!box.isValid())
 	{
 		ccLog::Warning("[ccPointCloud::crop] Invalid bounding-box");
-		return 0;
+		return nullptr;
 	}
 
 	unsigned count = size();
 	if (count == 0)
 	{
 		ccLog::Warning("[ccPointCloud::crop] Cloud is empty!");
-		return 0;
+		return nullptr;
 	}
 
 	CCLib::ReferenceCloud* ref = new CCLib::ReferenceCloud(this);
@@ -4679,7 +4682,7 @@ CCLib::ReferenceCloud* ccPointCloud::crop(const ccBBox& box, bool inside/*=true*
 	{
 		ccLog::Warning("[ccPointCloud::crop] Not enough memory!");
 		delete ref;
-		return 0;
+		return nullptr;
 	}
 
 	for (unsigned i=0; i<count; ++i)
@@ -4710,19 +4713,19 @@ CCLib::ReferenceCloud* ccPointCloud::crop2D(const ccPolyline* poly, unsigned cha
 	if (!poly)
 	{
 		ccLog::Warning("[ccPointCloud::crop2D] Invalid input polyline");
-		return 0;
+		return nullptr;
 	}
 	if (orthoDim > 2)
 	{
 		ccLog::Warning("[ccPointCloud::crop2D] Invalid input polyline");
-		return 0;
+		return nullptr;
 	}
 
 	unsigned count = size();
 	if (count == 0)
 	{
 		ccLog::Warning("[ccPointCloud::crop] Cloud is empty!");
-		return 0;
+		return nullptr;
 	}
 
 	CCLib::ReferenceCloud* ref = new CCLib::ReferenceCloud(this);
@@ -4730,7 +4733,7 @@ CCLib::ReferenceCloud* ccPointCloud::crop2D(const ccPolyline* poly, unsigned cha
 	{
 		ccLog::Warning("[ccPointCloud::crop] Not enough memory!");
 		delete ref;
-		return 0;
+		return nullptr;
 	}
 
 	unsigned char X = ((orthoDim+1) % 3);
@@ -4898,7 +4901,7 @@ bool ccPointCloud::updateVBOs(const CC_DRAW_CONTEXT& context, const glDrawParams
 
 		m_vboManager.hasColors  = glParams.showSF || glParams.showColors;
 		m_vboManager.colorIsSF  = glParams.showSF;
-		m_vboManager.sourceSF   = glParams.showSF ? m_currentDisplayedScalarField : 0;
+		m_vboManager.sourceSF   = glParams.showSF ? m_currentDisplayedScalarField : nullptr;
 #ifndef DONT_LOAD_NORMALS_IN_VBOS
 		m_vboManager.hasNormals = glParams.showNorms;
 #else
@@ -5483,6 +5486,40 @@ bool ccPointCloud::orientNormalsWithGrids(ccProgressDialog* pDlg/*=0*/)
 	return true;
 }
 
+bool ccPointCloud::orientNormalsTowardViewPoint( CCVector3 & VP, ccProgressDialog* pDlg)
+{
+	int progressIndex = 0;
+	for (unsigned pointIndex = 0; pointIndex < m_points->capacity(); ++pointIndex)
+	{
+		const CCVector3* P = getPoint(pointIndex);
+		CCVector3 N = getPointNormal(pointIndex);
+		CCVector3 OP = *P - VP;
+		OP.normalize();
+		PointCoordinateType dotProd = OP.dot(N);
+		if (dotProd > 0)
+		{
+			N = -N;
+			setPointNormalIndex(pointIndex, ccNormalVectors::GetNormIndex(N));
+		}
+
+		if (pDlg)
+		{
+			//update progress dialog
+			if (pDlg->wasCanceled())
+			{
+				unallocateNorms();
+				ccLog::Warning("[orientNormalsWithSensors] Process cancelled by user");
+				return false;
+			}
+			else
+			{
+				pDlg->setValue(++progressIndex);
+			}
+		}
+	}
+	return true;
+}
+
 bool ccPointCloud::computeNormalsWithOctree(CC_LOCAL_MODEL_TYPES model,
 											ccNormalVectors::Orientation preferredOrientation,
 											PointCoordinateType defaultRadius,
@@ -5539,7 +5576,7 @@ bool ccPointCloud::computeNormalsWithOctree(CC_LOCAL_MODEL_TYPES model,
 
 	//we don't need this anymore...
 	normsIndexes->release();
-	normsIndexes = 0;
+	normsIndexes = nullptr;
 
 	//we restore the normals
 	showNormals(true);
@@ -5564,7 +5601,7 @@ bool ccPointCloud::hasSensor() const
 	for (size_t i = 0; i < m_children.size(); ++i)
 	{
 		ccHObject* child = m_children[i];
-		if (child && child->isA(CC_TYPES::GBL_SENSOR))
+		if (child && child->isKindOf(CC_TYPES::SENSOR))
 		{
 			return true;
 		}
@@ -5742,7 +5779,7 @@ ccMesh* ccPointCloud::triangulateGrid(const Grid& grid, double minTriangleAngle_
 	if (!mesh->reserve(grid.h * grid.w * 2))
 	{
 		ccLog::Warning("[ccPointCloud::triangulateGrid] Not enough memory");
-		return 0;
+		return nullptr;
 	}
 
 	PointCoordinateType minAngleCos = static_cast<PointCoordinateType>(cos(minTriangleAngle_deg * CC_DEG_TO_RAD));
@@ -5863,7 +5900,7 @@ ccMesh* ccPointCloud::triangulateGrid(const Grid& grid, double minTriangleAngle_
 	if (mesh->size() == 0)
 	{
 		delete mesh;
-		mesh = 0;
+		mesh = nullptr;
 	}
 	else
 	{

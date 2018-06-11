@@ -52,7 +52,7 @@ public:
 	}
 	
 	//! Destructor
-	virtual ~ccStdPluginInterface() {}
+	virtual ~ccStdPluginInterface() = default;
 
 	//inherited from ccPluginInterface
 	virtual CC_PLUGIN_TYPE getType() const override { return CC_STD_PLUGIN; }
@@ -67,8 +67,8 @@ public:
 	**/
 	virtual ccMainAppInterface * getMainAppInterface() { return m_app; }
 
-	//! Returns action(s)
-	virtual void getActions(QActionGroup& group) = 0;
+	//! Get a list of actions for this plugin
+	virtual QList<QAction *> getActions() = 0;
 
 	//! This method is called by the main application whenever the entity selection changes
 	/** Does nothing by default. Should be re-implemented by the plugin if necessary.
@@ -90,6 +90,8 @@ protected:
 	//! Main application interface
 	ccMainAppInterface* m_app;
 };
+
+Q_DECLARE_METATYPE(const ccStdPluginInterface *);
 
 Q_DECLARE_INTERFACE(ccStdPluginInterface,"edf.rd.CloudCompare.ccStdPluginInterface/1.4")
 

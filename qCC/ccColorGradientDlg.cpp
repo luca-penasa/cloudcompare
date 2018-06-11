@@ -27,9 +27,9 @@
 #include <assert.h>
 
 //persistent parameters
-QColor s_firstColor(Qt::black);
-QColor s_secondColor(Qt::white);
-ccColorGradientDlg::GradientType s_lastType(ccColorGradientDlg::Default);
+static QColor s_firstColor(Qt::black);
+static QColor s_secondColor(Qt::white);
+static ccColorGradientDlg::GradientType s_lastType(ccColorGradientDlg::Default);
 static double s_lastFreq = 5.0;
 
 ccColorGradientDlg::ccColorGradientDlg(QWidget* parent)
@@ -38,8 +38,8 @@ ccColorGradientDlg::ccColorGradientDlg(QWidget* parent)
 {
 	setupUi(this);
 
-	connect(firstColorButton, SIGNAL(clicked()), this, SLOT(changeFirstColor()));
-	connect(secondColorButton, SIGNAL(clicked()), this, SLOT(changeSecondColor()));
+	connect(firstColorButton, &QAbstractButton::clicked, this, &ccColorGradientDlg::changeFirstColor);
+	connect(secondColorButton, &QAbstractButton::clicked, this, &ccColorGradientDlg::changeSecondColor);
 
 	//restore previous parameters
 	ccQtHelpers::SetButtonColor(secondColorButton, s_secondColor);

@@ -25,7 +25,7 @@ using namespace CCLib;
 
 SimpleMesh::SimpleMesh(GenericIndexedCloud* _theVertices, bool linkVerticesWithMesh)
 	: GenericIndexedMesh()
-	, m_triIndexes(0)
+	, m_triIndexes(nullptr)
 	, globalIterator(0)
 	, theVertices(_theVertices)
 	, verticesLinked(linkVerticesWithMesh)
@@ -86,7 +86,7 @@ GenericTriangle* SimpleMesh::_getTriangle(unsigned triangleIndex)
 	return &dummyTriangle; //temporary!
 }
 
-void SimpleMesh::getTriangleVertices(unsigned triangleIndex, CCVector3& A, CCVector3& B, CCVector3& C)
+void SimpleMesh::getTriangleVertices(unsigned triangleIndex, CCVector3& A, CCVector3& B, CCVector3& C) const
 {
 	assert(triangleIndex<m_triIndexes->currentSize());
 

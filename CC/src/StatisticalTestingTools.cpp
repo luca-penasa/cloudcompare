@@ -19,12 +19,12 @@
 #include "StatisticalTestingTools.h"
 
 //local
-#include "ReferenceCloud.h"
+#include "Chi2Helper.h"
 #include "DgmOctreeReferenceCloud.h"
 #include "GenericProgressCallback.h"
-#include "Chi2Helper.h"
-#include "ScalarField.h"
 #include "NormalDistribution.h"
+#include "ReferenceCloud.h"
+#include "ScalarField.h"
 
 //system
 #include <list>
@@ -164,7 +164,7 @@ double StatisticalTestingTools::computeAdaptativeChi2Dist(	const GenericDistribu
 		{
 			try
 			{
-				classes.push_back(Chi2Class(1.0e-6,static_cast<int>(histoBefore)));
+				classes.emplace_back(1.0e-6,static_cast<int>(histoBefore));
 			}
 			catch (const std::bad_alloc&)
 			{
@@ -200,7 +200,7 @@ double StatisticalTestingTools::computeAdaptativeChi2Dist(	const GenericDistribu
 		{
 			try
 			{
-				classes.push_back(Chi2Class(1.0e-6,static_cast<int>(histoAfter)));
+				classes.emplace_back(1.0e-6,static_cast<int>(histoAfter));
 			}
 			catch (const std::bad_alloc&)
 			{
@@ -332,8 +332,8 @@ double StatisticalTestingTools::testCloudWithStatisticalModel(const GenericDistr
 		return -3.0;
 	}
 
-	ScalarType* histoMin = 0, customHistoMin = 0;
-	ScalarType* histoMax = 0, customHistoMax = 0;
+	ScalarType* histoMin = nullptr, customHistoMin = 0;
+	ScalarType* histoMax = nullptr, customHistoMax = 0;
 	if (strcmp(distrib->getName(),"Gauss")==0)
 	{
 		const NormalDistribution* nDist = static_cast<const NormalDistribution*>(distrib);
@@ -379,7 +379,7 @@ double StatisticalTestingTools::testCloudWithStatisticalModel(const GenericDistr
 	}
 
 	delete[] histoValues;
-	histoValues=0;
+	histoValues = nullptr;
 
 	if (!inputOctree)
         delete theOctree;

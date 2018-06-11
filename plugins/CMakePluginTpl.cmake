@@ -15,9 +15,12 @@ include_directories( ${EXTERNAL_LIBS_INCLUDE_DIR} )
 
 file( GLOB header_list *.h)
 file( GLOB source_list *.cpp)
-# force the link with ccStdPluginInterface.cpp
+
+# force link with interface implementations
 list( APPEND source_list ${CloudComparePlugins_SOURCE_DIR}/ccDefaultPluginInterface.cpp )
 list( APPEND source_list ${CloudComparePlugins_SOURCE_DIR}/ccStdPluginInterface.cpp )
+
+file( GLOB json_list *.json)
 file( GLOB ui_list *.ui )
 file( GLOB qrc_list *.qrc )
 file( GLOB rc_list *.rc )
@@ -38,7 +41,7 @@ endif()
 qt5_wrap_ui( generated_ui_list ${ui_list} )
 qt5_add_resources( generated_qrc_list ${qrc_list} )
 
-add_library( ${PROJECT_NAME} SHARED ${header_list} ${source_list} ${moc_list} ${generated_ui_list} ${generated_qrc_list})
+add_library( ${PROJECT_NAME} SHARED ${header_list} ${source_list} ${moc_list} ${generated_ui_list} ${generated_qrc_list} ${json_list} )
 
 # Add custom default preprocessor definitions
 if (OPTION_GL_QUAD_BUFFER_SUPPORT)
@@ -49,14 +52,16 @@ if( WIN32 )
 endif()
 
 # Plugins need the QT_NO_DEBUG preprocessor in release!
-if( NOT CMAKE_CONFIGURATION_TYPES )
-    set_property( TARGET ${PROJECT_NAME} APPEND PROPERTY COMPILE_DEFINITIONS QT_NO_DEBUG )
-else()
-	#Anytime we use COMPILE_DEFINITIONS_XXX we must define this policy!
-	#(and setting it outside of the function/file doesn't seem to work...)
-	cmake_policy(SET CMP0043 OLD)
-
-    set_property( TARGET ${PROJECT_NAME} APPEND PROPERTY COMPILE_DEFINITIONS_RELEASE QT_NO_DEBUG)
+if( WIN32 )
+	if( NOT CMAKE_CONFIGURATION_TYPES )
+		set_property( TARGET ${PROJECT_NAME} APPEND PROPERTY COMPILE_DEFINITIONS QT_NO_DEBUG )
+	else()
+		#Anytime we use COMPILE_DEFINITIONS_XXX we must define this policy!
+		#(and setting it outside of the function/file doesn't seem to work...)
+		cmake_policy(SET CMP0043 OLD)
+	
+		set_property( TARGET ${PROJECT_NAME} APPEND PROPERTY COMPILE_DEFINITIONS_RELEASE QT_NO_DEBUG)
+	endif()
 endif()
 
 target_link_libraries( ${PROJECT_NAME} CC_FBO_LIB )
@@ -66,11 +71,11 @@ target_link_libraries( ${PROJECT_NAME} QCC_IO_LIB )
 target_link_libraries( ${PROJECT_NAME} QCC_GL_LIB )
 
 # Qt
-qt5_use_modules(${PROJECT_NAME} Core Gui Widgets OpenGL Concurrent)
+target_link_libraries(${PROJECT_NAME} Qt5::Core Qt5::Gui Qt5::Widgets Qt5::OpenGL Qt5::Concurrent)
 
 if( APPLE )
     # put all the plugins we build into one directory
-    set( PLUGINS_OUTPUT_DIR "${CMAKE_CURRENT_BINARY_DIR}/../../ccPlugins" )
+    set( PLUGINS_OUTPUT_DIR "${CMAKE_BINARY_DIR}/ccPlugins" )
 
     file( MAKE_DIRECTORY "${PLUGINS_OUTPUT_DIR}" )
 
@@ -82,7 +87,7 @@ if( APPLE )
     install( TARGETS ${PROJECT_NAME} LIBRARY DESTINATION ${CLOUDCOMPARE_MAC_PLUGIN_DIR} COMPONENT Runtime )
     set( CLOUDCOMPARE_PLUGINS ${CLOUDCOMPARE_PLUGINS} ${CLOUDCOMPARE_MAC_PLUGIN_DIR}/lib${PROJECT_NAME}${CMAKE_SHARED_LIBRARY_SUFFIX} CACHE INTERNAL "CloudCompare plugin list")
   elseif( UNIX )
-    install_shared( ${PROJECT_NAME} lib/cloudcompare/plugins 0 )
+    install_shared( ${PROJECT_NAME} ${CMAKE_INSTALL_LIBDIR}/cloudcompare/plugins 0 )
   else()
     install_shared( ${PROJECT_NAME} ${CLOUDCOMPARE_DEST_FOLDER} 1 /plugins )
 endif()
@@ -94,7 +99,7 @@ if( ${OPTION_BUILD_CCVIEWER} )
             install( TARGETS ${PROJECT_NAME} LIBRARY DESTINATION ${CCVIEWER_MAC_PLUGIN_DIR} COMPONENT Runtime )
             set( CCVIEWER_PLUGINS ${CCVIEWER_PLUGINS} ${CCVIEWER_MAC_PLUGIN_DIR}/lib${PROJECT_NAME}${CMAKE_SHARED_LIBRARY_SUFFIX} CACHE INTERNAL "ccViewer plugin list")
         elseif( UNIX )
-          install_shared( ${PROJECT_NAME} lib/cloudcompare/plugins 0 )
+          install_shared( ${PROJECT_NAME} ${CMAKE_INSTALL_LIBDIR}/cloudcompare/plugins 0 )
         else()
           install_shared( ${PROJECT_NAME} ${CCVIEWER_DEST_FOLDER} 1 /plugins )
         endif()

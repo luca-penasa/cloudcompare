@@ -549,11 +549,14 @@ struct CommandOctreeNormal : public ccCommandLineInterface::Command
 			}
 			
 			cloud->setName(cloud->getName() + QObject::tr(".OctreeNormal"));
-			CLCloudDesc cloudDesc(cloud, thisCloudDesc.basename, thisCloudDesc.path, thisCloudDesc.indexInFile);
-			QString errorStr = cmd.exportEntity(cloudDesc, "OCTREE_NORMALS");
-			if (!errorStr.isEmpty())
+			if (cmd.autoSaveMode())
 			{
-				return cmd.error(errorStr);
+				CLCloudDesc cloudDesc(cloud, thisCloudDesc.basename, thisCloudDesc.path, thisCloudDesc.indexInFile);
+				QString errorStr = cmd.exportEntity(cloudDesc, "OCTREE_NORMALS");
+				if (!errorStr.isEmpty())
+				{
+					return cmd.error(errorStr);
+				}
 			}
 		}
 
@@ -2219,7 +2222,7 @@ struct CommandExtractVertices : public ccCommandLineInterface::Command
 			}
 
 			//add the resulting cloud to the main set
-			cmd.clouds().push_back(CLCloudDesc(pc, cmd.meshes()[i].basename + QObject::tr(".vertices"), cmd.meshes()[i].path));
+			cmd.clouds().emplace_back(pc, cmd.meshes()[i].basename + QObject::tr(".vertices"), cmd.meshes()[i].path);
 
 			//save it as well
 			if (cmd.autoSaveMode())
@@ -2288,7 +2291,7 @@ struct CommandSampleMesh : public ccCommandLineInterface::Command
 
 			//add the resulting cloud to the main set
 			cmd.print(QObject::tr("Sampled cloud created: %1 points").arg(cloud->size()));
-			cmd.clouds().push_back(CLCloudDesc(cloud, cmd.meshes()[i].basename + QObject::tr("_SAMPLED_POINTS"), cmd.meshes()[i].path));
+			cmd.clouds().emplace_back(cloud, cmd.meshes()[i].basename + QObject::tr("_SAMPLED_POINTS"), cmd.meshes()[i].path);
 
 			//save it as well
 			if (cmd.autoSaveMode())

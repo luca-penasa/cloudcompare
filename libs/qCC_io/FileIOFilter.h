@@ -66,10 +66,11 @@ public: //initialization
 		LoadParameters()
 			: shiftHandlingMode(ccGlobalShiftManager::DIALOG_IF_NECESSARY)
 			, alwaysDisplayLoadDialog(true)
-			, coordinatesShiftEnabled(0)
-			, coordinatesShift(0)
+			, coordinatesShiftEnabled(nullptr)
+			, coordinatesShift(nullptr)
+			, preserveShiftOnSave(true)
 			, autoComputeNormals(false)
-			, parentWidget(0)
+			, parentWidget(nullptr)
 			, sessionStart(true)
 		{}
 
@@ -81,6 +82,8 @@ public: //initialization
 		bool* coordinatesShiftEnabled;
 		//! If applicable, applied shift on load (optional)
 		CCVector3d* coordinatesShift;
+		//! If applicable, whether shift should be preserved or not (optional)
+		bool preserveShiftOnSave;
 		//! Whether normals should be computed at loading time (if possible - e.g. for gridded clouds) or not
 		bool autoComputeNormals;
 		//! Parent widget (if any)
@@ -95,7 +98,7 @@ public: //initialization
 		//! Default constructor
 		SaveParameters()
 			: alwaysDisplaySaveDialog(true)
-			, parentWidget(0)
+			, parentWidget(nullptr)
 		{}
 
 		//! Wether to always display a dialog (if any), even if automatic guess is possible
@@ -230,12 +233,14 @@ public: //static methods
 	//! Shortcut to the ccGlobalShiftManager mechanism specific for files
 	/** \param[in] P sample point (typically the first loaded)
 		\param[out] Pshift global shift
+		\param[out] preserveCoordinateShift whether shift sould be preserved on save
 		\param[in] loadParameters loading parameters
 		\param[in] useInputCoordinatesShiftIfPossible whether to use the input 'PShift' vector if possible
 		\return whether global shift has been defined/enabled
 	**/
 	QCC_IO_LIB_API static bool HandleGlobalShift(	const CCVector3d& P,
 													CCVector3d& Pshift,
+													bool& preserveCoordinateShift,
 													LoadParameters& loadParameters,
 													bool useInputCoordinatesShiftIfPossible = false);
 

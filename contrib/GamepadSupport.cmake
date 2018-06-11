@@ -6,7 +6,7 @@ OPTION( OPTION_SUPPORT_GAMEPADS "Build with gamepad support (requires Qt 5.7+)" 
 if( ${OPTION_SUPPORT_GAMEPADS} )
 
 	#TODO: make sure that Qt version is at least 5.7 ;)
-	find_package(Qt5Gamepad)
+	find_package(Qt5Gamepad REQUIRED)
 	
 	include_directories( ${Qt5Gamepad_INCLUDE_DIRS} )
 
@@ -18,7 +18,7 @@ function( target_link_GAMEPADS ) # 1 argument: ARGV0 = project name
 
 	if( ${OPTION_SUPPORT_GAMEPADS} )
 	
-		qt5_use_modules(${PROJECT_NAME} Gamepad)
+		target_link_libraries(${PROJECT_NAME} Qt5::Gamepad)
 		
 		if ( CMAKE_CONFIGURATION_TYPES )
 		
