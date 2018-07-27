@@ -7,7 +7,7 @@ echo "os ${TRAVIS_OS_NAME}, compiler ${COMPILER}"
 sudo add-apt-repository --yes ppa:george-edison55/cmake-3.x
 sudo add-apt-repository --yes ppa:beineri/opt-qt551-trusty
 sudo apt-get update -qq
-sudo apt-get install -qy cmake qt55base libgdal1-dev libfreenect-dev libvxl1-dev
+sudo apt-get install -qy cmake qt55base libgdal1-dev libfreenect-dev libvxl1-dev 
     # CC submodules
 git submodule init && git submodule update
 
@@ -24,7 +24,7 @@ fi
 
 
 if [ $TRAVIS_BRANCH = 'to_vombat' ]; then # we need eigen, and boost
-    sudo apt-get install -y libeigen3-dev libboost-regex-dev libboost-filesystem-dev libboost-system-dev
+    sudo apt-get install -y libeigen3-dev libboost-regex-dev libboost-filesystem-dev libboost-system-dev libqt5svg5-dev
 fi
 
 
