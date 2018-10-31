@@ -665,6 +665,7 @@ CC_FILE_ERROR ObjFilter::loadFile(const QString& filename, ccHObject& container,
 				//read the face elements (singleton, pair or triplet)
 				std::vector<facetElement> currentFace;
 				{
+					currentFace.reserve(tokens.size() - 1);
 					for (int i = 1; i < tokens.size(); ++i)
 					{
 						QStringList vertexTokens = tokens[i].split('/');
@@ -738,10 +739,8 @@ CC_FILE_ERROR ObjFilter::loadFile(const QString& filename, ccHObject& container,
 				}
 
 				//we process all vertices accordingly
-				for (std::vector<facetElement>::iterator it = currentFace.begin(); it != currentFace.end(); ++it)
+				for (facetElement& vertex : currentFace)
 				{
-					facetElement& vertex = *it;
-
 					//vertex index
 					{
 						if (!vertex.updatePointIndex(pointsRead))
@@ -810,7 +809,7 @@ CC_FILE_ERROR ObjFilter::loadFile(const QString& filename, ccHObject& container,
 					//need more space?
 					if (baseMesh->size() == baseMesh->capacity())
 					{
-						if (!baseMesh->reserve(baseMesh->size()+128))
+						if (!baseMesh->reserve(baseMesh->size() + 4096))
 						{
 							objWarnings[NOT_ENOUGH_MEMORY] = true;
 							error = true;
@@ -919,6 +918,15 @@ CC_FILE_ERROR ObjFilter::loadFile(const QString& filename, ccHObject& container,
 					//DGM: in case there's space characters in the filename, we must read it again from the original line buffer
 					//QString mtlFilename = tokens[1];
 					QString mtlFilename = currentLine.mid(7).trimmed();
+					//remove any quotes around the filename (Photoscan 1.4 bug)
+					if (mtlFilename.startsWith("\""))
+					{
+						mtlFilename = mtlFilename.right(mtlFilename.size() - 1);
+					}
+					if (mtlFilename.endsWith("\""))
+					{
+						mtlFilename = mtlFilename.left(mtlFilename.size() - 1);
+					}
 					ccLog::Print(QString("[OBJ] Material file: ") + mtlFilename);
 					QString mtlPath = QFileInfo(filename).canonicalPath();
 					//we try to load it

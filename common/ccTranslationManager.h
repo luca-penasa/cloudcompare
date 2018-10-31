@@ -1,5 +1,5 @@
-#ifndef CCPLUGINMANAGER_H
-#define CCPLUGINMANAGER_H
+#ifndef CCTRANSLATIONMANAGER_H
+#define CCTRANSLATIONMANAGER_H
 
 //##########################################################################
 //#                                                                        #
@@ -18,33 +18,30 @@
 //#                                                                        #
 //##########################################################################
 
-#include <QObject>
+#include <QMenu>
+#include <QPair>
 #include <QVector>
 
-class ccPluginInterface;
 
-//! Simply a list of \see ccPluginInterface
-typedef QVector<ccPluginInterface *> ccPluginInterfaceList;
-
-
-class ccPluginManager : public QObject
+class ccTranslationManager : public QObject
 {
 	Q_OBJECT
 	
 public:
-	explicit ccPluginManager( QObject *parent = nullptr );
-	~ccPluginManager();
+	ccTranslationManager( QObject *parent );
+	~ccTranslationManager() override = default;
 	
-	static void loadPlugins();
-
-	static QStringList pluginPaths();
+	void populateMenu( QMenu *menu );
 	
-	static ccPluginInterfaceList &pluginList();
+	static const QString languagePref();
 	
-private:	
-	static void loadFromPathsAndAddToList();	
+private:
+	using TranslationInfo = QPair<QString, QString>;
+	using LanguageList = QVector<TranslationInfo>;
 	
-	static ccPluginInterfaceList m_pluginList;
+	LanguageList availableLanguages( const QString &appName );
+	
+	void setLanguagePref( const QString &languageCode );
 };
 
-#endif
+#endif //CCTRANSLATIONMANAGER_H
